@@ -9,10 +9,16 @@ _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
 
 
+def _normalize(url: str) -> str:
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
+
 def get_engine() -> Engine | None:
     global _engine
     if _engine is None and settings.database_url:
-        _engine = create_engine(settings.database_url)
+        _engine = create_engine(_normalize(settings.database_url))
     return _engine
 
 

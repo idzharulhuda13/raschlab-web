@@ -29,7 +29,11 @@ def get_url() -> str:
             url = settings.database_url
         except Exception:
             url = None
-    return url or "postgresql+psycopg://dummy:dummy@localhost/dummy"
+    if not url:
+        return "postgresql+psycopg://dummy:dummy@localhost/dummy"
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
 
 
 def run_migrations_offline() -> None:
