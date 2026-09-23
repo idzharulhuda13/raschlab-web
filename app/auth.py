@@ -413,6 +413,13 @@ def post_forgot(
     allowed, retry_after = check_limit(
         "forgot:" + client_ip(request) + ":" + norm_email, 3, 3600
     )
+    allowed_ip, retry_after_ip = check_limit("forgot:ip:" + client_ip(request), 10, 3600)
+    if not allowed_ip:
+        return HTMLResponse(
+            "Terlalu banyak percobaan. Coba lagi nanti.",
+            status_code=429,
+            headers={"Retry-After": str(retry_after_ip)},
+        )
     if not allowed:
         return HTMLResponse(
             "Terlalu banyak percobaan. Coba lagi nanti.",
@@ -517,6 +524,13 @@ def post_resend(
     allowed, retry_after = check_limit(
         "resend:" + client_ip(request) + ":" + norm_email, 3, 3600
     )
+    allowed_ip, retry_after_ip = check_limit("resend:ip:" + client_ip(request), 10, 3600)
+    if not allowed_ip:
+        return HTMLResponse(
+            "Terlalu banyak percobaan. Coba lagi nanti.",
+            status_code=429,
+            headers={"Retry-After": str(retry_after_ip)},
+        )
     if not allowed:
         return HTMLResponse(
             "Terlalu banyak percobaan. Coba lagi nanti.",
