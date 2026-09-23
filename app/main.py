@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.db import check_db
+from app.auth import router as auth_router
 
 APP_VERSION = "0.1.0"
 
@@ -27,6 +28,8 @@ TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+app.include_router(auth_router)
 
 
 @app.get("/", response_class=HTMLResponse)
