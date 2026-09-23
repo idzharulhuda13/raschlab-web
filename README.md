@@ -12,6 +12,8 @@ This is the web app for RaschLab, providing dichotomous Rasch item analysis powe
 
 ## Local development
 
+Local runs enable the interactive API docs with APP_ENV=dev; without it the app behaves as production and serves no docs.
+
 ```bash
 uv venv
 uv pip install -r requirements.txt

@@ -18,7 +18,7 @@ class Settings:
             port = int(port_raw)
         except ValueError:
             port = 7860
-        app_env = os.getenv("APP_ENV", "dev")
+        app_env = os.getenv("APP_ENV", "prod")
         gate_val = os.getenv("GATE_OPEN")
         gate_open = gate_val.lower() == "true" if gate_val is not None else False
         app_version = os.getenv("APP_VERSION", "0.1.0")
