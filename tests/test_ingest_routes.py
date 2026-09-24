@@ -1,5 +1,8 @@
+import asyncio
+import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
@@ -225,3 +228,112 @@ def test_oversize_upload_renders_error_and_writes_zero_rows(client: TestClient):
     with SessionLocal() as db:
         count = db.execute(select(func.count(Dataset.id))).scalar()
         assert count == 0
+
+
+def test_read_upload_bounded_stops_reading_after_limit():
+    from app.ingest import CHUNK_SIZE, _read_upload_bounded
+    from app.storage import StorageError
+
+    class FakeUpload:
+        def __init__(self, total_bytes: int):
+            self.total_bytes = total_bytes
+            self.bytes_asked = 0
+            self.bytes_read = 0
+
+        async def read(self, n: int = -1) -> bytes:
+            if self.bytes_read >= self.total_bytes:
+                return b""
+            chunk_len = min(n if n > 0 else self.total_bytes, self.total_bytes - self.bytes_read)
+            self.bytes_asked += n
+            self.bytes_read += chunk_len
+            return b"x" * chunk_len
+
+    async def _run():
+        limit = 2 * 1024 * 1024
+        fake = FakeUpload(total_bytes=10 * 1024 * 1024)
+        with pytest.raises(StorageError) as exc_info:
+            await _read_upload_bounded(fake, max_bytes=limit)
+        assert "Ukuran berkas melebihi batas maksimal" in str(exc_info.value)
+        assert fake.bytes_read <= limit + CHUNK_SIZE
+        assert fake.bytes_asked <= limit + CHUNK_SIZE
+
+    asyncio.run(_run())
+
+
+def test_oversize_con_upload_renders_error_and_writes_zero_rows(client: TestClient):
+    _create_authenticated_user(client)
+    prn_bytes = (FIXTURES_DIR / "sample_winsteps.prn").read_bytes()
+    oversize_bytes = b"0" * (MAX_UPLOAD_BYTES + 1)
+
+    response = client.post(
+        "/datasets",
+        files={
+            "data": ("sample.prn", prn_bytes, "text/plain"),
+            "con": ("oversize.CON", oversize_bytes, "text/plain"),
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    assert "Ukuran berkas melebihi batas maksimal 16 MB." in response.text
+
+    with SessionLocal() as db:
+        count = db.execute(select(func.count(Dataset.id))).scalar()
+        assert count == 0
+
+
+def test_csv_upload_with_all_empty_respondent_stores_missing_person_count(client: TestClient):
+    _create_authenticated_user(client)
+    csv_bytes = b"id,I01,I02,I03\nP0001,1,0,1\nP0002,,,\nP0003,0,1,0\n"
+
+    response = client.post(
+        "/datasets",
+        files={"data": ("empty_resp.csv", csv_bytes, "text/csv")},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    dataset_id = int(response.headers["location"].split("/")[-1])
+
+    with SessionLocal() as db:
+        row = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one()
+        summary = json.loads(row.summary_json)
+        assert summary.get("all_missing_persons_count") == 1
+
+
+def test_winsteps_commit_with_extra_missing_updates_summary(client: TestClient):
+    _create_authenticated_user(client)
+    prn_bytes = (FIXTURES_DIR / "sample_winsteps.prn").read_bytes()
+    con_bytes = (FIXTURES_DIR / "sample_winsteps.CON").read_bytes()
+
+    upload_resp = client.post(
+        "/datasets",
+        files={
+            "data": ("sample_winsteps.prn", prn_bytes, "text/plain"),
+            "con": ("sample_winsteps.CON", con_bytes, "text/plain"),
+        },
+        follow_redirects=False,
+    )
+    dataset_id = int(upload_resp.headers["location"].split("/")[-1])
+
+    with SessionLocal() as db:
+        staged = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one()
+        staged_summary = json.loads(staged.summary_json)
+        assert staged_summary["total_missing"] == 52
+
+    commit_resp = client.post(
+        f"/datasets/{dataset_id}/commit",
+        data={
+            "key": "A" * 20,
+            "codes": "AB",
+            "extra_missing": "A",
+        },
+        follow_redirects=False,
+    )
+    assert commit_resp.status_code == 303
+
+    with SessionLocal() as db:
+        committed = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one()
+        assert committed.status == "ready"
+        summary = json.loads(committed.summary_json)
+        assert summary["total_missing"] == 52 + 574
+        assert sum(summary["missing_per_item"]) == 52 + 574
+

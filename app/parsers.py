@@ -9,6 +9,7 @@ between preview, commit, and verification tests.
 
 import csv
 import io
+import re
 from typing import Any, Iterable, NamedTuple
 import openpyxl
 
@@ -25,6 +26,7 @@ __all__ = [
     "ParsedDataset",
     "PrnDataset",
     "classify",
+    "count_all_missing_persons",
     "default_mapping",
     "distinct_tokens",
     "missing_per_item",
@@ -43,8 +45,30 @@ DEFAULT_MISSING_TOKENS: frozenset[str] = frozenset({"", "na", "n/a"})
 
 # Column 0 headers that signal an explicit person identifier rather than an item response.
 PERSON_LABEL_HEADERS: frozenset[str] = frozenset(
-    {"id", "nama", "name", "no", "respondent", "person"}
+    {
+        "id",
+        "nama",
+        "name",
+        "no",
+        "respondent",
+        "person",
+        "responden",
+        "responden_id",
+        "nama_responden",
+        "subjek",
+        "subjek_id",
+        "siswa",
+        "peserta",
+        "kode",
+        "kode_responden",
+        "no_responden",
+    }
 )
+
+
+def _normalize_header(header: str) -> str:
+    s = header.strip().rstrip("*").strip().lower()
+    return re.sub(r"[\s\-_]+", "_", s)
 
 
 class ParsedDataset(NamedTuple):
@@ -70,11 +94,32 @@ class PrnDataset(NamedTuple):
         return self.person_labels
 
 
-def _sniff_delimiter(first_line: str) -> str:
+def _sniff_delimiter(sample: str | Iterable[str]) -> str:
     delims = [",", ";", "\t"]
-    counts = {d: first_line.count(d) for d in delims}
-    best = max(delims, key=lambda d: counts[d])
-    return best if counts[best] > 0 else ","
+    if isinstance(sample, str):
+        lines = [line for line in sample.splitlines() if line.strip()]
+    else:
+        lines = [line for line in sample if line.strip()]
+
+    sample_lines = lines[:10]
+    if not sample_lines:
+        return ","
+
+    best_delim = ","
+    best_count = 1
+
+    for d in delims:
+        try:
+            reader = csv.reader(sample_lines, delimiter=d)
+            counts = [len(row) for row in reader]
+        except Exception:
+            continue
+        if counts and all(c == counts[0] for c in counts) and counts[0] > 1:
+            if counts[0] > best_count:
+                best_count = counts[0]
+                best_delim = d
+
+    return best_delim
 
 
 def _format_cell(val: Any) -> str:
@@ -95,11 +140,11 @@ def parse_delimited(raw: bytes) -> ParsedDataset:
         )
 
     lines = raw.decode("utf-8-sig").splitlines()
-    first_line = next((line for line in lines if line.strip()), "")
-    if not first_line:
+    non_empty = [line for line in lines if line.strip()]
+    if not non_empty:
         return ParsedDataset(person_labels=[], item_labels=[], rows=[])
 
-    reader = csv.reader(lines, delimiter=_sniff_delimiter(first_line))
+    reader = csv.reader(lines, delimiter=_sniff_delimiter(non_empty[:10]))
     header: list[str] | None = None
     has_person_col, item_labels = False, []
     person_labels, rows = [], []
@@ -116,7 +161,7 @@ def parse_delimited(raw: bytes) -> ParsedDataset:
             if not header:
                 header = None
                 continue
-            has_person_col = header[0].lower() in PERSON_LABEL_HEADERS
+            has_person_col = _normalize_header(header[0]) in PERSON_LABEL_HEADERS
             item_labels = header[1:] if has_person_col else header
             continue
 
@@ -173,7 +218,7 @@ def parse_xlsx(raw: bytes) -> ParsedDataset:
                 if not header:
                     header = None
                     continue
-                has_person_col = header[0].lower() in PERSON_LABEL_HEADERS
+                has_person_col = _normalize_header(header[0]) in PERSON_LABEL_HEADERS
                 item_labels = header[1:] if has_person_col else header
                 continue
 
@@ -382,8 +427,13 @@ def missing_per_item(
     mapping: dict[str, str] | None = None,
     *,
     codes: str | set[str] | None = None,
+    extra_missing: str = "",
 ) -> list[int]:
-    """Compute per-item missing count vector across respondents."""
+    """Compute per-item missing count vector across respondents.
+
+    If extra_missing is provided, any characters in extra_missing are treated
+    as missing responses, even if they appear in codes.
+    """
     if isinstance(data, (ParsedDataset, PrnDataset)):
         rows = data.rows
     elif isinstance(data, tuple) and len(data) == 2 and isinstance(data[1], list):
@@ -397,9 +447,10 @@ def missing_per_item(
     is_prn = isinstance(rows[0], str)
     n_items = len(rows[0])
     counts = [0] * n_items
+    extra_missing_set = set(extra_missing) if extra_missing else set()
 
     if is_prn:
-        valid_codes = set(codes) if codes is not None else set("ABCDE")
+        valid_codes = (set(codes) if codes is not None else set("ABCDE")) - extra_missing_set
         for row in rows:
             for c in range(n_items):
                 char = row[c] if c < len(row) else " "
@@ -409,13 +460,69 @@ def missing_per_item(
         for row in rows:
             for c in range(n_items):
                 cell = row[c] if c < len(row) else ""
-                if mapping is not None:
-                    token = str(cell).strip()
+                token = str(cell).strip()
+                if extra_missing_set and token in extra_missing_set:
+                    counts[c] += 1
+                elif mapping is not None:
                     cls = mapping.get(token) or mapping.get(token.lower())
                     if cls == "missing":
                         counts[c] += 1
                 else:
-                    if str(cell).strip().lower() in DEFAULT_MISSING_TOKENS:
+                    if token.lower() in DEFAULT_MISSING_TOKENS:
                         counts[c] += 1
 
     return counts
+
+
+def count_all_missing_persons(
+    data: ParsedDataset | PrnDataset | list[list[str]] | list[str] | tuple[list[str], list[str]],
+    mapping: dict[str, str] | None = None,
+    *,
+    codes: str | set[str] | None = None,
+    extra_missing: str = "",
+) -> int:
+    """Count respondents whose item responses are all missing."""
+    if isinstance(data, (ParsedDataset, PrnDataset)):
+        rows = data.rows
+    elif isinstance(data, tuple) and len(data) == 2 and isinstance(data[1], list):
+        rows = data[1]
+    else:
+        rows = data
+
+    if not rows:
+        return 0
+
+    is_prn = isinstance(rows[0], str)
+    extra_missing_set = set(extra_missing) if extra_missing else set()
+    count = 0
+
+    if is_prn:
+        valid_codes = (set(codes) if codes is not None else set("ABCDE")) - extra_missing_set
+        for row in rows:
+            if not row:
+                continue
+            if all(char not in valid_codes for char in row):
+                count += 1
+    else:
+        for row in rows:
+            if not row:
+                continue
+            row_all_missing = True
+            for cell in row:
+                token = str(cell).strip() if cell is not None else ""
+                if extra_missing_set and token in extra_missing_set:
+                    continue
+                if mapping is not None:
+                    cls = mapping.get(token) or mapping.get(token.lower())
+                    if cls != "missing":
+                        row_all_missing = False
+                        break
+                else:
+                    if token.lower() not in DEFAULT_MISSING_TOKENS:
+                        row_all_missing = False
+                        break
+            if row_all_missing:
+                count += 1
+
+    return count
+

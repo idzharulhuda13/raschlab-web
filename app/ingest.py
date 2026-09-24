@@ -47,6 +47,7 @@ from app.auth import _current_user, _gate_closed, templates
 from app.db import get_session
 from app.models import Dataset, User
 from app.parsers import (
+    count_all_missing_persons,
     default_mapping,
     distinct_tokens,
     missing_per_item,
@@ -66,6 +67,29 @@ from app.storage import (
 )
 
 router = APIRouter()
+
+CHUNK_SIZE: int = 1024 * 1024  # 1 MiB
+
+
+async def _read_upload_bounded(
+    upload: UploadFile,
+    max_bytes: int = MAX_UPLOAD_BYTES,
+    error_message: str | None = None,
+) -> bytes:
+    buf = bytearray()
+    while True:
+        chunk = await upload.read(CHUNK_SIZE)
+        if not chunk:
+            break
+        buf.extend(chunk)
+        if len(buf) > max_bytes:
+            msg = (
+                error_message
+                if error_message is not None
+                else f"Ukuran berkas melebihi batas maksimal ({max_bytes} bytes)."
+            )
+            raise StorageError(msg)
+    return bytes(buf)
 
 
 def _format_error(exc: Exception) -> str:
@@ -198,9 +222,11 @@ async def post_datasets(
         if suffix not in (".csv", ".xlsx", ".prn"):
             raise ValueError("Format berkas tidak didukung. Gunakan CSV, XLSX, atau PRN.")
 
-        data_bytes = await data.read()
-        if len(data_bytes) > MAX_UPLOAD_BYTES:
-            raise StorageError(f"Ukuran berkas melebihi batas maksimal ({MAX_UPLOAD_BYTES} bytes).")
+        data_bytes = await _read_upload_bounded(
+            data,
+            max_bytes=MAX_UPLOAD_BYTES,
+            error_message=f"Ukuran berkas melebihi batas maksimal ({MAX_UPLOAD_BYTES} bytes).",
+        )
         if not data_bytes:
             raise ValueError("Berkas yang diunggah kosong.")
 
@@ -216,6 +242,7 @@ async def post_datasets(
             tokens_dict = distinct_tokens(parsed)
             mapping = default_mapping(tokens_dict.keys())
             missing_counts = missing_per_item(parsed, mapping=mapping)
+            all_missing_persons = count_all_missing_persons(parsed, mapping=mapping)
             preview_rows = [row[:12] for row in parsed.rows[:10]]
             preview_persons = parsed.person_labels[:10]
             summary_control = None
@@ -224,9 +251,11 @@ async def post_datasets(
             fmt = "prn"
             if con is None or not (con.filename or "").strip():
                 raise ValueError("Berkas kontrol Winsteps (.CON) wajib disertakan untuk format PRN.")
-            con_bytes = await con.read()
-            if len(con_bytes) > MAX_UPLOAD_BYTES:
-                raise StorageError("Ukuran berkas kontrol melebihi batas maksimal.")
+            con_bytes = await _read_upload_bounded(
+                con,
+                max_bytes=MAX_UPLOAD_BYTES,
+                error_message="Ukuran berkas kontrol melebihi batas maksimal.",
+            )
             if not con_bytes:
                 raise ValueError("Berkas kontrol Winsteps (.CON) kosong.")
             control = parse_control(con_bytes)
@@ -242,6 +271,7 @@ async def post_datasets(
                 "codes": str(control.get("CODES", "ABCDE")),
             }
             missing_counts = missing_per_item(parsed, codes=control.get("CODES"))
+            all_missing_persons = count_all_missing_persons(parsed, codes=control.get("CODES"))
             preview_rows = [list(row[:12]) for row in parsed.rows[:10]]
             preview_persons = parsed.person_labels[:10]
             summary_control = control
@@ -253,6 +283,7 @@ async def post_datasets(
             "distinct_tokens": tokens_dict,
             "missing_per_item": missing_counts,
             "total_missing": sum(missing_counts),
+            "all_missing_persons_count": all_missing_persons,
             "preview_rows": preview_rows,
             "preview_person_labels": preview_persons,
         }
@@ -372,6 +403,9 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
         missing_counts = missing_per_item(parsed, mapping=submitted_mapping)
         summary["missing_per_item"] = missing_counts
         summary["total_missing"] = sum(missing_counts)
+        summary["all_missing_persons_count"] = count_all_missing_persons(
+            parsed, mapping=submitted_mapping
+        )
 
         dataset.mapping_json = json.dumps(submitted_mapping)
         dataset.summary_json = json.dumps(summary)
@@ -406,9 +440,12 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
         raw_bytes = decompress(dataset.raw_gzip)
         parsed = parse_prn(raw_bytes, control)
 
-        missing_counts = missing_per_item(parsed, codes=codes)
+        missing_counts = missing_per_item(parsed, codes=codes, extra_missing=extra_missing)
         summary["missing_per_item"] = missing_counts
         summary["total_missing"] = sum(missing_counts)
+        summary["all_missing_persons_count"] = count_all_missing_persons(
+            parsed, codes=codes, extra_missing=extra_missing
+        )
         summary["control"] = control
 
         final_mapping = {"key": key, "codes": codes}

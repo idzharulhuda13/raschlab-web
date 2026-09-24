@@ -12,6 +12,8 @@ import pandas as pd
 import pytest
 
 from app.parsers import (
+    count_all_missing_persons,
+    distinct_tokens,
     missing_per_item,
     parse_control,
     parse_delimited,
@@ -180,3 +182,68 @@ def test_control_parser_parity_with_engine():
     finally:
         if engine_dir in sys.path:
             sys.path.remove(engine_dir)
+
+
+def test_prn_extra_missing_increases_total_missing():
+    con_path = FIXTURES_DIR / "sample_winsteps.CON"
+    prn_path = FIXTURES_DIR / "sample_winsteps.prn"
+
+    ctrl = parse_control(con_path.read_bytes())
+    parsed = parse_prn(prn_path.read_bytes(), ctrl)
+
+    missing_default = missing_per_item(parsed, codes=ctrl.get("CODES"))
+    missing_empty_extra = missing_per_item(parsed, codes=ctrl.get("CODES"), extra_missing="")
+    assert sum(missing_default) == sum(missing_empty_extra)
+    assert sum(missing_default) == 52
+
+    missing_with_a = missing_per_item(parsed, codes=ctrl.get("CODES"), extra_missing="A")
+    total_a = sum(row.count("A") for row in parsed.rows)
+    assert total_a == 574
+    assert sum(missing_with_a) == 52 + 574
+    assert sum(missing_with_a) - sum(missing_default) == 574
+
+
+def test_delimiter_sniffing_quoted_delimiters():
+    raw_quoted_semicolons = (
+        b'"Nama;Kelas;Sekolah;Kota;Provinsi;Negara",I01,I02,I03\n'
+        b'"Budi;1;SMA;JKT;DKI;ID",1,0,1\n'
+        b'"Siti;2;SMP;BDG;JBR;ID",0,1,1\n'
+    )
+    parsed = parse_delimited(raw_quoted_semicolons)
+    assert parsed.item_labels == ["Nama;Kelas;Sekolah;Kota;Provinsi;Negara", "I01", "I02", "I03"]
+    assert len(parsed.rows[0]) == 4
+
+    raw_quoted_commas = (
+        b'id,I01,I02,I03\n'
+        b'"Budi, Jr.",1,0,1\n'
+        b'"Siti, PhD",0,1,1\n'
+    )
+    parsed_comma = parse_delimited(raw_quoted_commas)
+    assert parsed_comma.person_labels == ["Budi, Jr.", "Siti, PhD"]
+    assert parsed_comma.item_labels == ["I01", "I02", "I03"]
+    assert parsed_comma.rows == [["1", "0", "1"], ["0", "1", "1"]]
+
+
+def test_count_all_missing_persons():
+    raw_csv = (
+        b"id,I01,I02,I03\n"
+        b"P0001,1,0,1\n"
+        b"P0002,,,\n"
+        b"P0003,0,1,0\n"
+    )
+    parsed = parse_delimited(raw_csv)
+    mapping = {"": "missing", "0": "incorrect", "1": "correct"}
+    assert count_all_missing_persons(parsed, mapping=mapping) == 1
+
+
+def test_indonesian_person_label_headers_and_normalization():
+    for header_name in ["Responden", "responden*", "responden_id"]:
+        csv_text = f"{header_name},I01,I02,I03\nP0001,1,0,1\nP0002,0,1,1\nP0003,1,1,0\n"
+        parsed = parse_delimited(csv_text.encode("utf-8"))
+        assert parsed.item_labels == ["I01", "I02", "I03"]
+        assert parsed.person_labels == ["P0001", "P0002", "P0003"]
+        tokens = distinct_tokens(parsed)
+        for pid in ["P0001", "P0002", "P0003"]:
+            assert pid not in tokens
+        assert set(tokens.keys()) == {"0", "1"}
+
