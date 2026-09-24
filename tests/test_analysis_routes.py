@@ -105,7 +105,7 @@ def test_analyze_flow_and_result_page_contract(client: TestClient):
     html = get_resp.text
 
     assert "Tabel Butir (15.1)" in html
-    assert "Urutan tabel responden: misfit (outfit MNSQ menurun)" in html
+    assert "misfit (outfit MNSQ menurun)" in html
     assert "Urutan Responden:" in html
     assert '<td class="num-col mono">-0,02</td>' in html
 

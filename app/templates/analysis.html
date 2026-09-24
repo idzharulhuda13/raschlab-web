@@ -28,7 +28,7 @@
     </div>
     <div class="def-row">
       <span class="def-label">Urutan Responden: </span>
-      <span class="def-value mono">Urutan tabel responden: misfit (outfit MNSQ menurun)</span>
+      <span class="def-value mono">misfit (outfit MNSQ menurun)</span>
     </div>
     <div class="def-row">
       <span class="def-label">Mode: </span>
@@ -96,7 +96,7 @@
   <h2>Tabel Butir (15.1)</h2>
   <div class="table-scroll">
     <table class="data-table">
-      <caption class="table-caption">Tabel Butir (15.1)</caption>
+      <caption class="table-caption">Memuat estimasi measure, S.E., dan statistik kecocokan untuk {{ item_paged.total_rows | id_num }} butir sesuai urutan bawaan mesin.</caption>
       <thead>
         {% if item_headers | length >= 2 %}
         <tr>
@@ -153,7 +153,7 @@
   <h2>Tabel Opsi dan Distraktor (15.3)</h2>
   <div class="table-scroll">
     <table class="data-table">
-      <caption class="table-caption">Tabel Opsi dan Distraktor (15.3)</caption>
+      <caption class="table-caption">Memuat frekuensi pemilihan setiap opsi respon per butir sesuai urutan bawaan mesin.</caption>
       <thead>
         {% if option_headers | length >= 2 %}
         <tr>
@@ -210,7 +210,7 @@
   <h2>Tabel Responden</h2>
   <div class="table-scroll">
     <table class="data-table">
-      <caption class="table-caption">Tabel Responden</caption>
+      <caption class="table-caption">Memuat estimasi ability measure, S.E., dan statistik kecocokan untuk {{ person_paged.total_rows | id_num }} responden sesuai urutan misfit.</caption>
       <thead>
         {% if person_headers | length >= 2 %}
         <tr>
@@ -269,7 +269,7 @@
   {% set sum_data = summary_rows[2:] if (summary_rows | length >= 2 and summary_rows[1] == ['', '', '']) else (summary_rows[1:] if summary_rows | length >= 1 else []) %}
   <div class="table-scroll">
     <table class="data-table">
-      <caption class="table-caption">Tabel Ringkasan</caption>
+      <caption class="table-caption">Memuat statistik agregat dari mesin untuk keseluruhan proses analisis.</caption>
       <thead>
         {% if sum_headers | length >= 2 %}
         <tr>
