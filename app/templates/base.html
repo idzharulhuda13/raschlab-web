@@ -38,10 +38,7 @@
       {% if acct %}
       <details class="acct-menu">
         <summary class="acct-summary">
-          {% set _local = acct.split('@')[0] %}
-          {% set _parts = _local.replace('-', '.').replace('_', '.').split('.') %}
-          {% set acct_initials = ((_parts[0][:1] + (_parts[1][:1] if _parts | length > 1 and _parts[1] else (_parts[0][1:2] if _parts[0] | length > 1 else ''))) | upper) %}
-          <span class="acct-avatar">{{ acct_initials }}</span>
+          <span class="acct-avatar">{{ initials_for(acct) }}</span>
           <span class="acct-name">{{ acct }}</span>
         </summary>
         <div class="acct-panel">

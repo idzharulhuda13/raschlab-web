@@ -15,6 +15,7 @@ from app.emailer import EmailSendError, send_email
 from app.models import Analysis, Dataset, EmailToken, SessionRow, User
 from app.storage import MAX_CELLS, MAX_UPLOAD_BYTES
 from app.ratelimit import check_limit, client_ip
+from app.ui import initials_for
 from app.security import (
     hash_password,
     hash_token,
@@ -34,6 +35,7 @@ VERIFY_TTL_S = 86400
 RESET_TTL_S = 3600
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
+templates.env.globals["initials_for"] = initials_for
 
 
 def _gate_closed() -> bool:
@@ -186,7 +188,8 @@ def post_register(
             status_code=429,
             headers={"Retry-After": str(retry_after)},
         )
-    if "@" not in email or "." not in email.split("@", 1)[1]:
+    local_part, _, domain_part = email.partition("@")
+    if not local_part.strip() or not domain_part or "." not in domain_part:
         return templates.TemplateResponse(
             request=request,
             name="register.html",
@@ -387,6 +390,7 @@ def get_account(request: Request, db: Session = Depends(get_session)):
         select(Analysis.id, Analysis.status, Analysis.created_at, Dataset.filename)
         .join(Dataset, Analysis.dataset_id == Dataset.id)
         .where(Analysis.user_id == user.id)
+        .where(Dataset.user_id == user.id)
         .order_by(Analysis.created_at.desc(), Analysis.id.desc())
         .limit(1)
     ).first()

@@ -11,6 +11,7 @@ from app.db import check_db
 from app.auth import router as auth_router
 from app.ingest import router as ingest_router
 from app.analyze import router as analyze_router
+from app.ui import initials_for
 
 APP_VERSION = "0.1.0"
 
@@ -41,6 +42,7 @@ TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+templates.env.globals["initials_for"] = initials_for
 
 app.include_router(auth_router)
 app.include_router(ingest_router)

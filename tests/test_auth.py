@@ -1,4 +1,5 @@
 import re
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -85,6 +86,43 @@ def test_register_rejects_invalid_email(client):
     with SessionLocal() as db:
         users = db.execute(select(User)).scalars().all()
         assert len(users) == 0
+
+
+@pytest.mark.parametrize("bad_email", ["@example.com", "   @x.id"])
+def test_register_rejects_empty_local_part(client, sent_emails, bad_email):
+    response = client.post(
+        "/register",
+        data={"email": bad_email, "password": PASSWORD},
+        follow_redirects=False,
+    )
+
+    # An address with no local part is rejected in place: 200 with the form
+    # re-rendered, never a 303 to a success location.
+    assert response.status_code == 200
+    assert "Email tidak valid." in response.text
+    assert "location" not in response.headers
+
+    with SessionLocal() as db:
+        users = db.execute(select(User)).scalars().all()
+        assert len(users) == 0
+
+    assert len(sent_emails) == 0
+
+    # A normal address still behaves as before.
+    good = client.post(
+        "/register",
+        data={"email": "biasa@example.test", "password": PASSWORD},
+        follow_redirects=False,
+    )
+    assert good.status_code == 303
+    assert good.headers["location"].startswith("/register?msg=")
+    assert "sent" in good.headers["location"]
+
+    with SessionLocal() as db:
+        user = db.execute(select(User).where(User.email == "biasa@example.test")).scalar_one()
+        assert user.verified_at is None
+
+    assert len(sent_emails) == 1
 
 
 def test_register_duplicate_verified_email(client):

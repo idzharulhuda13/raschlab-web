@@ -18,6 +18,7 @@ from app.db import SessionLocal
 from app.models import Analysis, Dataset, SessionRow, User
 from app.security import hash_password, hash_token, new_token, now_epoch
 from app.storage import MAX_CELLS, MAX_UPLOAD_BYTES
+from app.ui import initials_for
 
 
 def _create_authenticated_user(client: TestClient, email: str = "contract_tester@example.test") -> int:
@@ -361,6 +362,74 @@ def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_uj
     return dataset_id, analysis_id
 
 
+def _create_dataset_with_analysis(
+    user_id: int, filename: str, status: str, created_at: int | None = None
+) -> tuple[int, int]:
+    """Insert one Dataset and one Analysis row with the given status."""
+    when = now_epoch() if created_at is None else created_at
+    with SessionLocal() as db:
+        dataset = Dataset(
+            user_id=user_id,
+            filename=filename,
+            kind="dikotomus",
+            format="wide",
+            status="committed",
+            n_persons=300,
+            n_items=40,
+            item_labels_json=json.dumps([f"I{i}" for i in range(40)]),
+            mapping_json=json.dumps({"correct": ["1"], "incorrect": ["0"]}),
+            summary_json=json.dumps({"n_persons": 300, "n_items": 40}),
+            raw_gzip=b"prn,item\n",
+            raw_bytes=10,
+            created_at=when,
+            committed_at=when,
+        )
+        db.add(dataset)
+        db.commit()
+        dataset_id = dataset.id
+
+        analysis = Analysis(
+            user_id=user_id,
+            dataset_id=dataset_id,
+            status=status,
+            params_json=json.dumps({"mode": "compat"}),
+            engine_ref="raschlab-engine-test",
+            created_at=when,
+            started_at=when,
+            finished_at=when,
+            expires_at=when + 180 * 86400,
+        )
+        db.add(analysis)
+        db.commit()
+        analysis_id = analysis.id
+
+    return dataset_id, analysis_id
+
+
+def _insert_cross_owner_analysis(user_id: int, dataset_id: int, created_at: int) -> int:
+    """Insert the deliberately corrupt row: user_id and dataset_id disagree.
+
+    The write path cannot produce this (an analysis is always created for the
+    owner of its dataset); it exists only to prove the read path does not trust
+    Analysis.user_id on its own.
+    """
+    with SessionLocal() as db:
+        analysis = Analysis(
+            user_id=user_id,
+            dataset_id=dataset_id,
+            status="queued",
+            params_json=json.dumps({"mode": "compat"}),
+            engine_ref="raschlab-engine-test",
+            created_at=created_at,
+            expires_at=created_at + 180 * 86400,
+        )
+        db.add(analysis)
+        db.commit()
+        analysis_id = analysis.id
+
+    return analysis_id
+
+
 def test_signed_in_login_and_register_redirect_to_datasets(client: TestClient):
     _create_authenticated_user(client, email="sudahmasuk@example.test")
 
@@ -395,11 +464,12 @@ def test_account_empty_state_copy_without_figures(client: TestClient):
     # No counts means no summary figure at all.
     assert "summary-figure" not in html
 
-    # account.html prints the constants-derived limits inline only once
-    # file_count > 0 (see the populated-state test); the empty state links to
-    # /datasets, which carries the same constants-derived limits copy.
+    # account.html prints the constants-derived limits paragraph in both states,
+    # so the empty account page carries it too, not only /datasets.
     mb = f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB"
     cells = f"{MAX_CELLS:,}".replace(",", ".") + " sel"
+    assert f"Maksimal {mb} per berkas dan {cells} per dataset." in html
+
     datasets_resp = client.get("/datasets")
     assert datasets_resp.status_code == 200
     assert mb in datasets_resp.text
@@ -445,3 +515,125 @@ def test_account_avatar_renders_two_initials(client: TestClient):
     # account band avatar must both render IH for idzharul.huda@gmail.com.
     assert '<span class="acct-avatar">IH</span>' in html
     assert 'acct-avatar--lg">IH<' in html
+
+
+@pytest.mark.parametrize(
+    "account, expected",
+    [
+        ("idzharul.huda@gmail.com", "IH"),
+        ("budi_santoso@x.id", "BS"),
+        ("siti-aminah@x.id", "SA"),
+        ("solo@gmail.com", "SO"),
+        ("probe@local.test", "PR"),
+        ("a@b.co", "A"),
+        ("x_y_z@a.b", "XY"),
+        ("@example.com", "E"),
+        (".@x.id", "X"),
+        ("x@y", "X"),
+        (None, ""),
+        ("", ""),
+    ],
+)
+def test_initials_for_verified_cases(account, expected):
+    result = initials_for(account)
+    assert result == expected, f"initials_for({account!r}) returned {result!r}, expected {expected!r}"
+    assert len(result) <= 2, f"initials_for({account!r}) returned more than two characters: {result!r}"
+
+
+def test_initials_for_never_raises_and_never_exceeds_two_characters():
+    adversarial_inputs = [
+        "idzharul.huda@gmail.com",
+        "budi_santoso@x.id",
+        "siti-aminah@x.id",
+        "solo@gmail.com",
+        "probe@local.test",
+        "a@b.co",
+        "x_y_z@a.b",
+        "@example.com",
+        ".@x.id",
+        "x@y",
+        None,
+        "",
+        "   ",
+        "@",
+        ".",
+        "-",
+        "1.2@3.4",
+        "  spaced@x.id  ",
+    ]
+    for account in adversarial_inputs:
+        result: str | None = None
+        try:
+            result = initials_for(account)
+        except Exception as exc:  # pragma: no cover - only on regression
+            pytest.fail(f"initials_for({account!r}) raised {exc!r}")
+        assert isinstance(result, str), f"initials_for({account!r}) returned a non-string {result!r}"
+        assert len(result) <= 2, f"initials_for({account!r}) returned more than two characters: {result!r}"
+
+
+def test_account_queued_analysis_shows_queue_chip_not_failure(client: TestClient):
+    user_id = _create_authenticated_user(client, email="antrean@example.test")
+    _create_dataset_with_analysis(user_id, filename="matriks_antrean.csv", status="queued")
+
+    resp = client.get("/account")
+    assert resp.status_code == 200
+    html = resp.text
+
+    assert "matriks_antrean.csv" in html
+    assert "Dalam antrean" in html
+    # A queued run is on the queue, never a failure: the chip copy must not
+    # accuse it of failing.
+    assert "Gagal" not in html
+
+
+def test_account_last_analysis_ignores_cross_owner_row(client: TestClient):
+    owner_a = _create_authenticated_user(client, email="pemilik.a@example.test")
+    _create_dataset_with_analysis(owner_a, filename="berkas_milik_a.csv", status="done")
+
+    # Owner B owns a dataset that A must never see. B is inserted straight into
+    # the database so the helper does not clobber A's session cookie.
+    now = now_epoch()
+    with SessionLocal() as db:
+        owner_b = User(
+            email="pemilik.b@example.test",
+            email_normalized="pemilik.b@example.test",
+            password_hash=hash_password("katasandi-ui-contract"),
+            created_at=now,
+            verified_at=now,
+        )
+        db.add(owner_b)
+        db.commit()
+
+        dataset_b = Dataset(
+            user_id=owner_b.id,
+            filename="rahasia_milik_b.csv",
+            kind="dikotomus",
+            format="wide",
+            status="committed",
+            n_persons=300,
+            n_items=40,
+            item_labels_json=json.dumps([f"I{i}" for i in range(40)]),
+            mapping_json=json.dumps({"correct": ["1"], "incorrect": ["0"]}),
+            summary_json=json.dumps({"n_persons": 300, "n_items": 40}),
+            raw_gzip=b"prn,item\n",
+            raw_bytes=10,
+            created_at=now,
+            committed_at=now,
+        )
+        db.add(dataset_b)
+        db.commit()
+        dataset_b_id = dataset_b.id
+
+    # Deliberately corrupt row: user_id says A, dataset_id says B, and it is
+    # newer than A's own row, so a read path trusting Analysis.user_id alone
+    # would surface B's filename and its queued status on A's page.
+    _insert_cross_owner_analysis(owner_a, dataset_b_id, created_at=now_epoch() + 60)
+
+    resp = client.get("/account")
+    assert resp.status_code == 200
+    html = resp.text
+
+    assert "rahasia_milik_b.csv" not in html
+    assert "Dalam antrean" not in html
+    assert "berkas_milik_a.csv" in html
+    assert "Selesai" in html

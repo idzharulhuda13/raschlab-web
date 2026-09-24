@@ -4,11 +4,9 @@
 {% block title %}Akun: RaschLab{% endblock %}
 
 {% block content %}
-{% set _local = email.split('@')[0] %}
-{% set _parts = _local.replace('-', '.').replace('_', '.').split('.') %}
-{% set _initials = ((_parts[0][:1] + (_parts[1][:1] if _parts | length > 1 and _parts[1] else (_parts[0][1:2] if _parts[0] | length > 1 else ''))) | upper) %}
+{% set initials = initials_for(email) %}
 <section class="band band--title">
-  <span class="acct-avatar acct-avatar--lg">{{ _initials }}</span>
+  <span class="acct-avatar acct-avatar--lg">{{ initials }}</span>
   <h1>Profil Akun</h1>
   <p>
     {% if verified %}
@@ -37,12 +35,12 @@
         <h2 class="section-title">Berkas Pengukuran</h2>
         {% if file_count > 0 %}
         <p class="summary-figure"><span class="mono">{{ file_count }}</span> <span class="section-text">berkas tersimpan</span></p>
-        <p class="section-text">Maksimal {{ limit_mb }} per berkas dan {{ limit_cells }} per dataset.</p>
         <p class="section-text"><a href="/datasets">Buka daftar berkas</a></p>
         {% else %}
         <p class="section-text">Belum ada berkas</p>
         <p class="section-text">Unggah berkas data pengukuran di halaman <a href="/datasets">Berkas Pengukuran</a>.</p>
         {% endif %}
+        <p class="section-text">Maksimal {{ limit_mb }} per berkas dan {{ limit_cells }} per dataset.</p>
       </div>
       <div class="summary-col">
         <h2 class="section-title">Analisis</h2>
@@ -54,6 +52,8 @@
           <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
           {% elif last_analysis.status == 'running' %}
           <span class="chip chip--accent"><span class="chip-glyph">...</span> Memproses</span>
+          {% elif last_analysis.status == 'queued' %}
+          <span class="chip chip--accent"><span class="chip-glyph">...</span> Dalam antrean</span>
           {% else %}
           <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
           {% endif %}
