@@ -384,7 +384,11 @@ def get_account(request: Request, db: Session = Depends(get_session)):
         select(func.count()).select_from(Dataset).where(Dataset.user_id == user.id)
     ).scalar_one()
     analysis_count = db.execute(
-        select(func.count()).select_from(Analysis).where(Analysis.user_id == user.id)
+        select(func.count())
+        .select_from(Analysis)
+        .join(Dataset, Analysis.dataset_id == Dataset.id)
+        .where(Analysis.user_id == user.id)
+        .where(Dataset.user_id == user.id)
     ).scalar_one()
     last_row = db.execute(
         select(Analysis.id, Analysis.status, Analysis.created_at, Dataset.filename)

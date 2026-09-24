@@ -637,3 +637,14 @@ def test_account_last_analysis_ignores_cross_owner_row(client: TestClient):
     assert "Dalam antrean" not in html
     assert "berkas_milik_a.csv" in html
     assert "Selesai" in html
+
+    # The figure next to the analysis label must count exactly one run: A's own.
+    # The corrupt cross-owner row must never inflate it to two.
+    assert (
+        '<span class="mono">1</span> '
+        '<span class="section-text">analisis tersimpan</span>'
+    ) in html
+    assert (
+        '<span class="mono">2</span> '
+        '<span class="section-text">analisis tersimpan</span>'
+    ) not in html
