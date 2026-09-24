@@ -232,7 +232,7 @@ def test_login_success_and_cookie_flags(client, sent_emails):
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert response.headers["location"] == "/account"
+    assert response.headers["location"] == "/datasets"
 
     set_cookie = response.headers.get("set-cookie", "")
     assert "raschlab_sid" in set_cookie

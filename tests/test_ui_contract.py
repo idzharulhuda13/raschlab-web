@@ -4,15 +4,18 @@ Verifies limits, tokens, transitions, accessibility, theme toggle, contrast rati
 and template class inventory without network or external services.
 """
 
+import datetime
+import json
 from pathlib import Path
 import re
 
 from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy import select
 
 from app.auth import COOKIE_NAME
 from app.db import SessionLocal
-from app.models import SessionRow, User
+from app.models import Analysis, Dataset, SessionRow, User
 from app.security import hash_password, hash_token, new_token, now_epoch
 from app.storage import MAX_CELLS, MAX_UPLOAD_BYTES
 
@@ -308,3 +311,137 @@ def test_all_template_classes_defined_in_app_css():
 
     undefined = used_classes - defined_classes
     assert not undefined, f"Used classes not defined in app.css: {sorted(undefined)}"
+
+    # Measured with the exact logic above: 125 distinct classes are used across
+    # app/templates/**/*.html and 132 classes are defined in app/static/app.css.
+    # Pinning both numbers makes adding or dropping a class a deliberate act.
+    assert len(used_classes) == 125, f"Used template class count changed to {len(used_classes)}"
+    assert len(defined_classes) == 132, f"Defined app.css class count changed to {len(defined_classes)}"
+
+
+def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_ujian.csv") -> tuple[int, int]:
+    """Insert one Dataset and one completed Analysis row for the given user."""
+    now = now_epoch()
+    with SessionLocal() as db:
+        dataset = Dataset(
+            user_id=user_id,
+            filename=filename,
+            kind="dikotomus",
+            format="wide",
+            status="committed",
+            n_persons=300,
+            n_items=40,
+            item_labels_json=json.dumps([f"I{i}" for i in range(40)]),
+            mapping_json=json.dumps({"correct": ["1"], "incorrect": ["0"]}),
+            summary_json=json.dumps({"n_persons": 300, "n_items": 40}),
+            raw_gzip=b"prn,item\n",
+            raw_bytes=10,
+            created_at=now,
+            committed_at=now,
+        )
+        db.add(dataset)
+        db.commit()
+        dataset_id = dataset.id
+
+        analysis = Analysis(
+            user_id=user_id,
+            dataset_id=dataset_id,
+            status="done",
+            params_json=json.dumps({"mode": "compat"}),
+            engine_ref="raschlab-engine-test",
+            created_at=now,
+            started_at=now,
+            finished_at=now,
+            expires_at=now + 180 * 86400,
+        )
+        db.add(analysis)
+        db.commit()
+        analysis_id = analysis.id
+
+    return dataset_id, analysis_id
+
+
+def test_signed_in_login_and_register_redirect_to_datasets(client: TestClient):
+    _create_authenticated_user(client, email="sudahmasuk@example.test")
+
+    login_resp = client.get("/login", follow_redirects=False)
+    assert login_resp.status_code == 303
+    assert login_resp.headers["location"] == "/datasets"
+
+    register_resp = client.get("/register", follow_redirects=False)
+    assert register_resp.status_code == 303
+    assert register_resp.headers["location"] == "/datasets"
+
+
+def test_account_template_band_composition_contract():
+    account_template = Path("app/templates/account.html").read_text()
+
+    # The auth-form band must not come back to a content page.
+    assert "band--narrow" not in account_template
+    # Two summary columns inside the single full-width panel, one large avatar.
+    assert account_template.count("summary-col") == 2
+    assert account_template.count("acct-avatar--lg") == 1
+
+
+def test_account_empty_state_copy_without_figures(client: TestClient):
+    _create_authenticated_user(client, email="kosong@example.test")
+
+    resp = client.get("/account")
+    assert resp.status_code == 200
+    html = resp.text
+
+    assert "Belum ada berkas" in html
+    assert "Belum ada analisis" in html
+    # No counts means no summary figure at all.
+    assert "summary-figure" not in html
+
+    # account.html prints the constants-derived limits inline only once
+    # file_count > 0 (see the populated-state test); the empty state links to
+    # /datasets, which carries the same constants-derived limits copy.
+    mb = f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB"
+    cells = f"{MAX_CELLS:,}".replace(",", ".") + " sel"
+    datasets_resp = client.get("/datasets")
+    assert datasets_resp.status_code == 200
+    assert mb in datasets_resp.text
+    assert cells in datasets_resp.text
+
+
+def test_account_populated_state_shows_counts_limits_and_last_analysis(client: TestClient):
+    user_id = _create_authenticated_user(client, email="terisi@example.test")
+    _dataset_id, analysis_id = _create_dataset_with_done_analysis(user_id)
+
+    resp = client.get("/account")
+    assert resp.status_code == 200
+    html = resp.text
+
+    # Exactly one dataset and one analysis: both figures render with count 1.
+    assert '<span class="mono">1</span> <span class="section-text">berkas tersimpan</span>' in html
+    assert '<span class="mono">1</span> <span class="section-text">analisis tersimpan</span>' in html
+
+    # Limits copy built from the constants.
+    mb = f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB"
+    cells = f"{MAX_CELLS:,}".replace(",", ".") + " sel"
+    assert mb in html
+    assert cells in html
+
+    with SessionLocal() as db:
+        created_at = db.scalar(select(Analysis.created_at).where(Analysis.id == analysis_id))
+    expected_date = datetime.datetime.fromtimestamp(created_at).strftime("%Y-%m-%d")
+
+    assert expected_date in html
+    assert "matriks_ujian.csv" in html
+    assert "Selesai" in html
+    assert f'href="/analyses/{analysis_id}"' in html
+
+
+def test_account_avatar_renders_two_initials(client: TestClient):
+    _create_authenticated_user(client, email="idzharul.huda@gmail.com")
+
+    resp = client.get("/account")
+    assert resp.status_code == 200
+    html = resp.text
+
+    # Two initials, never a single letter: the app-shell avatar and the
+    # account band avatar must both render IH for idzharul.huda@gmail.com.
+    assert '<span class="acct-avatar">IH</span>' in html
+    assert 'acct-avatar--lg">IH<' in html

@@ -176,9 +176,42 @@ never reintroduce:** the first build overflowed 30px at 390px because four child
 4. Missing band: motif 2 axis on top, then the table, sortable with `aria-sort`, severity tint by band
    (`<2%` fit, `2-5%` warn, `>5%` misfit) with the number always printed.
 
-**Auth pages (`/login`, `/register`, `/forgot`, `/reset`), `/gate`, `/account`.** One column, max 480px,
+**Vertical rhythm (all pages).** The first content block never touches the app bar: minimum `--space-8`
+(32px) between the bar's bottom edge and the first band on desktop, `--space-6` (24px) at `<=719px`.
+**Measured defect to never reintroduce:** every narrow band rendered at `0px` below the bar, because only
+`.band--title` carried top padding while `.band--narrow` carried none, so `/account`, `/login`,
+`/register`, `/forgot` and `/reset` all started glued to the header (probe: gap = 0px at 1440/1150/900/390,
+both themes).
+
+**Auth pages (`/login`, `/register`, `/forgot`, `/reset`), `/gate`.** One column, max 480px,
 same shell, no marketing hero, no fake screenshots. Gate page states plainly that the product is not open
-yet and links to login.
+yet and links to login. Narrow-and-centred is right HERE because each of these is a single-purpose form;
+the same 480px on a logged-in content page reads stranded (measured: a 432px card is 30% of a 1440px
+canvas, with 293px of dead space under it).
+**After a successful sign-in, the landing target is `/datasets`, never the profile page.** That covers the
+login handler AND the two "already signed in" branches (`/login` and `/register`): a signed-in visitor
+asking for a sign-in page is sent to the work, not to a profile. E-mail verification and password reset
+land back on `/login` with a status message on purpose (the user has to sign in anyway), and the sign-in
+that follows lands on `/datasets`. The first screen after signing in must be the actionable one, and a
+redirect into a profile page is a design bug even when that page is flawless.
+
+**`/account` — identity and summary (logged-in; a content page, never a form page)**
+
+1. Block 1, identity band: h1 `Profil Akun`, the verification chip, and the account facts as labelled pairs
+   (email mono, registration date). The account's own initials open the block as the page's focal point.
+2. Block 2, summary band: a real TWO-COLUMN composition at `>=900px` (single column below, stacking in the
+   same order) — left column `Berkas Pengukuran` (how many files the account holds, the limits that are true
+   for it, link to `/datasets`); right column `Analisis` (how many analyses, the last one's date and status,
+   link to that result when it exists). Both columns carry numbers read from the database, never invented:
+   with nothing stored the copy says `Belum ada berkas` / `Belum ada analisis`, never a bare zero dressed up
+   as a measurement.
+3. Block 3, session band: `Keluar` as a destructive outline button, alone and last.
+4. The navigation controls (account menu, theme toggle) stay in the shell, never inside a content card, and
+   the blocks are bands in that shell rather than one narrow panel.
+
+**Account avatar.** The initials show TWO letters (`IH`), not one: a single letter is legible for `M` and
+invisible for `I`, `l`, `J`, which is what `idzharul.huda@gmail.com` rendered (a thin stroke on a 28px
+tinted disc reads as a broken image). Minimum 44px on mobile, no border, no glow.
 
 ## Components and their states
 

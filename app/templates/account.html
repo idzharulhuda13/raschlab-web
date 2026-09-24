@@ -1,41 +1,78 @@
-<!-- RaschLab F2.5 | design-system: DESIGN.md | macrostructure: account-panel -->
+<!-- RaschLab F2.5 | design-system: DESIGN.md | macrostructure: account-band-stack -->
 {% extends "base.html" %}
 
 {% block title %}Akun: RaschLab{% endblock %}
 
 {% block content %}
-<section class="band band--narrow">
-  <div class="panel">
-    <h1>Profil Akun</h1>
-    <p>
-      {% if verified %}
-      <span class="chip chip--fit"><span class="chip-glyph">OK</span> Terverifikasi</span>
-      {% else %}
-      <span class="chip chip--warn"><span class="chip-glyph">!</span> Belum diverifikasi</span>
-      {% endif %}
-    </p>
+{% set _local = email.split('@')[0] %}
+{% set _parts = _local.replace('-', '.').replace('_', '.').split('.') %}
+{% set _initials = ((_parts[0][:1] + (_parts[1][:1] if _parts | length > 1 and _parts[1] else (_parts[0][1:2] if _parts[0] | length > 1 else ''))) | upper) %}
+<section class="band band--title">
+  <span class="acct-avatar acct-avatar--lg">{{ _initials }}</span>
+  <h1>Profil Akun</h1>
+  <p>
+    {% if verified %}
+    <span class="chip chip--fit"><span class="chip-glyph">OK</span> Terverifikasi</span>
+    {% else %}
+    <span class="chip chip--warn"><span class="chip-glyph">!</span> Belum diverifikasi</span>
+    {% endif %}
+  </p>
 
-    <div class="def-list">
-      <div class="def-row">
-        <span class="def-label">Email</span>
-        <span class="def-value mono">{{ email }}</span>
-      </div>
-      <div class="def-row">
-        <span class="def-label">Tanggal Terdaftar</span>
-        <span class="def-value mono">{{ created_at }}</span>
-      </div>
+  <div class="def-list">
+    <div class="def-row">
+      <span class="def-label">Email</span>
+      <span class="def-value mono">{{ email }}</span>
     </div>
-
-    <div class="section-block">
-      <h2 class="section-title">Berkas Pengukuran</h2>
-      <p class="section-text">Kelola berkas data pengukuran di halaman <a href="/datasets">Berkas Pengukuran</a>.</p>
-    </div>
-
-    <div class="section-block">
-      <form action="/logout" method="post">
-        <button type="submit" class="btn btn--danger">Keluar</button>
-      </form>
+    <div class="def-row">
+      <span class="def-label">Tanggal Terdaftar</span>
+      <span class="def-value mono">{{ created_at }}</span>
     </div>
   </div>
+</section>
+
+<section class="band">
+  <div class="panel">
+    <div class="summary-grid">
+      <div class="summary-col">
+        <h2 class="section-title">Berkas Pengukuran</h2>
+        {% if file_count > 0 %}
+        <p class="summary-figure"><span class="mono">{{ file_count }}</span> <span class="section-text">berkas tersimpan</span></p>
+        <p class="section-text">Maksimal {{ limit_mb }} per berkas dan {{ limit_cells }} per dataset.</p>
+        <p class="section-text"><a href="/datasets">Buka daftar berkas</a></p>
+        {% else %}
+        <p class="section-text">Belum ada berkas</p>
+        <p class="section-text">Unggah berkas data pengukuran di halaman <a href="/datasets">Berkas Pengukuran</a>.</p>
+        {% endif %}
+      </div>
+      <div class="summary-col">
+        <h2 class="section-title">Analisis</h2>
+        {% if analysis_count > 0 %}
+        <p class="summary-figure"><span class="mono">{{ analysis_count }}</span> <span class="section-text">analisis tersimpan</span></p>
+        {% if last_analysis %}
+        <p class="section-text">Analisis terakhir {{ last_analysis.created_at }} dari <span class="mono">{{ last_analysis.filename }}</span>
+          {% if last_analysis.status == 'done' %}
+          <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
+          {% elif last_analysis.status == 'running' %}
+          <span class="chip chip--accent"><span class="chip-glyph">...</span> Memproses</span>
+          {% else %}
+          <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
+          {% endif %}
+        </p>
+        <p class="section-text"><a href="/analyses/{{ last_analysis.id }}">Lihat hasil terakhir</a></p>
+        {% endif %}
+        {% else %}
+        <p class="section-text">Belum ada analisis</p>
+        <p class="section-text">Analisis dijalankan dari halaman <a href="/datasets">Berkas Pengukuran</a>.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <h2 class="section-title">Sesi</h2>
+  <form action="/logout" method="post">
+    <button type="submit" class="btn btn--danger">Keluar</button>
+  </form>
 </section>
 {% endblock %}

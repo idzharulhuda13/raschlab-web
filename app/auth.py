@@ -6,13 +6,14 @@ import secrets
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import SessionLocal, get_session
 from app.emailer import EmailSendError, send_email
-from app.models import EmailToken, SessionRow, User
+from app.models import Analysis, Dataset, EmailToken, SessionRow, User
+from app.storage import MAX_CELLS, MAX_UPLOAD_BYTES
 from app.ratelimit import check_limit, client_ip
 from app.security import (
     hash_password,
@@ -165,7 +166,7 @@ def get_register(request: Request, db: Session = Depends(get_session)):
     if _gate_closed():
         return RedirectResponse("/", 303)
     if _current_user(request, db):
-        return RedirectResponse("/account", 303)
+        return RedirectResponse("/datasets", 303)
     return templates.TemplateResponse(request=request, name="register.html", context={})
 
 
@@ -274,7 +275,7 @@ def get_login(request: Request, db: Session = Depends(get_session)):
     if _gate_closed():
         return RedirectResponse("/", 303)
     if _current_user(request, db):
-        return RedirectResponse("/account", 303)
+        return RedirectResponse("/datasets", 303)
     msg = request.query_params.get("msg", "")
     return templates.TemplateResponse(
         request=request,
@@ -349,7 +350,7 @@ def post_login(
     )
     db.add(session_row)
     db.commit()
-    response = RedirectResponse("/account", 303)
+    response = RedirectResponse("/datasets", 303)
     _set_cookie(response, raw)
     return response
 
@@ -376,6 +377,27 @@ def get_account(request: Request, db: Session = Depends(get_session)):
     if user is None:
         return RedirectResponse("/login", 303)
     created_at_str = datetime.datetime.fromtimestamp(user.created_at).strftime("%Y-%m-%d")
+    file_count = db.execute(
+        select(func.count()).select_from(Dataset).where(Dataset.user_id == user.id)
+    ).scalar_one()
+    analysis_count = db.execute(
+        select(func.count()).select_from(Analysis).where(Analysis.user_id == user.id)
+    ).scalar_one()
+    last_row = db.execute(
+        select(Analysis.id, Analysis.status, Analysis.created_at, Dataset.filename)
+        .join(Dataset, Analysis.dataset_id == Dataset.id)
+        .where(Analysis.user_id == user.id)
+        .order_by(Analysis.created_at.desc(), Analysis.id.desc())
+        .limit(1)
+    ).first()
+    last_analysis = None
+    if last_row is not None:
+        last_analysis = {
+            "id": last_row.id,
+            "status": last_row.status,
+            "created_at": datetime.datetime.fromtimestamp(last_row.created_at).strftime("%Y-%m-%d"),
+            "filename": last_row.filename,
+        }
     return templates.TemplateResponse(
         request=request,
         name="account.html",
@@ -383,6 +405,11 @@ def get_account(request: Request, db: Session = Depends(get_session)):
             "email": user.email,
             "verified": user.verified_at is not None,
             "created_at": created_at_str,
+            "file_count": file_count,
+            "analysis_count": analysis_count,
+            "last_analysis": last_analysis,
+            "limit_mb": f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
+            "limit_cells": f"{MAX_CELLS:,}".replace(",", ".") + " sel",
         },
         status_code=200,
     )

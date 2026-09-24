@@ -336,6 +336,16 @@ a:hover {
   margin-top: var(--space-6);
 }
 
+.main > .band:first-child {
+  padding-top: var(--space-8);
+}
+
+@media (max-width: 719px) {
+  .main > .band:first-child {
+    padding-top: var(--space-6);
+  }
+}
+
 .page-title {
   font-size: 44px;
   line-height: 1.1;
@@ -1276,4 +1286,50 @@ line.miss-marker {
   align-items: center;
   gap: var(--space-3);
   margin-top: var(--space-4);
+}
+
+.acct-avatar--lg {
+  width: 56px;
+  height: 56px;
+  font-size: 20px;
+  letter-spacing: 0.02em;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+}
+
+.summary-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.summary-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-figure > span:first-child {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+@media (max-width: 719px) {
+  .summary-figure > span:first-child {
+    font-size: 1.5rem;
+  }
+}
+
+@media (min-width: 900px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

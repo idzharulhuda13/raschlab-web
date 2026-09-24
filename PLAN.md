@@ -365,3 +365,86 @@ Code first, schema second; user data (users, datasets, raw uploads) is never dro
    `DATABASE_URL=... .venv/bin/python -m alembic downgrade 0003` — drops `analyses`, `analysis_files` and
    `datasets.matrix_gzip` (derived, re-runnable analysis results only; `schema_version` returns to 3; users and
    datasets rows untouched). Restore the old cap copy by reverting commit E0.
+
+# ADDENDUM (24 Sep 2026, evening): `/account` composition fix — FROZEN WRITE ORDER
+
+Owner's verdict on the post-login screen ("baru masuk tampilannya udah engga enakin banget") was measured,
+not argued: `/account` rendered one 432px panel = 30% of a 1440px content width, its card edge 0px below
+the app bar, 293px of dead space under it (login 30%, register 35%). Contrast, overflow and tap targets all
+passed, so the previous gate measured the wrong dimensions. Contract authority for this change set is the
+amended `DESIGN.md` (vertical-rhythm rule, `/account` two-column rule, `/datasets` sign-in landing,
+two-initial avatar); this addendum is the implementation contract and is binding for the writer runs.
+
+Instrument: `agy-build-pipeline/scripts/measure_page_composition.py` (composition + vertical rhythm; gap to
+the first SURFACE, width share, dead space, overflow, contrast, controls) over the pages rendered in-process
+by `/root/raschlab-ops/dump_pages_for_composition.py`. Before-run raw numbers:
+`/root/raschlab-ops/f3/composition_before_v3.json`.
+
+## EDIT LIST (each item is a literal anchor + literal replacement; one owner per file)
+
+1. `app/static/app.css` — two inserts.
+   a) After the `.band--actions { margin-top: var(--space-6); }` block, insert:
+      `.main > .band:first-child { padding-top: var(--space-8); }` and, inside a new
+      `@media (max-width: 719px)` block, `.main > .band:first-child { padding-top: var(--space-6); }`.
+      (`main` carries `class="main"` in base.html:62, so the selector matches; `.band--title` already
+      carries the same 32px, and padding does not accumulate.)
+   b) At the end of the file, after the `.pager` block, define the four new classes:
+      `.acct-avatar--lg`, `.summary-grid`, `.summary-col`, `.summary-figure`.
+      `.summary-grid` is one column by default and `grid-template-columns: repeat(2, minmax(0, 1fr))` from
+      `min-width: 900px`; each column's figure is tabular, with the number at display size and its label
+      muted. No new hex values: existing tokens only.
+2. `app/auth.py` — three edits.
+   a) all three `RedirectResponse("/account", 303)` (lines 168, 277, 352) become
+      `RedirectResponse("/datasets", 303)`.
+   b) imports: add `func` to the `from sqlalchemy import ...` line; extend
+      `from app.models import EmailToken, SessionRow, User` with `Analysis, Dataset`; add
+      `from app.storage import MAX_CELLS, MAX_UPLOAD_BYTES`.
+   c) `get_account` (line 371): keep the existing context keys and add `file_count`, `analysis_count`,
+      `last_analysis` (dict with `id`, `status`, `created_at` as `%Y-%m-%d`, `filename`, or `None`),
+      `limit_mb`, `limit_cells`. Queries exactly as the planner specified them (one per number; the last
+      analysis is a single joined query ordered by `created_at DESC, id DESC` limited to 1).
+3. `app/templates/base.html` (line 41) — the avatar renders TWO initials: derive them from the account
+   string (first letter of the local part plus the letter after the first `.`/`_`/`-`, falling back to the
+   first two characters), upper-cased. One span, class `acct-avatar` unchanged.
+4. `app/templates/account.html` — full rewrite to three bands, stamp comment macrostructure becomes
+   `account-band-stack`: (1) identity band, unframed, with the large initials disc, `h1 Profil Akun`, the
+   verification chip and the labelled pairs; (2) summary band, ONE full-width `.panel` containing
+   `.summary-grid` with two `.summary-col`s — left `Berkas Pengukuran` (file count, the two limits from the
+   constants, link to `/datasets`), right `Analisis` (count, last analysis date + status chip + filename with
+   a link to `/analyses/{id}` when it exists); both columns render the exact honest copy `Belum ada berkas`
+   / `Belum ada analisis` when empty, and no figure is rendered for a zero; (3) session band, unframed, with
+   the lone destructive `Keluar` button. Status words reuse the product vocabulary: `Selesai` (chip--fit),
+   `Memproses` (chip--accent), `Gagal` (chip--misfit). Copy is Indonesian; no em dash; no `<style>`, no
+   `style=` attribute.
+5. `tests/test_auth.py:235` — the expected location becomes `/datasets`.
+6. `tests/test_ui_contract.py` — extend the models import line, assert the new inventory counts, and add
+   tests: (a) both "already signed in" branches redirect to `/datasets`; (b) `account.html` contains no
+   `band--narrow`; (c) `/account` renders the honest empty copy for a fresh user and the real counts for a
+   user with one dataset and one analysis; (d) the avatar renders two initials for `idzharul.huda@gmail.com`;
+   (e) the new class names are defined in `app.css` (the existing closure test covers this once the count
+   assertion is updated).
+
+## ACCEPTANCE (measured, not asserted)
+
+- Canonical gate, 6 pages x 1440/1150/900/390 x light+dark: the gap above the first SURFACE is `>= 24px`
+  on `/account`, `/login`, `/register` (0px before) and the document never overflows.
+- `/account` first block width share `>= 60%` of the content width at 1440px (30% before) and dead space
+  below the last block `<= 25%` of the space under the header at 1440px (39% before).
+- `/account` at 390px: the summary grid collapses to ONE column (assert distinct left offsets == 1).
+- Suite green, including the class-inventory closure and the recomputed contrast test.
+- Hallmark audit of `account.html` (+ the new CSS rules) with 0 critical findings.
+
+## OUT OF SCOPE
+
+`app/analysis.py`, `app/analyze.py`, `app/ingest.py`, `app/models.py`, `alembic/`, `analysis.html`,
+`datasets.html`, `dataset_detail.html`, the theme token values, deployment scripts. No schema change in this
+change set.
+
+## KNOWN FINDINGS NOT IN THIS CHANGESET (recorded, not silently dropped)
+
+- `.th-sort` header buttons measure 32px tall (below the 44px mobile tap-target floor) on `/datasets/{id}`;
+  the `a` links flagged by the same probe are inline text and legitimately short.
+- 4-5 "scroll container" elements on `/datasets/{id}` are the table wrappers by design (document overflow is
+  0px).
+- The root path `/` redirects to `/register` when the gate is open, so the public landing is the register
+  form by decision (no marketing hero per DESIGN.md).
