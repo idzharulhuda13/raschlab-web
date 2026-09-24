@@ -18,7 +18,11 @@ def _normalize(url: str) -> str:
 def get_engine() -> Engine | None:
     global _engine
     if _engine is None and settings.database_url:
-        _engine = create_engine(_normalize(settings.database_url))
+        _engine = create_engine(
+            _normalize(settings.database_url),
+            pool_pre_ping=True,
+            pool_recycle=300,
+        )
     return _engine
 
 
