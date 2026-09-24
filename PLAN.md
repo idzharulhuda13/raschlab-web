@@ -13,9 +13,13 @@ Executor key: **agy** = writer run (`--stdin`, 1–2 files per run, `--add-dir /
 1. **Cap is 2 000 000 cells** (was 8 000 000). Reason: 2 M is 5.8x the largest real dataset (342 216 cells),
    enough for 5 000 respondents x 400 items. Every user-facing string that says 8.000.000 must say 2.000.000,
    and `MAX_CELLS` must be `2_000_000`.
-2. **Cloud Run stays at 512 MiB, with `--concurrency 1`.** Measured engine peaks: 1 M cells 0.8 s / 134 MB,
-   2 M cells 0.9 s / 214 MB, 3 M 1.4 s / 299 MB, 8 M 4.7 s / 744 MB. At the 2 M cap the engine needs 214 MB,
-   so one run per instance fits in 512 MiB; two must never share an instance.
+2. **Cloud Run runs with 1 GiB and `--concurrency 1`.** Measured through the real path
+   (`run_for_dataset`, 4 000 x 500 = 2 M cells, 10 % missing): platform peak **568.9 MB**, of which the engine
+   alone is **520.5 MB** (`engine-cli` phase); ingest peak **121.7 MB**. The earlier 214 MB figure came from a
+   2 M-cell dataset with NO missing values, so engine memory is data-shape dependent (2.4x between those two
+   shapes). 512 MiB therefore cannot hold the 2 M-cell cap; 1 GiB does, with ~450 MB headroom. One engine run
+   per instance; two runs must never share an instance. If a dataset ever OOM-kills an instance the next lever
+   is 2 GiB, and the interrupted run is left as `failed` by the stale-run sweep, never as a wrong result.
 3. **Peak memory = max(parse, engine), never their sum.** The engine needs only a `.prn` + `.CON` on disk.
    Decoded bytes, the response matrix and any parser structures must be released before `run_analyze` is
    called. Keep the matrix as `numpy.uint8` while building; do not hold two Python copies of the matrix.
@@ -246,7 +250,7 @@ Executor key: **agy** = writer run (`--stdin`, 1–2 files per run, `--add-dir /
 18. Migrate Neon: read the DSN from Secret Manager, `DATABASE_URL=... .venv/bin/python -m alembic upgrade head`,
     confirm `alembic current` shows `0004`.
 19. Deploy: same source-based invocation as revision `raschlab-web-00010-w29`, with
-    `--memory 512Mi --concurrency 1 --timeout 120`. Verify with
+    `--memory 1Gi --concurrency 1 --timeout 120`. Verify with
     `gcloud run services describe raschlab-web --region asia-southeast1 --format='value(spec.template.spec.containers[0].resources.limits.memory,spec.template.spec.containerConcurrency)'`.
 20. Live walkthrough on the deployed revision: login -> upload `sample_300x40.csv` -> commit -> analyze -> open the
     result page. Record HTTP status, the visible Indonesian headers, `/health` commit, absence of tracebacks, and
@@ -273,6 +277,30 @@ Executor key: **agy** = writer run (`--stdin`, 1–2 files per run, `--add-dir /
 | E12 | `tests/test_byte_identity.py` | its own test run |
 | E13 | `scripts/compare_cli_platform.py` | run it, exit 0 |
 | E14 | `INTERFACE.md` | the grep |
+
+## REVIEW FINDINGS AND CLOSURES (independent review of commit eb401f5)
+
+1. **[major] `auth.send_email` was called with three arguments while the real helper
+   (`app/emailer.py:14`) requires four (`to, subject, html, text`).** Every retention notice raised
+   `TypeError`, which the surrounding `except` swallowed, so `notice_sent_at` stayed NULL forever and the
+   14-day notice was never delivered. The test that should have caught it monkeypatched the helper with
+   `*args, **kwargs`, so it could not see the shape of the real signature.
+   **Closed:** the call now passes `text=` (a plain-text version of the same Indonesian message), and a new test
+   reads `inspect.signature` of the REAL helper, records the kwargs the notice path passes, and fails if any
+   required parameter is missing. Verified: suite 106 passed.
+2. **[major] `build_matrix_gzip` built the matrix as Python lists of one-character strings instead of the
+   numpy `uint8` representation this plan requires (non-negotiable 3).**
+   **Closed:** the delimited encoding now fills a `numpy.uint8` array and converts it with `tobytes()`; the
+   array is dropped as soon as the prn text exists. Byte-identity re-proven afterwards:
+   `scripts/compare_cli_platform.py` still prints `ALL 6 FILES BYTE-IDENTICAL` (sha256 equal for all six
+   outputs), so the refactor moved no byte.
+3. **Memory measurement added** (`scripts/measure_analysis_memory.py`, four phases, each in its own process):
+   ingest 121.7 MB, engine-cli 520.5 MB, harness 564.8 MB, real app path 568.9 MB at 2 M cells with 10 %
+   missing. This is what moved the instance size from 512 MiB to 1 GiB (non-negotiable 2 above).
+4. **Open lead (engine side, not a platform defect):** engine memory depends on the data shape, 214 MB without
+   missing values versus 520 MB with 10 % missing at the same 2 M cells. Worth a dedicated look in the engine
+   repository later; on the platform side it is bounded by the instance size and the `failed` state, never by a
+   wrong number.
 
 ## ASSUMPTIONS
 

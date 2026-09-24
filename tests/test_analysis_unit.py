@@ -652,3 +652,76 @@ def test_retention_sweep_email_failure_resilience(monkeypatch):
         db_analysis = db.scalar(select(Analysis).where(Analysis.id == analysis_id))
         assert db_analysis is not None
         assert db_analysis.notice_sent_at is None
+
+
+def test_retention_sweep_send_email_signature_contract(monkeypatch):
+    """Ensure retention_sweep passes every required parameter of app.emailer.send_email."""
+    import inspect
+    from app.emailer import send_email as real_send_email
+
+    params = inspect.signature(real_send_email).parameters
+    required_params = {
+        name
+        for name, param in params.items()
+        if param.default is inspect.Parameter.empty
+    }
+
+    recorded_kwargs: dict[str, Any] = {}
+
+    def recorder(*args: Any, **kwargs: Any) -> None:
+        recorded_kwargs.update(kwargs)
+
+    monkeypatch.setattr(auth, "send_email", recorder)
+
+    now = 1_700_000_000
+    with SessionLocal() as db:
+        user = User(
+            email="researcher@campus.test",
+            email_normalized="researcher@campus.test",
+            password_hash="fake-hash",
+            created_at=now,
+            verified_at=now,
+        )
+        db.add(user)
+        db.commit()
+
+        dataset = Dataset(
+            user_id=user.id,
+            filename="survey.csv",
+            kind="delimited",
+            format="csv",
+            status="ready",
+            n_persons=5,
+            n_items=2,
+            item_labels_json="[]",
+            mapping_json="{}",
+            summary_json="{}",
+            raw_gzip=b"x",
+            raw_bytes=1,
+            created_at=now,
+        )
+        db.add(dataset)
+        db.commit()
+
+        analysis = Analysis(
+            user_id=user.id,
+            dataset_id=dataset.id,
+            status="done",
+            params_json="{}",
+            engine_ref="8e8ac67",
+            created_at=now - 170 * 86400,
+            expires_at=now + 5 * 86400,
+            notice_sent_at=None,
+        )
+        db.add(analysis)
+        db.commit()
+
+        result = retention_sweep(db, now=now)
+        assert result["notified"] == 1, f"Expected 1 notification sent, got {result['notified']}"
+
+        missing = required_params - set(recorded_kwargs.keys())
+        assert not missing, (
+            f"auth.send_email kwargs {set(recorded_kwargs.keys())} do not cover all required "
+            f"parameters of app.emailer.send_email: missing {missing}"
+        )
+

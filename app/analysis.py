@@ -22,6 +22,7 @@ import tempfile
 import time
 from typing import Any
 
+import numpy as np
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, object_session
 
@@ -138,24 +139,33 @@ def build_matrix_gzip(
         key = "A" * n_items
         codes = "A" + letters
 
-        encoded_rows: list[str] = []
-        for row in rows:
-            row_chars: list[str] = []
-            for cell in row[:n_items]:
+        byte_map = {tok: ord(letter_map[tok]) for tok in incorrect_tokens}
+        byte_a = ord("A")
+        byte_space = ord(" ")
+
+        mat = np.full((len(rows), n_items), byte_space, dtype=np.uint8)
+        for r_idx, row in enumerate(rows):
+            row_arr = mat[r_idx]
+            for c_idx, cell in enumerate(row[:n_items]):
                 tok = str(cell).strip() if cell is not None else ""
                 cls = classify(tok, mapping=mapping)
                 if cls == "correct":
-                    row_chars.append("A")
+                    row_arr[c_idx] = byte_a
                 elif cls == "incorrect":
-                    row_chars.append(letter_map[tok])
+                    row_arr[c_idx] = byte_map[tok]
                 else:
-                    row_chars.append(" ")
-            if len(row_chars) < n_items:
-                row_chars.extend([" "] * (n_items - len(row_chars)))
-            encoded_rows.append("".join(row_chars))
+                    row_arr[c_idx] = byte_space
 
-        if not any(c != " " for r in encoded_rows for c in r):
+        if not np.any(mat != byte_space):
             raise AnalysisError("Tidak ada data respon yang valid (semua sel kosong).")
+
+        raw_bytes = mat.tobytes()
+        del mat
+        encoded_rows = [
+            raw_bytes[i * n_items : (i + 1) * n_items].decode("ascii")
+            for i in range(len(rows))
+        ]
+        del raw_bytes
 
     elif kind == "winsteps":
         if not rows:
@@ -575,8 +585,15 @@ def retention_sweep(db: Session, now: int | None = None) -> dict[str, int]:
             f"<p>Hasil analisis disimpan selama {RETENTION_DAYS} hari. "
             f"Silakan unduh atau tinjau kembali hasil analisis Anda sebelum batas waktu berakhir.</p>"
         )
+        text = (
+            f"Halo,\n\n"
+            f"Hasil analisis Rasch untuk berkas {filename} akan kedaluwarsa "
+            f"dan dihapus dalam {days_left} hari.\n\n"
+            f"Hasil analisis disimpan selama {RETENTION_DAYS} hari. "
+            f"Silakan unduh atau tinjau kembali hasil analisis Anda sebelum batas waktu berakhir."
+        )
         try:
-            auth.send_email(to=user.email, subject=subject, html=html)
+            auth.send_email(to=user.email, subject=subject, html=html, text=text)
             analysis.notice_sent_at = now
             db.commit()
             notified_count += 1
