@@ -1,0 +1,9 @@
+&INST
+ITEM1 = 11
+NI = 20
+NAMLEN = 8
+NAME1 = 1
+KEY1 = ABABABABABABABABABAB
+CODES = AB
+DATA = sample_winsteps.prn
+&END

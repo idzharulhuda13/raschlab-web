@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 import app.db
 from app.config import settings
-from app.main import app
+from app.main import app as fastapi_app
 from app.models import Base
 from app.ratelimit import _COUNTS
 
@@ -48,7 +48,7 @@ def reset_env(monkeypatch, tmp_path):
 
 @pytest.fixture
 def client(reset_env):
-    return TestClient(app, base_url="https://testserver")
+    return TestClient(fastapi_app, base_url="https://testserver")
 
 
 _sent_emails: list[tuple[str, str, str]] = []
