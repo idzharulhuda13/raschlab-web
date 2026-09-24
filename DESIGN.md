@@ -64,6 +64,12 @@ in the repo. Every ratio below was **measured** with the WCAG relative-luminance
 | `--warn` | `#E8BE6A` | 10,06:1 on surface |
 | `--misfit` | `#FF8F8F` | 8,03:1 on surface |
 
+**Link rule (measured defect to never reintroduce).** Every anchor takes `--accent`, including visited and
+hover, with `text-underline-offset: 2px` and a 1px underline: the browser default link colour
+(`rgb(0, 0, 238)` blue with a thick underline) was measured on the file list of the first build and it read
+as an unstyled page. Component links (`.appnav-link`, `.acct-link`, `.back-link`, `.btn`) keep their own
+colour rules, which sit above the element selector.
+
 Notes that bind the writer:
 
 - The accent is **green in both themes** on purpose: status colour (fit / warn / misfit) already spends
@@ -86,7 +92,7 @@ measures line up.
 - Load from Google Fonts with `preconnect` + `display=swap`, and declare a fallback stack that still
   looks deliberate (`Georgia, serif` for display, `system-ui` for body) when the CDN is unreachable.
   **Self-hosted subset in `app/static/fonts/` is a later task (F5), named here so it is not forgotten.**
-- Scale (desktop / mobile): display `56/34`, h1 `40/30`, h2 `28/24`, h3 `22/20`, lead `18/17`,
+- Scale (desktop / mobile): display `44/30`, h1 `40/30`, h2 `28/24`, h3 `22/20`, lead `18/17`,
   body `16/16`, secondary `14/14`, micro label `12/12` (micro labels only, never body copy).
 - Weight carries hierarchy: 400 body, 500 labels and controls, 600 headings and numbers, 700 reserved
   for the single page title. No all-bold rows, no uppercase-tracked micro labels.
@@ -98,18 +104,34 @@ measures line up.
 
 The subject is a calibrated ruler: every dataset in the product is a matrix that will end up as items and
 persons on one logit scale. The motif is a **thin measured band — a labelled tick rule with real
-numbers** — used in exactly three places, each carrying information:
+numbers** — used in exactly two places, each carrying information:
 
 1. **Dataset card, capacity band.** A band showing cells used against the 8.000.000-cell cap, with both
-   endpoints labelled and the dataset's own value printed. Tells the user how much room is left.
+   endpoints labelled and the dataset's own value printed **plus the share of the cap as text** (for example
+   `12.000 sel terpakai (0,15% dari 8.000.000 sel)`). Tells the user how much room is left. The fill is the
+   **true proportion, never floored or shifted**: a value of 0,15% draws 0,15% of the track. So that a small
+   value is still visible, the same position is marked by a **1px non-scaling stroke at the true offset**
+   (an SVG line with `vector-effect="non-scaling-stroke"`), and the printed number remains the authority. A
+   floor that displaces a small value to make it visible is a defect (measured once: a floor of 0,8% drew a
+   0,1% share at 0,8% of the axis).
 2. **Detail page, above the missing table.** A horizontal axis from `0%` to the dataset's own maximum
-   missing rate, with the total marked and labelled. Turns 147 identical rows into a readable shape.
-3. **Brand mark.** The wordmark's dot sits on a three-tick micro-scale with the caption `skala logit`,
-   stating what the product measures. It never appears without that caption.
+   missing rate, with the total marked and labelled. Turns 147 identical rows into a readable shape. The
+   fill and the total marker are **both** positioned by values derived from the data: a marker at
+   `total / max × 100` of the axis, drawn as a non-scaling 1px stroke so it is visible without being moved,
+   plus the total printed as text. An axis whose fill or marker is not derived from the data is a defect: it
+   states endpoints while drawing nothing that reflects them (measured once on the detail page: an empty fill
+   span and a marker with no position at all).
+
+The brand mark is the wordmark plus the caption `skala logit`, stating what the product measures. It carries
+**no tick rule**: a decorative micro-scale beside the wordmark was built once, measured as a divider wearing
+the motif's clothes, and removed.
 
 Rules: the band is drawn from tokens, is inline SVG or CSS (no chart library), carries at least two real
 labels, and has one caption line saying what it measures. **A tick rule without numbers is a divider,
-not a motif, and is a defect** (this exact mistake was caught and removed once already).
+not a motif, and is a defect** (this exact mistake was caught and removed once already). A proportional
+fill is set with an SVG `rect` width attribute, never with an inline `style` attribute. **A band that
+renders as an empty track carries no information and is a defect** (measured once on the file list: a
+150×12px track with no fill element at all).
 
 ## Layout — RHYTHM 3, bands that differ by shape
 
@@ -120,6 +142,14 @@ changes between bands on purpose.
 link set, account menu (avatar + name, opens to `/account`, `/logout`) on the right, theme toggle at the
 end. Height 72px desktop / 64px mobile, sticky with the `--paper` fill and a `--line` hairline. Account
 links never sit inside a content card. Footer: product name, version, one line on what it measures.
+
+The bar must FIT the narrowest phone: measured at 360px and 390px with zero horizontal overflow. Because
+the bar is the first thing to break, its mobile behaviour is part of the contract, not a fallback: at
+`≤719px` the gap and inline padding tighten to `--space-3` / `--space-4`, the theme toggle shows its glyph
+with the text label hidden (the accessible name still names the target theme), and at `≤480px` the caption
+`skala logit` hides with the wordmark (it stays in the markup). Every flex child of the bar carries `min-width: 0`. **Measured defect to
+never reintroduce:** the first build overflowed 30px at 390px because four children plus 24px gaps and
+24px padding needed 420px of room.
 
 **`/datasets` — upload + list**
 

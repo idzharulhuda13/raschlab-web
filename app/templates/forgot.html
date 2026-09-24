@@ -1,212 +1,42 @@
+<!-- RaschLab F2.5 | design-system: DESIGN.md | macrostructure: form-narrow -->
 {% extends "base.html" %}
 
 {% block title %}Lupa Password - RaschLab{% endblock %}
 
-{% block head %}
-<style>
-  .auth-layout {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    max-width: 440px;
-    margin: 0 auto;
-  }
-
-  .auth-card {
-    background-color: var(--raised);
-    box-shadow: var(--shadow-1);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-md);
-    padding: var(--space-8);
-    width: 100%;
-  }
-
-  .auth-heading {
-    font-size: var(--step-24);
-    font-weight: 600;
-    color: var(--ink);
-    line-height: 1.3;
-    margin: 0 0 var(--space-2) 0;
-  }
-
-  .auth-lead {
-    font-size: var(--step-14);
-    color: var(--muted);
-    line-height: 1.5;
-    margin: 0 0 var(--space-6) 0;
-  }
-
-  .auth-banner {
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-sm);
-    font-size: var(--step-14);
-    line-height: 1.5;
-    margin: 0 0 var(--space-4) 0;
-  }
-
-  .auth-banner-success {
-    background-color: var(--surface);
-    border: 1px solid var(--fit);
-    color: var(--fit);
-  }
-
-  .auth-banner-error {
-    background-color: var(--surface);
-    border: 1px solid var(--misfit);
-    color: var(--misfit);
-  }
-
-  .auth-error {
-    background-color: var(--surface);
-    border: 1px solid var(--misfit);
-    color: var(--misfit);
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-sm);
-    font-size: var(--step-14);
-    line-height: 1.5;
-    margin: 0 0 var(--space-4) 0;
-  }
-
-  .auth-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-
-  .form-group {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .form-label {
-    font-size: var(--step-14);
-    font-weight: 500;
-    color: var(--ink);
-    margin-bottom: var(--space-1);
-  }
-
-  .form-input {
-    min-height: var(--step-44);
-    padding: 0 var(--space-3);
-    font-family: var(--font-ui);
-    font-size: var(--step-14);
-    color: var(--ink);
-    background-color: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-sm);
-    width: 100%;
-  }
-
-  .form-input:focus-visible {
-    outline: 2px solid var(--scale);
-    outline-offset: 2px;
-  }
-
-  .auth-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: var(--step-44);
-    padding: 0 var(--space-4);
-    border-radius: var(--radius-sm);
-    font-family: var(--font-ui);
-    font-size: var(--step-14);
-    font-weight: 500;
-    cursor: pointer;
-    width: 100%;
-    transition: filter var(--dur-1) ease-out;
-  }
-
-  .auth-btn-primary {
-    background-color: var(--scale);
-    color: var(--surface);
-    border: 1px solid var(--scale);
-  }
-
-  .auth-btn-primary:hover {
-    filter: brightness(0.94);
-  }
-
-  .auth-btn-primary:active {
-    filter: brightness(0.88);
-  }
-
-  .auth-footer-links {
-    margin-top: var(--space-6);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--rule);
-    text-align: center;
-  }
-
-  .auth-link {
-    color: var(--scale);
-    text-decoration: underline;
-    font-size: var(--step-14);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: var(--step-44);
-  }
-
-  .auth-link:hover {
-    filter: brightness(0.9);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .auth-btn {
-      transition: none;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .auth-card {
-      padding: var(--space-6);
-    }
-
-    .auth-heading {
-      font-size: var(--step-20);
-    }
-  }
-</style>
-{% endblock %}
-
 {% block content %}
-<section class="auth-layout">
-  <div class="auth-card">
-    <h1 class="auth-heading">Lupa Password</h1>
+<section class="band band--narrow">
+  <div class="panel">
+    <h1 class="auth-title">Lupa Password</h1>
     <p class="auth-lead">Masukkan email akun kamu untuk menerima tautan reset password.</p>
 
     {% set query_msg = (request.query_params.get('msg') if request and request.query_params else None) or msg %}
     {% if query_msg == 'sent' %}
-    <div class="auth-banner auth-banner-success" role="status">
+    <div class="alert alert--fit" role="status">
       Jika email terdaftar, tautan reset sudah dikirim. Cek kotak masuk kamu.
     </div>
     {% elif query_msg == 'token_bad' %}
-    <div class="auth-banner auth-banner-error" role="alert">
+    <div class="alert alert--misfit" role="alert">
       Tautan reset tidak valid atau sudah kedaluwarsa. Minta tautan baru.
     </div>
     {% endif %}
 
     {% if error %}
-    <div class="auth-error" role="alert">
+    <div class="alert alert--misfit" role="alert">
       {{ error }}
     </div>
     {% endif %}
 
-    <form action="/forgot" method="post" class="auth-form">
-      <div class="form-group">
-        <label for="email" class="form-label">Email</label>
-        <input type="email" id="email" name="email" required autocomplete="email" class="form-input">
+    <form action="/forgot" method="post">
+      <div class="field">
+        <label for="email" class="field-label">Email</label>
+        <input type="email" id="email" name="email" required autocomplete="email" class="field-input">
       </div>
 
-      <button type="submit" class="auth-btn auth-btn-primary">Kirim tautan reset.</button>
+      <button type="submit" class="btn btn--primary">Kirim tautan reset.</button>
     </form>
 
-    <div class="auth-footer-links">
-      <a href="/login" class="auth-link">Kembali ke masuk.</a>
+    <div class="auth-links">
+      <a href="/login" class="btn btn--ghost">Kembali ke masuk.</a>
     </div>
   </div>
 </section>

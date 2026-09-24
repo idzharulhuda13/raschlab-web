@@ -1,908 +1,348 @@
+<!-- RaschLab F2.5 | design-system: DESIGN.md | macrostructure: verify-commit -->
 {% extends "base.html" %}
 
 {% block title %}{{ dataset.filename }}: Pratinjau Pengukuran: RaschLab{% endblock %}
 
-{% block head %}
-<style>
-  .detail-layout {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    max-width: 960px;
-    margin: 0 auto;
-    gap: var(--space-6);
-  }
-
-  .detail-card {
-    background-color: var(--raised);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-1);
-    padding: var(--space-6);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-
-  .detail-header {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  .detail-nav-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-4);
-    flex-wrap: wrap;
-  }
-
-  .back-nav {
-    display: inline-flex;
-    align-items: center;
-    color: var(--scale);
-    font-size: var(--step-13);
-    font-weight: 500;
-    text-decoration: none;
-    min-height: var(--step-44);
-    padding: 0 var(--space-2);
-  }
-
-  .back-nav:hover {
-    text-decoration: underline;
-  }
-
-  .account-nav-link {
-    display: inline-flex;
-    align-items: center;
-    min-height: var(--step-44);
-    padding: 0 var(--space-3);
-    border-radius: var(--radius-sm);
-    font-size: var(--step-13);
-    font-weight: 500;
-    color: var(--scale);
-    text-decoration: none;
-    transition: background-color var(--dur-1) ease-out;
-  }
-
-  .account-nav-link:hover {
-    text-decoration: underline;
-    background-color: var(--paper);
-  }
-
-  .header-main-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: var(--space-4);
-    flex-wrap: wrap;
-  }
-
-  .detail-title {
-    font-size: var(--step-24);
-    font-weight: 600;
-    color: var(--ink);
-    margin: 0;
-    line-height: 1.25;
-    word-break: break-all;
-    overflow-wrap: anywhere;
-  }
-
-  .meta-stats-row {
-    display: flex;
-    gap: var(--space-4);
-    flex-wrap: wrap;
-    font-size: var(--step-14);
-    color: var(--muted);
-  }
-
-  .meta-stat-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-  }
-
-  .meta-stat-value {
-    color: var(--ink);
-    font-weight: 600;
-  }
-
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--space-1) var(--space-3);
-    border-radius: var(--radius-sm);
-    font-size: var(--step-12);
-    font-weight: 600;
-    line-height: 1.3;
-    white-space: nowrap;
-  }
-
-  .chip-staged {
-    background-color: var(--surface);
-    border: 1px solid var(--warn);
-    color: var(--warn);
-  }
-
-  .chip-ready {
-    background-color: var(--surface);
-    border: 1px solid var(--fit);
-    color: var(--fit);
-  }
-
-  .chip-format {
-    background-color: var(--paper);
-    border: 1px solid var(--rule);
-    color: var(--muted);
-    font-family: var(--font-mono);
-  }
-
-  .detail-alert {
-    padding: var(--space-4);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--misfit);
-    background-color: var(--surface);
-    color: var(--ink);
-    font-size: var(--step-14);
-  }
-
-  .alert-title {
-    font-weight: 600;
-    color: var(--misfit);
-    margin: 0 0 var(--space-1) 0;
-  }
-
-  .alert-desc {
-    margin: 0;
-    line-height: 1.45;
-  }
-
-  .warning-callout {
-    padding: var(--space-4);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--warn);
-    background-color: var(--surface);
-    color: var(--ink);
-    font-size: var(--step-13);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  .warning-danger {
-    border-color: var(--misfit);
-  }
-
-  .blocker-callout {
-    border-color: var(--warn);
-    background-color: var(--paper);
-  }
-
-  .warning-title {
-    font-weight: 600;
-    color: var(--ink);
-    margin: 0;
-  }
-
-  .warning-desc {
-    margin: 0;
-    color: var(--muted);
-    line-height: 1.45;
-  }
-
-  .card-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-
-  .section-title {
-    font-size: var(--step-16);
-    font-weight: 600;
-    color: var(--ink);
-    margin: 0;
-  }
-
-  .section-lead {
-    font-size: var(--step-13);
-    color: var(--muted);
-    margin: 0;
-    line-height: 1.4;
-  }
-
-  .preview-badges {
-    display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-  }
-
-  .badge-hidden {
-    font-size: var(--step-12);
-    font-family: var(--font-mono);
-    padding: var(--space-1) var(--space-2);
-    background-color: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-sm);
-    color: var(--muted);
-  }
-
-  .table-scroll-hint {
-    display: none;
-    font-size: var(--step-12);
-    color: var(--muted);
-    margin: 0 0 var(--space-2) 0;
-    line-height: 1.4;
-  }
-
-  @media (max-width: 500px) {
-    .table-scroll-hint {
-      display: block;
-    }
-  }
-
-  .preview-scroll-container {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-sm);
-    background-color: var(--surface);
-    padding-right: var(--space-6);
-    box-shadow: inset -10px 0 8px -8px var(--rule);
-    background-image:
-      linear-gradient(to right, var(--surface) 30%, transparent),
-      linear-gradient(to left, var(--surface) 30%, transparent),
-      radial-gradient(farthest-side at 0 50%, var(--rule), transparent),
-      radial-gradient(farthest-side at 100% 50%, var(--rule), transparent);
-    background-repeat: no-repeat;
-    background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
-    background-position: 0 0, 100% 0, 0 0, 100% 0;
-    background-attachment: local, local, scroll, scroll;
-  }
-
-  .preview-matrix-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--step-13);
-    text-align: center;
-  }
-
-  .preview-matrix-table th {
-    padding: var(--space-2) var(--space-3);
-    background-color: var(--paper);
-    color: var(--ink);
-    font-weight: 600;
-    border-bottom: 1px solid var(--rule);
-    border-right: 1px solid var(--rule);
-    white-space: nowrap;
-  }
-
-  .preview-matrix-table th:last-child {
-    border-right: none;
-  }
-
-  .preview-matrix-table td {
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--rule);
-    border-right: 1px solid var(--rule);
-    color: var(--ink);
-    white-space: nowrap;
-  }
-
-  .preview-matrix-table td:last-child {
-    border-right: none;
-  }
-
-  .preview-matrix-table tbody tr:last-child td {
-    border-bottom: none;
-  }
-
-  .preview-matrix-table .col-person,
-  .preview-matrix-table .person-cell {
-    text-align: left;
-    background-color: var(--paper);
-    font-weight: 600;
-  }
-
-  .table-scroll-container {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-sm);
-    background-color: var(--surface);
-    padding-right: var(--space-6);
-    box-shadow: inset -10px 0 8px -8px var(--rule);
-    background-image:
-      linear-gradient(to right, var(--surface) 30%, transparent),
-      linear-gradient(to left, var(--surface) 30%, transparent),
-      radial-gradient(farthest-side at 0 50%, var(--rule), transparent),
-      radial-gradient(farthest-side at 100% 50%, var(--rule), transparent);
-    background-repeat: no-repeat;
-    background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
-    background-position: 0 0, 100% 0, 0 0, 100% 0;
-    background-attachment: local, local, scroll, scroll;
-  }
-
-  .detail-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--step-14);
-    text-align: left;
-  }
-
-  .detail-table th {
-    padding: var(--space-3) var(--space-4);
-    background-color: var(--paper);
-    color: var(--ink);
-    font-weight: 600;
-    border-bottom: 1px solid var(--rule);
-    white-space: nowrap;
-  }
-
-  .detail-table td {
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--rule);
-    color: var(--ink);
-    vertical-align: middle;
-  }
-
-  .detail-table tfoot th,
-  .detail-table tfoot td {
-    padding: var(--space-3) var(--space-4);
-    background-color: var(--paper);
-    border-top: 1px solid var(--rule);
-    font-weight: 600;
-  }
-
-  .num-col {
-    text-align: right;
-  }
-
-  .font-mono {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .token-badge {
-    padding: var(--space-1) var(--space-2);
-    background-color: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-sm);
-    font-weight: 600;
-  }
-
-  .form-select {
-    min-height: var(--step-44);
-    padding: 0 var(--space-3);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-sm);
-    background-color: var(--surface);
-    color: var(--ink);
-    font-family: var(--font-ui);
-    font-size: var(--step-14);
-    width: 100%;
-    max-width: 220px;
-  }
-
-  .form-select:focus-visible {
-    border-color: var(--scale);
-  }
-
-  .field-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  .field-label {
-    font-size: var(--step-14);
-    font-weight: 600;
-    color: var(--ink);
-  }
-
-  .field-hint {
-    font-size: var(--step-12);
-    color: var(--muted);
-    line-height: 1.4;
-  }
-
-  .text-input {
-    min-height: var(--step-44);
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-sm);
-    background-color: var(--surface);
-    color: var(--ink);
-    font-size: var(--step-14);
-  }
-
-  .text-input:focus-visible {
-    border-color: var(--scale);
-  }
-
-  .form-vertical-fields {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-    max-width: 640px;
-  }
-
-  .commit-actions-bar {
-    margin-top: var(--space-4);
-    display: flex;
-    justify-content: flex-start;
-  }
-
-  .btn-primary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: var(--step-44);
-    padding: 0 var(--space-6);
-    border-radius: var(--radius-sm);
-    font-family: var(--font-ui);
-    font-size: var(--step-14);
-    font-weight: 600;
-    cursor: pointer;
-    background-color: var(--scale);
-    color: var(--surface);
-    border: 1px solid var(--scale);
-    transition: background-color var(--dur-1) ease-out, border-color var(--dur-1) ease-out;
-  }
-
-  .btn-primary:hover {
-    filter: brightness(1.08);
-  }
-
-  .btn-primary:active {
-    filter: brightness(0.92);
-  }
-
-  .btn-secondary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: var(--step-44);
-    padding: 0 var(--space-4);
-    border-radius: var(--radius-sm);
-    font-family: var(--font-ui);
-    font-size: var(--step-14);
-    font-weight: 500;
-    text-decoration: none;
-    color: var(--ink);
-    background-color: var(--surface);
-    border: 1px solid var(--rule);
-    transition: background-color var(--dur-1) ease-out, border-color var(--dur-1) ease-out;
-  }
-
-  .btn-secondary:hover {
-    background-color: var(--paper);
-  }
-
-  .btn-discard {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: var(--step-44);
-    padding: 0 var(--space-4);
-    border-radius: var(--radius-sm);
-    font-family: var(--font-ui);
-    font-size: var(--step-14);
-    font-weight: 500;
-    cursor: pointer;
-    color: var(--misfit);
-    background-color: var(--surface);
-    border: 1px solid var(--rule);
-    transition: background-color var(--dur-1) ease-out, border-color var(--dur-1) ease-out;
-  }
-
-  .btn-discard:hover {
-    background-color: var(--paper);
-    border-color: var(--misfit);
-  }
-
-  .card-footer-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-4);
-    padding-top: var(--space-2);
-    flex-wrap: wrap;
-  }
-
-  .clean-state-box {
-    padding: var(--space-4);
-    background-color: var(--paper);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--rule);
-  }
-
-  .clean-state-text {
-    margin: 0;
-    font-size: var(--step-13);
-    color: var(--muted);
-    line-height: 1.4;
-  }
-
-  .summary-status-note {
-    font-size: var(--step-14);
-    color: var(--muted);
-    margin: 0 0 var(--space-3) 0;
-    line-height: 1.45;
-  }
-
-  .winsteps-summary-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    margin: 0;
-    padding: var(--space-4);
-    background-color: var(--paper);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--rule);
-  }
-
-  .summary-item {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  .summary-term {
-    font-size: var(--step-12);
-    font-weight: 600;
-    color: var(--muted);
-  }
-
-  .summary-desc {
-    font-size: var(--step-14);
-    color: var(--ink);
-    margin: 0;
-    word-break: break-all;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .btn-primary, .btn-secondary, .btn-discard, .back-nav, .account-nav-link {
-      transition: none;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .card-footer-actions {
-      flex-direction: column-reverse;
-      align-items: stretch;
-    }
-
-    .btn-primary, .btn-secondary, .btn-discard {
-      width: 100%;
-    }
-  }
-</style>
-{% endblock %}
-
 {% block content %}
-<section class="detail-layout">
-  <div class="detail-card">
-    <div class="detail-header">
-      <div class="detail-nav-row">
-        <a href="/datasets" class="back-nav">Kembali ke Berkas Pengukuran</a>
-        <a href="/account" class="account-nav-link">Profil Akun</a>
-      </div>
-      <div class="header-main-row">
-        <div>
-          <h1 class="detail-title font-mono">{{ dataset.filename }}</h1>
-          <div class="meta-stats-row">
-            <span class="meta-stat-item">Format: <strong class="meta-stat-value font-mono">{{ dataset.format | upper }}</strong></span>
-            <span class="meta-stat-item">Dimensi: <strong class="meta-stat-value font-mono">{{ dataset.n_persons }} resp x {{ dataset.n_items }} butir</strong></span>
-            <span class="meta-stat-item">Ukuran: <strong class="meta-stat-value font-mono">{{ (dataset.raw_bytes / 1024) | round(1) }} KB</strong></span>
-          </div>
-        </div>
-        <div>
-          {% if status == 'ready' %}
-          <span class="chip chip-ready">Siap</span>
+<section class="band band--header">
+  <a href="/datasets" class="back-link">Kembali ke Berkas Pengukuran</a>
+  <h1 class="detail-title mono">{{ dataset.filename }}</h1>
+  <div>
+    {% if status == 'ready' %}
+    <span class="chip chip--fit"><span class="chip-glyph">OK</span> Siap dianalisis</span>
+    {% else %}
+    <span class="chip chip--warn"><span class="chip-glyph">!</span> Menunggu konfirmasi</span>
+    {% endif %}
+  </div>
+  <div class="header-pairs">
+    <div class="def-row">
+      <span class="def-label">Format: </span>
+      <span class="def-value mono">{{ dataset.format | upper }}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Dimensi: </span>
+      <span class="def-value mono">{{ dataset.n_persons }} resp x {{ dataset.n_items }} butir</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Ukuran: </span>
+      <span class="def-value mono">{{ ((dataset.raw_bytes / 1024) | round(1) | string).replace('.', ',') }} KB</span>
+    </div>
+  </div>
+</section>
+
+{% if error %}
+<div class="band">
+  <div class="alert alert--misfit" role="alert">
+    <strong>Validasi Pemetaan Belum Lengkap</strong>
+    <p>{{ error }}</p>
+  </div>
+</div>
+{% endif %}
+
+{% if all_missing_items %}
+<div class="band">
+  <div class="alert alert--misfit" role="alert">
+    <strong>Peringatan Butir Tanpa Respon (100% Data Hilang)</strong>
+    <p>Terdapat {{ all_missing_items | length }} butir yang seluruh responnya kosong atau hilang: {{ all_missing_items | join(', ') }}. Butir tanpa respon tidak dapat dikalibrasi dalam model pengukuran.</p>
+  </div>
+</div>
+{% endif %}
+
+{% set all_miss_persons = summary.get('all_missing_persons_count', summary.get('all_missing_persons', 0)) %}
+{% if all_miss_persons > 0 %}
+<div class="band">
+  <div class="alert alert--warn" role="status">
+    <strong>Peringatan Responden Tanpa Respon</strong>
+    <p>Terdapat {{ all_miss_persons }} responden dengan seluruh respon butir bernilai kosong.</p>
+  </div>
+</div>
+{% endif %}
+
+{% if status == 'staged' and unassigned_tokens %}
+<div class="band">
+  <div class="alert alert--warn" role="status">
+    <strong>Konfirmasi Diblokir: Pemetaan Belum Lengkap</strong>
+    <p>Terdapat {{ unassigned_tokens | length }} token unik yang belum dipetakan: {{ unassigned_tokens | join(', ') }}. Seluruh token harus dipetakan ke Benar, Salah, atau Data Hilang sebelum data dapat disimpan dan dikonfirmasi.</p>
+  </div>
+</div>
+{% endif %}
+
+<section class="band band--preview">
+  <h2>Pratinjau Matriks Respon</h2>
+  <p class="lead">Menampilkan hingga 10 baris responden pertama dan 12 kolom butir pertama.</p>
+  <p>
+    <span class="chip chip--format">{{ dataset.format | upper }}</span>
+    {% if has_more_cols %}
+    <span class="chip chip--format">+{{ more_cols_count }} butir disembunyikan</span>
+    {% endif %}
+    {% if has_more_rows %}
+    <span class="chip chip--format">+{{ more_rows_count }} responden disembunyikan</span>
+    {% endif %}
+  </p>
+
+  <div class="table-scroll">
+    <table class="data-table preview-table">
+      <caption class="table-caption">10 responden pertama x 12 butir pertama</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="cell-person">Responden</th>
+          {% for label in preview_item_labels %}
+          <th scope="col" class="mono">{{ label }}</th>
+          {% endfor %}
+          {% if has_more_cols %}
+          <th scope="col" class="mono">+{{ more_cols_count }} butir</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in preview_rows %}
+        <tr>
+          <td class="cell-person mono">
+            {{ preview_person_labels[loop.index0] if loop.index0 < preview_person_labels | length else 'P' ~ loop.index }}
+          </td>
+          {% for cell in row %}
+          {% if cell | upper == 'NA' or cell == '' %}
+          <td class="cell-missing mono">{{ cell if cell != '' else '·' }}</td>
           {% else %}
-          <span class="chip chip-staged">Belum dikonfirmasi</span>
+          <td class="mono">{{ cell }}</td>
           {% endif %}
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {% if error %}
-  <div class="detail-alert" role="alert">
-    <h2 class="alert-title">Validasi Pemetaan Belum Lengkap</h2>
-    <p class="alert-desc">{{ error }}</p>
-  </div>
-  {% endif %}
-
-  {% if all_missing_items %}
-  <div class="warning-callout warning-danger">
-    <h2 class="warning-title">Peringatan Butir Tanpa Respon (100% Data Hilang)</h2>
-    <p class="warning-desc">Terdapat {{ all_missing_items | length }} butir yang seluruh responnya kosong atau hilang: {{ all_missing_items | join(', ') }}. Butir tanpa respon tidak dapat dikalibrasi dalam model pengukuran.</p>
-  </div>
-  {% endif %}
-
-  {% set all_miss_persons = summary.get('all_missing_persons_count', summary.get('all_missing_persons', 0)) %}
-  {% if all_miss_persons > 0 %}
-  <div class="warning-callout">
-    <h2 class="warning-title">Peringatan Responden Tanpa Respon</h2>
-    <p class="warning-desc">Terdapat {{ all_miss_persons }} responden dengan seluruh respon butir bernilai kosong.</p>
-  </div>
-  {% endif %}
-
-  {% if status == 'staged' and unassigned_tokens %}
-  <div class="warning-callout blocker-callout">
-    <h2 class="warning-title">Konfirmasi Diblokir: Pemetaan Belum Lengkap</h2>
-    <p class="warning-desc">Terdapat {{ unassigned_tokens | length }} token unik yang belum dipetakan: {{ unassigned_tokens | join(', ') }}. Seluruh token harus dipetakan ke Benar, Salah, atau Data Hilang sebelum data dapat disimpan dan dikonfirmasi.</p>
-  </div>
-  {% endif %}
-
-  <div class="detail-card">
-    <div class="card-section-header">
-      <div>
-        <h2 class="section-title">Pratinjau Matriks Respon</h2>
-        <p class="section-lead">Menampilkan hingga 10 baris responden pertama dan 12 kolom butir pertama.</p>
-      </div>
-      <div class="preview-badges">
-        {% if has_more_cols %}
-        <span class="badge-hidden">+{{ more_cols_count }} butir disembunyikan</span>
-        {% endif %}
+          {% endfor %}
+          {% if has_more_cols %}
+          <td class="mono">...</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
         {% if has_more_rows %}
-        <span class="badge-hidden">+{{ more_rows_count }} responden disembunyikan</span>
+        <tr>
+          <td colspan="{{ preview_item_labels | length + (2 if has_more_cols else 1) }}" class="mono">
+            +{{ more_rows_count }} responden lainnya disembunyikan dalam pratinjau
+          </td>
+        </tr>
         {% endif %}
-      </div>
-    </div>
+      </tbody>
+    </table>
+  </div>
+  <p class="preview-legend">Sel NA atau kosong = data hilang</p>
+</section>
 
-    <p class="table-scroll-hint">Geser tabel ke samping untuk melihat butir lainnya</p>
-    <div class="preview-scroll-container" tabindex="0" role="region" aria-label="Tabel pratinjau matriks data respon">
-      <table class="preview-matrix-table">
+<section class="band band--mapping">
+  <h2>Inventaris Token dan Pemetaan Respon</h2>
+  <p class="lead">Tentukan klasifikasi respon (Benar, Salah, atau Data Hilang) untuk setiap token data.</p>
+
+  {% if status == 'staged' and dataset.kind == 'delimited' %}
+  <form action="/datasets/{{ dataset.id }}/commit" method="post">
+    <div class="table-scroll">
+      <table class="data-table">
+        <caption class="table-caption">Token unik, kemunculan, dan klasifikasinya</caption>
         <thead>
           <tr>
-            <th scope="col" class="col-person">Responden</th>
-            {% for label in preview_item_labels %}
-            <th scope="col" class="font-mono">{{ label }}</th>
-            {% endfor %}
-            {% if has_more_cols %}
-            <th scope="col" class="font-mono">+{{ more_cols_count }} butir</th>
-            {% endif %}
+            <th scope="col">Token Unik</th>
+            <th scope="col" class="num-col">Frekuensi Kemunculan</th>
+            <th scope="col">Klasifikasi Respon</th>
           </tr>
         </thead>
         <tbody>
-          {% for row in preview_rows %}
+          {% for token, count in distinct_tokens %}
           <tr>
-            <td class="font-mono person-cell">
-              {{ preview_person_labels[loop.index0] if loop.index0 < preview_person_labels | length else 'P' ~ loop.index }}
+            <td>
+              <span class="mono">{{ token if token != '' else '(string kosong)' }}</span>
+              <input type="hidden" name="t{{ loop.index0 }}" value="{{ token }}">
             </td>
-            {% for cell in row %}
-            <td class="font-mono">
-              {{ cell if cell != '' else '·' }}
+            <td class="num-col mono">{{ '{:,}'.format(count).replace(',', '.') }}</td>
+            <td>
+              <label for="token-map-{{ loop.index0 }}" class="sr-only">Klasifikasi token {{ token if token != '' else 'kosong' }}</label>
+              <select name="m{{ loop.index0 }}" id="token-map-{{ loop.index0 }}" class="select-input" required>
+                <option value="" {% if token not in mapping %}selected{% endif %}>Pilih status...</option>
+                <option value="correct" {% if mapping.get(token) == 'correct' %}selected{% endif %}>Benar (1)</option>
+                <option value="incorrect" {% if mapping.get(token) == 'incorrect' %}selected{% endif %}>Salah (0)</option>
+                <option value="missing" {% if mapping.get(token) == 'missing' %}selected{% endif %}>Data Hilang</option>
+              </select>
             </td>
-            {% endfor %}
-            {% if has_more_cols %}
-            <td class="font-mono text-muted">...</td>
-            {% endif %}
           </tr>
           {% endfor %}
-          {% if has_more_rows %}
-          <tr>
-            <td colspan="{{ preview_item_labels | length + (2 if has_more_cols else 1) }}" class="font-mono text-muted" style="padding: var(--space-3); background-color: var(--paper);">
-              +{{ more_rows_count }} responden lainnya disembunyikan dalam pratinjau
-            </td>
-          </tr>
-          {% endif %}
         </tbody>
       </table>
     </div>
-  </div>
-
-  <div class="detail-card">
-    <div class="card-section-header">
-      <div>
-        <h2 class="section-title">Inventaris Token dan Pemetaan Respon</h2>
-        <p class="section-lead">Tentukan klasifikasi respon (Benar, Salah, atau Data Hilang) untuk setiap token data.</p>
-      </div>
+    <div class="commit-bar">
+      <button type="submit" class="btn btn--primary">Konfirmasi dan Simpan Matriks</button>
     </div>
-
-    {% if status == 'staged' %}
-      {% if dataset.kind == 'delimited' %}
-      <form action="/datasets/{{ dataset.id }}/commit" method="post">
-        <p class="table-scroll-hint">Geser tabel ke samping untuk melihat kolom lainnya</p>
-        <div class="table-scroll-container" tabindex="0" role="region" aria-label="Tabel pemetaan nilai token">
-          <table class="detail-table">
-            <thead>
-              <tr>
-                <th scope="col">Token Unik</th>
-                <th scope="col" class="num-col">Frekuensi Kemunculan</th>
-                <th scope="col">Klasifikasi Respon</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for token, count in distinct_tokens %}
-              <tr>
-                <td>
-                  <code class="token-badge font-mono">{{ token if token != '' else '(string kosong)' }}</code>
-                  <input type="hidden" name="t{{ loop.index0 }}" value="{{ token }}">
-                </td>
-                <td class="num-col font-mono">{{ count }}</td>
-                <td>
-                  <label for="token-map-{{ loop.index0 }}" class="sr-only">Klasifikasi token {{ token if token != '' else 'kosong' }}</label>
-                  <select name="m{{ loop.index0 }}" id="token-map-{{ loop.index0 }}" class="form-select" required>
-                    <option value="" {% if token not in mapping %}selected{% endif %}>Pilih status...</option>
-                    <option value="correct" {% if mapping.get(token) == 'correct' %}selected{% endif %}>Benar (1)</option>
-                    <option value="incorrect" {% if mapping.get(token) == 'incorrect' %}selected{% endif %}>Salah (0)</option>
-                    <option value="missing" {% if mapping.get(token) == 'missing' %}selected{% endif %}>Data Hilang</option>
-                  </select>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        <div class="commit-actions-bar">
-          <button type="submit" class="btn-primary">Konfirmasi dan Simpan Matriks</button>
-        </div>
-      </form>
-      {% else %}
-      <form action="/datasets/{{ dataset.id }}/commit" method="post">
-        <div class="form-vertical-fields">
-          <div class="field-group">
-            <label for="input-key" class="field-label">Kunci Jawaban (KEY1) *</label>
-            <input type="text" id="input-key" name="key" value="{{ key }}" required class="text-input font-mono">
-            <span class="field-hint">Panjang karakter kunci harus tepat {{ dataset.n_items }} karakter (saat ini: {{ key | length }}).</span>
-          </div>
-
-          <div class="field-group">
-            <label for="input-codes" class="field-label">Kode Respon Valid (CODES) *</label>
-            <input type="text" id="input-codes" name="codes" value="{{ codes }}" required class="text-input font-mono">
-            <span class="field-hint">Daftar karakter respon yang sah (misalnya ABCDE). Respon di luar kode ini dihitung sebagai data hilang.</span>
-          </div>
-
-          <div class="field-group">
-            <label for="input-extra-missing" class="field-label">Karakter Hilang Tambahan</label>
-            <input type="text" id="input-extra-missing" name="extra_missing" value="{{ extra_missing }}" class="text-input font-mono">
-            <span class="field-hint">Karakter spesifik tambahan yang dihitung sebagai respon hilang (opsional).</span>
-          </div>
-        </div>
-        <div class="commit-actions-bar">
-          <button type="submit" class="btn-primary">Konfirmasi dan Simpan Matriks</button>
-        </div>
-      </form>
-      {% endif %}
-    {% else %}
-      <div class="ready-summary-box">
-        <p class="summary-status-note">Matriks data telah dikonfirmasi dan siap untuk kalibrasi butir. Konfigurasi pemetaan tersimpan:</p>
-        {% if dataset.kind == 'delimited' %}
-        <p class="table-scroll-hint">Geser tabel ke samping untuk melihat kolom lainnya</p>
-        <div class="table-scroll-container" tabindex="0" role="region" aria-label="Tabel pemetaan respon tersimpan">
-          <table class="detail-table">
-            <thead>
-              <tr>
-                <th scope="col">Token Respon</th>
-                <th scope="col">Klasifikasi Tersimpan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for token, count in distinct_tokens %}
-              <tr>
-                <td>
-                  <code class="token-badge font-mono">{{ token if token != '' else '(string kosong)' }}</code>
-                </td>
-                <td>
-                  {% set cls = mapping.get(token) %}
-                  {% if cls == 'correct' %}
-                  <span class="chip chip-ready">Benar (1)</span>
-                  {% elif cls == 'incorrect' %}
-                  <span class="chip chip-staged">Salah (0)</span>
-                  {% elif cls == 'missing' %}
-                  <span class="chip chip-format">Data Hilang</span>
-                  {% else %}
-                  <span class="chip chip-format">{{ cls }}</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <dl class="winsteps-summary-list">
-          <div class="summary-item">
-            <dt class="summary-term">Kunci Jawaban (KEY1)</dt>
-            <dd class="summary-desc font-mono">{{ key }}</dd>
-          </div>
-          <div class="summary-item">
-            <dt class="summary-term">Kode Respon Valid (CODES)</dt>
-            <dd class="summary-desc font-mono">{{ codes }}</dd>
-          </div>
-          {% if extra_missing %}
-          <div class="summary-item">
-            <dt class="summary-term">Karakter Hilang Tambahan</dt>
-            <dd class="summary-desc font-mono">{{ extra_missing }}</dd>
-          </div>
-          {% endif %}
-        </dl>
-        {% endif %}
-      </div>
+  </form>
+  {% elif status == 'staged' and dataset.kind == 'winsteps' %}
+  <form action="/datasets/{{ dataset.id }}/commit" method="post">
+    <div class="field">
+      <label for="input-key" class="field-label">Kunci Jawaban (KEY1) *</label>
+      <input type="text" id="input-key" name="key" value="{{ key }}" required class="select-input mono">
+      <p class="field-hint">Panjang karakter kunci harus tepat {{ dataset.n_items }} karakter (saat ini: {{ key | length }}).</p>
+    </div>
+    <div class="field">
+      <label for="input-codes" class="field-label">Kode Respon Valid (CODES) *</label>
+      <input type="text" id="input-codes" name="codes" value="{{ codes }}" required class="select-input mono">
+      <p class="field-hint">Daftar karakter respon yang sah (misalnya ABCDE). Respon di luar kode ini dihitung sebagai data hilang.</p>
+    </div>
+    <div class="field">
+      <label for="input-extra-missing" class="field-label">Karakter Hilang Tambahan</label>
+      <input type="text" id="input-extra-missing" name="extra_missing" value="{{ extra_missing }}" class="select-input mono">
+      <p class="field-hint">Karakter spesifik tambahan yang dihitung sebagai respon hilang (opsional).</p>
+    </div>
+    <div class="commit-bar">
+      <button type="submit" class="btn btn--primary">Konfirmasi dan Simpan Matriks</button>
+    </div>
+  </form>
+  {% else %}
+  <p class="lead">Matriks data telah dikonfirmasi dan siap untuk kalibrasi butir. Konfigurasi pemetaan tersimpan:</p>
+  {% if dataset.kind == 'delimited' %}
+  <div class="table-scroll">
+    <table class="data-table">
+      <caption class="table-caption">Token unik, kemunculan, dan klasifikasinya</caption>
+      <thead>
+        <tr>
+          <th scope="col">Token Respon</th>
+          <th scope="col" class="num-col">Frekuensi Kemunculan</th>
+          <th scope="col">Klasifikasi Tersimpan</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for token, count in distinct_tokens %}
+        <tr>
+          <td>
+            <span class="mono">{{ token if token != '' else '(string kosong)' }}</span>
+          </td>
+          <td class="num-col mono">{{ '{:,}'.format(count).replace(',', '.') }}</td>
+          <td>
+            {% set cls = mapping.get(token) %}
+            {% if cls == 'correct' %}
+            <span class="chip chip--fit">Benar (1)</span>
+            {% elif cls == 'incorrect' %}
+            <span class="chip chip--warn">Salah (0)</span>
+            {% elif cls == 'missing' %}
+            <span class="chip chip--format">Data Hilang</span>
+            {% else %}
+            <span class="chip chip--format">{{ cls }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="kv-list">
+    <div class="kv-item">
+      <span class="kv-term">Kunci Jawaban (KEY1)</span>
+      <span class="kv-value mono">{{ key }}</span>
+    </div>
+    <div class="kv-item">
+      <span class="kv-term">Kode Respon Valid (CODES)</span>
+      <span class="kv-value mono">{{ codes }}</span>
+    </div>
+    {% if extra_missing %}
+    <div class="kv-item">
+      <span class="kv-term">Karakter Hilang Tambahan</span>
+      <span class="kv-value mono">{{ extra_missing }}</span>
+    </div>
     {% endif %}
   </div>
+  {% endif %}
+  {% endif %}
+</section>
 
-  <div class="detail-card">
-    <div class="card-section-header">
-      <div>
-        <h2 class="section-title">Data Hilang per Butir</h2>
-        <p class="section-lead">Hanya butir dengan jumlah data hilang lebih dari 0 yang ditampilkan.</p>
-      </div>
-      <div class="meta-stat-item">
-        <span>Total Hilang: <strong class="meta-stat-value font-mono">{{ total_missing }}</strong> sel</span>
-      </div>
-    </div>
+<section class="band band--missing">
+  <h2>Data Hilang per Butir</h2>
+  <p class="lead">Hanya butir dengan jumlah data hilang lebih dari 0 yang ditampilkan.</p>
 
-    {% set ns = namespace(has_missing=false) %}
-    {% for item in item_labels %}
-      {% if missing_per_item[loop.index0] > 0 %}
-        {% set ns.has_missing = true %}
+  {% set ns = namespace(has_missing=false, max_pct=0.0) %}
+  {% for item in item_labels %}
+    {% set cnt = missing_per_item[loop.index0] %}
+    {% if cnt > 0 %}
+      {% set ns.has_missing = true %}
+      {% if dataset.n_persons > 0 %}
+        {% set pct = (cnt / dataset.n_persons) * 100 %}
+        {% if pct > ns.max_pct %}
+          {% set ns.max_pct = pct %}
+        {% endif %}
       {% endif %}
-    {% endfor %}
+    {% endif %}
+  {% endfor %}
 
-    {% if ns.has_missing %}
-    <p class="table-scroll-hint">Geser tabel ke samping untuk melihat kolom lainnya</p>
-    <div class="table-scroll-container" tabindex="0" role="region" aria-label="Tabel butir dengan data hilang">
-      <table class="detail-table">
-        <thead>
-          <tr>
-            <th scope="col">Nama Butir</th>
-            <th scope="col" class="num-col">Jumlah Hilang</th>
-            <th scope="col" class="num-col">Persentase</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in item_labels %}
-            {% set cnt = missing_per_item[loop.index0] %}
-            {% if cnt > 0 %}
-            <tr>
-              <td><code class="token-badge font-mono">{{ item }}</code></td>
-              <td class="num-col font-mono">{{ cnt }}</td>
-              <td class="num-col font-mono">{{ ((cnt / dataset.n_persons) * 100) | round(1) }}%</td>
+  {% if ns.has_missing %}
+  {% set max_pct = ns.max_pct %}
+  {% set total_pct = ((total_missing / (dataset.n_persons * dataset.n_items)) * 100) if (dataset.n_persons * dataset.n_items > 0) else 0.0 %}
+  {% set total_share = (total_pct / max_pct * 100) if max_pct else 0 %}
+  <div class="miss-axis">
+    <svg class="band-scale" viewBox="0 0 100 12" preserveAspectRatio="none" role="img"
+         aria-label="Sebaran data hilang: 0 sampai {{ '%.1f' | format(max_pct) | replace('.', ',') }} persen, total {{ '%.1f' | format(total_pct) | replace('.', ',') }} persen">
+      <rect class="band-scale-fill" x="0" y="0" width="{{ total_share | round(2) }}" height="12"></rect>
+      <line class="miss-marker" x1="{{ total_share | round(2) }}" y1="0"
+            x2="{{ total_share | round(2) }}" y2="12" vector-effect="non-scaling-stroke"></line>
+    </svg>
+    <span class="band-scale-ends"><span>0%</span><span>{{ '%.1f' | format(max_pct) | replace('.', ',') }}%</span></span>
+    <span class="miss-marker-label">Total {{ '%.1f' | format(total_pct) | replace('.', ',') }}%</span>
+    <p class="band-scale-caption">Data hilang per butir</p>
+  </div>
+
+  <p class="sev-legend">Kurang dari 2% normal, 2 sampai 5% perhatian, di atas 5% tinggi</p>
+
+  <div class="table-scroll">
+    <table class="data-table" data-sortable>
+      <caption class="table-caption">Butir, jumlah hilang, dan persentase</caption>
+      <thead>
+        <tr>
+          <th scope="col" aria-sort="none" data-sort="text">
+            <button type="button" class="th-sort">Nama Butir</button>
+          </th>
+          <th scope="col" aria-sort="none" data-sort="number" class="num-col">
+            <button type="button" class="th-sort">Jumlah Hilang</button>
+          </th>
+          <th scope="col" aria-sort="none" data-sort="number" class="num-col">
+            <button type="button" class="th-sort">Persentase</button>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in item_labels %}
+          {% set cnt = missing_per_item[loop.index0] %}
+          {% if cnt > 0 %}
+            {% set pct = (cnt / dataset.n_persons) * 100 if dataset.n_persons > 0 else 0.0 %}
+            {% if pct < 2 %}
+            <tr class="sev-fit">
+            {% elif pct <= 5 %}
+            <tr class="sev-warn">
+            {% else %}
+            <tr class="sev-misfit">
+            {% endif %}
+              <td><span class="mono">{{ item }}</span></td>
+              <td class="num-col mono">{{ cnt }}</td>
+              <td class="num-col mono">{{ ("%.1f" | format(pct)).replace(".", ",") }}%</td>
             </tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row">Total Keseluruhan</th>
+          <td class="num-col mono">{{ total_missing }}</td>
+          <td class="num-col mono">
+            {% if dataset.n_persons * dataset.n_items > 0 %}
+            {{ ((total_missing / (dataset.n_persons * dataset.n_items)) * 100) | round(2) }}%
+            {% else %}
+            0%
             {% endif %}
-          {% endfor %}
-        </tbody>
-        <tfoot>
-          <tr>
-            <th scope="row">Total Keseluruhan</th>
-            <td class="num-col font-mono">{{ total_missing }}</td>
-            <td class="num-col font-mono">
-              {% if dataset.n_persons * dataset.n_items > 0 %}
-              {{ ((total_missing / (dataset.n_persons * dataset.n_items)) * 100) | round(2) }}%
-              {% else %}
-              0%
-              {% endif %}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-    {% else %}
-    <div class="clean-state-box">
-      <p class="clean-state-text">Seluruh butir memiliki data respon lengkap. Tidak ada data hilang yang ditemukan.</p>
-    </div>
-    {% endif %}
+          </td>
+        </tr>
+      </tfoot>
+    </table>
   </div>
+  {% else %}
+  <div class="empty">
+    <p class="empty-text">Seluruh butir memiliki data respon lengkap. Tidak ada data hilang yang ditemukan.</p>
+  </div>
+  {% endif %}
+</section>
 
-  <div class="detail-card">
-    <div class="card-footer-actions">
-      <form action="/datasets/{{ dataset.id }}/discard" method="post" onsubmit="return confirm('Apakah Anda yakin ingin membuang berkas pengukuran ini? Tindakan ini akan menghapus data mentah dan tidak dapat dibatalkan.');">
-        <button type="submit" class="btn-discard">Buang Berkas</button>
-      </form>
-      <a href="/datasets" class="btn-secondary">Kembali ke Berkas Pengukuran</a>
-    </div>
-  </div>
+<section class="band band--actions">
+  <form action="/datasets/{{ dataset.id }}/discard" method="post" onsubmit="return confirm('Apakah Anda yakin ingin membuang berkas pengukuran ini? Tindakan ini akan menghapus data mentah dan tidak dapat dibatalkan.');">
+    <button type="submit" class="btn btn--danger">Buang Berkas</button>
+  </form>
+  <a href="/datasets" class="btn btn--secondary">Kembali ke Berkas Pengukuran</a>
 </section>
 {% endblock %}

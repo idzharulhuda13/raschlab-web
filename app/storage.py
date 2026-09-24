@@ -20,8 +20,9 @@ __all__ = [
 # 16 MiB per-file upload cap keeps Neon storage within bounds and prevents memory exhaustion.
 MAX_UPLOAD_BYTES: int = 16 * 1024 * 1024
 
-# 1,000,000 cells ceiling bounds in-memory parsing expansion under Cloud Run memory limits.
-MAX_CELLS: int = 1_000_000
+# 8,000,000 cells ceiling: bounds in-memory parsing expansion. Measured at 15.0 MB CSV:
+# 1.2 s parse, 82.6 MB peak RSS, against a 512 MiB instance (DESIGN.md cost table).
+MAX_CELLS: int = 8_000_000
 
 
 class StorageError(Exception):

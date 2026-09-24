@@ -146,7 +146,12 @@ def test_over_cap_upload_raises_storage_error():
     with pytest.raises(StorageError, match=r"exceeds MAX_UPLOAD_BYTES"):
         parse_delimited(oversize_payload)
 
-    oversize_cells = b"id,I1,I2\n" + b"P,1,0\n" * 500001
+    n_items = 999
+    rows = MAX_CELLS // n_items + 1
+    header = ("id," + ",".join(f"c{i}" for i in range(n_items)) + "\n").encode()
+    row = ("P" + ",1" * n_items + "\n").encode()
+    oversize_cells = header + row * rows
+    assert len(oversize_cells) < MAX_UPLOAD_BYTES
     with pytest.raises(StorageError, match=r"exceeds MAX_CELLS limit"):
         parse_delimited(oversize_cells)
 
