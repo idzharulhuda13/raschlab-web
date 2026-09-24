@@ -1,169 +1,228 @@
 # DESIGN.md — RaschLab web
 
-Design contract for every UI artifact in this repo. Arc owns this file. A writer executes it, never
-re-picks a direction, never mixes in another palette.
+Design contract for every UI artifact in this repo. Arc owns this file; a writer executes it and never
+re-picks a direction, never mixes in a second palette, never opens a second direction skill.
 
-- **Direction skill for writers: `data-dashboard`** (subject: an analysis console whose whole job is to
-  show many numbers at once).
+- **Direction skill for writers: `clean-minimal-beige-light-mode`** (subject: a calibre instrument for
+  measurement, read on warm paper surfaces — not a cold enterprise console).
 - **Process skills, always on: `design-tokens`, `a11y-audit`, `output-enforcement`.**
-- **antislop mode: DURING**, closed by the Hallmark audit gate.
-- Human-facing copy: Indonesian. Code, identifiers, comments: English.
+- **antislop mode: DURING**, closed by the Hallmark audit gate before anything is reported as done.
+- Human-facing copy: Indonesian (casual-professional). Code, identifiers, comments: English.
 
 ## Design Read
 
-Reading this as: a modern measurement workbench for people who analyse test items (teachers,
-assessment teams, psychometricians), in a precise instrument language with real depth and no retro
-chrome, dial **ENERGY 2 / RHYTHM 3 / MOTION 2**.
+Reading this as: an item-analysis workbench for teachers, assessment teams and psychometricians, in a
+**warm instrument language with one measured accent**, dial **ENERGY 3 / RHYTHM 3 / MOTION 2**.
 
-**The bar is current, not safe: this must look like a 2026 product, not like a statistics program from
-2005.** Dada's words, 23 Sep 2026: "buat bener bener modern ya jangan yang keliatan jadul banget kaya
-tampilan winsteps". The legacy tool it replaces is grey Windows chrome with cramped tables, so
-anything that reads as desktop-era software is a defect here, not a style choice.
+Dada's verdict that produced this rewrite (24 Sep 2026): *"aku tau ini kita masih yang penting ada
+fiturnya, tapi ui website nya jelek banget harus akuin. contoh la website website terkenal sekarang
+claude, netflix atau siapapun itu"* — then, when offered a light and a dark direction: **"iya A+B"**.
 
-## Why not the skill named `impeccable`
+So both themes ship and both are measured: **light "Instrumen"** is the base, **dark "Sinematik"** is
+the same instrument at night. A theme toggle is required and must work in both directions.
 
-The design library contains a skill literally named `impeccable` (editorial-poster: cream + burnt
-orange). It is not used: that cream/terracotta palette was already rejected by Dada once, and a poster
-language fights a screen built out of dense numeric tables. The direction comes from the subject, an
-instrument that measures, and from the era, 2026.
+**The bar is a 2026 product.** The tool this replaces is grey Windows chrome with cramped tables;
+anything that reads as desktop-era software or as an unstyled admin template is a defect, not a style
+choice. Two failure modes are named as defects here: **retro-desktop** and **template-default**.
 
 ## Colour tokens
 
-Authority for colour. `app/static/tokens.css` mirrors these blocks; there is no raw colour literal
-anywhere else in the repo. Light and dark are both shipped and both measured.
+Authority for colour. `app/static/tokens.css` mirrors these blocks; no raw colour literal anywhere else
+in the repo. Every ratio below was **measured** with the WCAG relative-luminance formula, in both themes.
 
-**Light**
+**Light — "Instrumen"**
+
+| Token | Value | Reason (subject) | Measured |
+|---|---|---|---|
+| `--paper` | `#F7F4EF` | Warm page ground: long tables on warm paper instead of clinical white | — |
+| `--surface` | `#FFFFFF` | The data plane is the brightest thing on screen | — |
+| `--surface-2` | `#EFEAE2` | Inset panels (table head, notes, code) without a second shadow | — |
+| `--ink` | `#1E2422` | Near-black with a green undertone, matches the accent family | 14,39:1 on paper · 15,78:1 on surface |
+| `--muted` | `#59635F` | Secondary text, labels, metadata | 5,67:1 on paper · 6,22:1 on surface · 5,20:1 on surface-2 |
+| `--line` | `#DED6CA` | Hairlines and separators. Decorative only, never the sole signal | 1,44:1 (by design low) |
+| `--control` | `#8A8073` | Border of interactive controls (input, button outline), must clear 3:1 | 3,88:1 on surface · 3,53:1 on paper |
+| `--accent` | `#0E5A47` | The instrument accent: scale band, links, primary action, focus ring | 8,16:1 on surface · 7,44:1 on paper; white on it 8,16:1 |
+| `--accent-soft` | `#E4EFE9` | Tinted panel behind the scale band and active step | ink on it 13,39:1 |
+| `--fit` | `#12703F` | Correct / within range. Always paired with a glyph and a word | 6,15:1 on surface |
+| `--warn` | `#7A5200` | Needs attention (unconfirmed, borderline) | 6,92:1 on surface |
+| `--misfit` | `#A32222` | Wrong / missing / destructive | 7,48:1 on surface |
+
+**Dark — "Sinematik"**
 
 | Token | Value | Reason | Measured |
 |---|---|---|---|
-| `--paper` | `#F4F5F7` | Cool page ground; a touch of blue keeps dense tables from going muddy | — |
-| `--surface` | `#FFFFFF` | Data sits on the brightest plane | — |
-| `--raised` | `#FFFFFF` | Raised panels get elevation from shadow, not from a different fill | — |
-| `--ink` | `#0F1418` | Near-black for text and numerals | 16,98:1 on paper |
-| `--muted` | `#5A6472` | Secondary text, labels, notes | 5,50:1 on paper |
-| `--scale` | `#0B6C8F` | The instrument accent: measure scale, links, focus ring, primary action | 5,41:1 on paper |
-| `--fit` | `#12694A` | Within-range fit, muted so it never shouts | 6,12:1 on paper |
-| `--warn` | `#8A5A00` | Borderline statistics | 5,43:1 on paper |
-| `--misfit` | `#B0251A` | Misfit flag, always with a glyph and the word "misfit" | 6,16:1 on paper |
-| `--rule` | `#DFE3E8` | Hairlines and separators; decorative, never the only signal | 1,29:1 on surface |
+| `--paper` | `#0B0F0E` | Night ground, green undertone, not pure black (avoids halation on text) | — |
+| `--surface` | `#151A18` | Cards sit one step above the ground | — |
+| `--surface-2` | `#1D2422` | Inset panels | — |
+| `--ink` | `#EDF3EF` | 15,65:1 on surface · 14,06:1 on surface-2 |
+| `--muted` | `#A7B4AE` | 8,20:1 on surface · 7,37:1 on surface-2 |
+| `--line` | `#2C3532` | Decorative hairline | — |
+| `--control` | `#5F6C66` | Control border, 3:21:1 on surface · 3,51:1 on paper | 3,21:1 |
+| `--accent` | `#63D8A8` | The same instrument accent, lit for night | 9,99:1 on surface; ground ink on it 10,95:1 |
+| `--accent-soft` | `#12312A` | Tinted panel | ink on it 12,46:1 |
+| `--fit` | `#6FD8A0` | 10,06:1 on surface |
+| `--warn` | `#E8BE6A` | 10,06:1 on surface |
+| `--misfit` | `#FF8F8F` | 8,03:1 on surface |
 
-**Dark**
+Notes that bind the writer:
 
-| Token | Value | Measured |
-|---|---|---|
-| `--paper` | `#0D1116` | — |
-| `--surface` | `#151A20` | — |
-| `--raised` | `#1C2229` | — |
-| `--ink` | `#EAEFF3` | 16,36:1 on paper, 15,11:1 on surface |
-| `--muted` | `#9BA7B2` | 7,72:1 on paper |
-| `--scale` | `#59BCE0` | 8,74:1 on paper |
-| `--fit` | `#5FD3A0` | 10,20:1 |
-| `--warn` | `#E7B24C` | 9,80:1 |
-| `--misfit` | `#FF8A7A` | 8,27:1 |
-| `--rule` | `#2A323B` | 1,35:1 on surface, decorative |
-
-Every text pair above clears 4,5:1 and the focus ring clears 3:1 in both themes. Contrast was
-**measured** with the WCAG formula, not eyeballed. Dark is the `prefers-color-scheme` default only when
-the OS asks for it; there is no forced dark app.
+- The accent is **green in both themes** on purpose: status colour (fit / warn / misfit) already spends
+  red, amber and green, so a second loud hue (e.g. orange) would make status unreadable. One accent,
+  three semantic colours, nothing else.
+- Semantic colour is never the only signal: every fit/warn/misfit state also carries a word and a glyph.
+- Decorative hairlines (`--line`) are allowed to be low contrast; anything a user must perceive as a
+  boundary (input border, button outline, focus ring, chart baseline) uses `--control` or `--accent`.
 
 ## Typography
 
-**IBM Plex Sans** for UI text, **IBM Plex Mono** for numerals, item IDs, run IDs and code. Reason:
-Plex was drawn as a technical/instrument family, and the mono shares its skeleton, so a table of
-measures reads as one voice instead of two pasted fonts (the reason to avoid the AI-default picks
-Inter, Geist and Space Grotesk here, which say nothing about measurement).
+**Plus Jakarta Sans** for UI text, **IBM Plex Mono** for numerals, item IDs, dataset IDs and code.
 
-- F0 loads them from Google Fonts with `preconnect` + `display=swap`; **self-hosted subset in `app/static/fonts/` is the F5 task**, so the app never depends on a third-party CDN for its identity.
-- Numerals carry `font-variant-numeric: tabular-nums` everywhere.
-- Scale: 12 / 13 / 14 / 16 / 20 / 24 / 32 / 44. Body 15-16 with line-height 1.5; table body 14 with
-  line-height 1.45; the single lead number uses 44 at weight 600.
-- Weight carries hierarchy: 400 body, 500 labels, 600 numbers and headings. No all-bold rows, no
-  uppercase-tracked micro labels anywhere.
+Reason: Plus Jakarta Sans was commissioned as the identity face of Jakarta; this product's whole
+audience and every dataset in it is Indonesian, so the face ties the interface to its context instead of
+borrowing the AI-default look (Inter / Geist / Space Grotesk say nothing about measurement). Plex Mono
+keeps the instrument role: unambiguous `0/O` and `1/l` for item codes, and `tabular-nums` so columns of
+measures line up.
 
-## Surfaces, radius and elevation
+- Load from Google Fonts with `preconnect` + `display=swap`, and declare a fallback stack that still
+  looks deliberate (`Georgia, serif` for display, `system-ui` for body) when the CDN is unreachable.
+  **Self-hosted subset in `app/static/fonts/` is a later task (F5), named here so it is not forgotten.**
+- Scale (desktop / mobile): display `56/34`, h1 `40/30`, h2 `28/24`, h3 `22/20`, lead `18/17`,
+  body `16/16`, secondary `14/14`, micro label `12/12` (micro labels only, never body copy).
+- Weight carries hierarchy: 400 body, 500 labels and controls, 600 headings and numbers, 700 reserved
+  for the single page title. No all-bold rows, no uppercase-tracked micro labels.
+- Line height: 1.2 headings, 1.5 body, 1.45 table body. Measure (line length) under 72 characters for
+  prose; the hero line under 46.
+- Every numeral in a table, metric tile or scale band uses `font-variant-numeric: tabular-nums`.
 
-Three planes (page → surface → raised) and two shadows; that is how depth is expressed, never with
-gradients, glows or bevels.
+## Identity motif: the measured band (pita ukur)
 
-- Radius: `--radius-sm 6px` inputs and table containers, `--radius-md 10px` cards, `--radius-lg 14px`
-  panels and dialogs. A pill is allowed only for a real status chip.
-- `--shadow-1`: `0 1px 2px rgb(16 20 24 / 0.05), 0 1px 3px rgb(16 20 24 / 0.07)` for cards.
-- `--shadow-2`: `0 10px 30px rgb(16 20 24 / 0.10)` for dialogs and popovers.
-- In dark, shadows are replaced by a 1px `--rule` border plus a slightly raised fill.
+The subject is a calibrated ruler: every dataset in the product is a matrix that will end up as items and
+persons on one logit scale. The motif is a **thin measured band — a labelled tick rule with real
+numbers** — used in exactly three places, each carrying information:
 
-## Identity motif: the measure scale
+1. **Dataset card, capacity band.** A band showing cells used against the 8.000.000-cell cap, with both
+   endpoints labelled and the dataset's own value printed. Tells the user how much room is left.
+2. **Detail page, above the missing table.** A horizontal axis from `0%` to the dataset's own maximum
+   missing rate, with the total marked and labelled. Turns 147 identical rows into a readable shape.
+3. **Brand mark.** The wordmark's dot sits on a three-tick micro-scale with the caption `skala logit`,
+   stating what the product measures. It never appears without that caption.
 
-The subject is a calibrated ruler: items and persons placed on one logit scale. The recurring motif is
-a **fine tick rule** (1px baseline, 3px and 5px ticks, drawn in `--scale`), used in exactly three
-places: under the header of the item and person tables, as the axis of the Wright map, and as the
-"measure strip" on a run summary that puts the item-measure range and person-measure range on the same
-ruler. Reason: it makes the product recognisable without a logo, and it comes from what the numbers
-mean rather than from decoration.
+Rules: the band is drawn from tokens, is inline SVG or CSS (no chart library), carries at least two real
+labels, and has one caption line saying what it measures. **A tick rule without numbers is a divider,
+not a motif, and is a defect** (this exact mistake was caught and removed once already).
 
-## Layout bands (results screen), RHYTHM 3
+## Layout — RHYTHM 3, bands that differ by shape
 
-Bands with different shapes; a wall of equal cards is banned (`data-dashboard`'s loudest tell).
+A wall of equal cards, or every section as centred title + identical card grid, is banned. Composition
+changes between bands on purpose.
 
-1. Lead band: the leading number at 44px with the measure strip, spanning 8 columns; a compact run
-   status panel beside it on 4.
-2. Account band: persons input / reported / calibrated / extreme / deleted as one labelled line, plus
-   the item count. Not five cards.
-3. Distribution band: two different shapes side by side, the Wright map and a fit histogram, inline SVG
-   from tokens, no chart library.
-4. Table bands: item table, person table, option table, then the summary.
-5. Footer: engine version, mode, iterations, wall time, run ID.
+**Shell (all pages).** A top app bar: wordmark + motif caption on the left, current section as a real
+link set, account menu (avatar + name, opens to `/account`, `/logout`) on the right, theme toggle at the
+end. Height 72px desktop / 64px mobile, sticky with the `--paper` fill and a `--line` hairline. Account
+links never sit inside a content card. Footer: product name, version, one line on what it measures.
 
-12-column grid with explicit spans, collapsing 12 → 6 → 1. Never `repeat(auto-fit, ...)` for the
-primary bands.
+**`/datasets` — upload + list**
+
+1. Title band: page title at h1, one-line explanation, and the *primary* action. One focal point.
+2. Upload band: a real **dropzone** (dashed `--control`, `--surface-2` fill, ≥160px tall desktop,
+   ≥140px mobile) with an upload glyph, a bold line, a muted format line and a per-file status row.
+   Drag-over state changes border to `--accent` + `--accent-soft` fill. The optional `.con` file sits in
+   a visually subordinate slot (smaller, secondary) inside the same band, never as an equal twin.
+   Limits line sits directly under the dropzone as a scannable list (not a grey wall of text).
+3. File list band: **cards on mobile, a real table on desktop** — not one table squeezed into 390px.
+   Each file row/card carries: format chip, filename (mono), status with glyph + word, the capacity
+   band (motif 1), metadata line (respondents × items · size · read format), and two actions with a
+   clear hierarchy (one primary, one secondary).
+4. Empty state: designed, with a next-step sentence, not a bare "no data".
+
+**`/datasets/{id}` — preview + mapping**
+
+1. Header band: filename, status, and the metadata as labelled pairs; back link.
+2. Preview band: the response matrix table, sticky header, `sticky` first column, `NA` cells visually
+   distinct from `0`/`1` using `--surface-2` plus a legend line.
+3. Mapping band: token inventory as rows (token, mono; frequency, tabular right-aligned; classification,
+   a real `<select>` with a text label). The commit action is **sticky** and always reachable, never
+   buried under a long table.
+4. Missing band: motif 2 axis on top, then the table, sortable with `aria-sort`, severity tint by band
+   (`<2%` fit, `2-5%` warn, `>5%` misfit) with the number always printed.
+
+**Auth pages (`/login`, `/register`, `/forgot`, `/reset`), `/gate`, `/account`.** One column, max 480px,
+same shell, no marketing hero, no fake screenshots. Gate page states plainly that the product is not open
+yet and links to login.
 
 ## Components and their states
 
-- Buttons: primary (accent fill, 6px radius, 40px tall), secondary (1px `--rule`, ink text), ghost
-  (text only). Hover darkens by 6%, active by 10%, focus shows the 2px `--scale` ring at 2px offset,
-  disabled is 45% opacity and `cursor:not-allowed`.
-- Inputs: 1px `--rule`, 6px radius, 40px tall, focus ring, error state carries text, never colour alone.
-- Status chip: pill, real status only (queued / running / done / failed), no decorative badges.
-- Tables: sticky header, sortable with `aria-sort`, hover row tint of 3% ink, 1px `--rule` separators,
-  no filled zebra stripes, numeric columns right-aligned and tabular.
-- Run progress: determinate bar when progress is known, otherwise an indeterminate bar plus the
-  account-of-persons line; `aria-live="polite"` on the status text.
-- Toasts for confirmed actions (upload accepted, run finished), dismissible, never blocking.
-- Skeleton loaders only while a table fetches, never as a product shot.
+- **Button**: primary (accent fill, ground-coloured label, 44px tall, radius 10px), secondary (`--control`
+  outline, ink label), ghost (text only), destructive (outline `--misfit`). Hover shifts fill by 6%,
+  active by 10%, focus shows a 2px `--accent` ring at 2px offset, disabled is 45% opacity with
+  `cursor: not-allowed`. **Exactly one primary button per screen.**
+- **Input / select / file**: 1px `--control` border, radius 10px, 44px tall, label above (never a
+  placeholder-only field), focus ring, error state carries text.
+- **Chip / status**: radius 8px (not a pill), `--surface-2` fill, glyph + word. Status vocabulary is
+  fixed: `Menunggu konfirmasi` (warn), `Siap dianalisis` (fit), `Ditolak` (misfit), `Diproses` (accent).
+- **Table**: sticky header on `--surface-2`, `th scope`, `aria-sort` on sortable columns, 3% ink hover
+  tint, numeral columns right-aligned and tabular, no zebra fills, caption line above every table.
+- **Metric / capacity band**: label, value, unit, band. Values tabular. Never four equal stat cards.
+- **Toast**: confirmed actions only (upload accepted, file discarded), dismissible, `aria-live="polite"`.
 
 ## States (required, not bonus)
 
-Empty (no project yet, project with no run), loading (upload, run), error (upload rejected, parse
-failed, engine failed, each saying what happened and what to do while keeping the user's file listed),
-long run (the run row exists in the list immediately, the screen is never blank).
+Empty, loading (upload + commit), error (each saying what happened, what to do, and keeping the user's
+file listed), and the long case: an uploaded file appears in the list immediately with a pending status,
+so the screen is never blank and never lies about progress.
 
 ## Motion (MOTION 2)
 
-Hover, focus and state transitions at 120ms, panel and dialog entrances at 200ms ease-out, one progress
-indicator during a run. No scroll reveals, no animated charts, no parallax, no number count-ups.
-`prefers-reduced-motion: reduce` removes all of it, including the indeterminate shimmer.
+Hover/focus/state transitions 120ms; band and dialog entrances 200ms ease-out; one progress indicator per
+action. No scroll reveals, no parallax, no count-ups, no animated backgrounds. **Every declared
+`transition` or `animation` must sit inside a `@media (prefers-reduced-motion: reduce)` fallback** — one
+uncovered transition is a failure, not a nitpick.
+
+## Numeric limits in the copy (the two caps must agree)
+
+Upload limits are pinned as a PAIR and the rendered page must state both exact numbers:
+
+- **16 MB per file** (`MAX_UPLOAD_BYTES = 16 * 1024 * 1024`)
+- **8.000.000 cells per dataset** (`MAX_CELLS = 8_000_000`)
+
+Why 8M and not 1M: the previous 1.000.000 cap bound at about 1,9 MB of CSV, so the 16 MB byte cap was
+decorative and a normal file was refused for cells while being far inside the size limit. Measured with
+the real parser (probe process, constant bypassed, 512Mi instance):
+
+| Cells | File | Parse | Peak memory |
+|---|---|---|---|
+| 1.002.000 | 1,9 MB | 0,18 s | 10,9 MB |
+| 5.000.000 | 9,4 MB | 0,64 s | 52,8 MB |
+| 7.400.000 (50.000 × 148) | 14,1 MB | 1,72 s | 82,2 MB |
+| 8.000.000 | 15,0 MB | 1,20 s | 82,6 MB |
+
+The owner's real datasets (TBS 2025, 6 runs) top out at 2.328 × 147 = 342.216 cells, so the new cap keeps
+23× headroom. A test must assert the rendered upload page contains both numbers, so the copy can never
+drift from the constants.
 
 ## Tells to avoid, by name (rejected on sight)
 
-**Retro-desktop (the reason this file exists):** grey window chrome or title bars; beveled or inset
-borders; 11px cramped rows with no vertical rhythm; boxy panels with 2px hard edges; ALL-CAPS grey
-column headers; default unstyled buttons and selects; a dense mono block used as body copy; a
-screenshot-style "file, edit, view" style toolbar.
+**Retro-desktop:** grey window chrome or title bars; bevels or inset borders; 11px cramped rows; boxy
+2px hard-edged panels; ALL-CAPS grey column headers; unstyled native controls (a bare `input type=file`);
+a dense mono block used as body copy; a screenshot-style toolbar.
 
-**AI-default:** four or five equal stat cards; cream-plus-terracotta palette; amber brand fills;
-gradient buttons; glows; glassmorphism; radial orbs; background grid patterns; emoji used as icons; a
-fake terminal window; pill-shaped everything; skeleton blocks as product shots; hero illustrations;
+**Template-default / AI-default:** a wall of equal stat cards; amber or cream-plus-terracotta brand fills;
+gradient buttons; glows; glassmorphism; radial orbs; background grid or dot patterns; emoji as icons; a
+fake terminal window; pills everywhere; skeleton blocks used as product shots; hero illustrations;
 "AI powered / seamless / powerful"-class adjectives; an em dash in any copy; a coloured left stripe on
-cards.
+cards; a bare table squeezed into a 390px screen.
 
 ## Accessibility contract
 
-Keyboard reachable in visual order; visible focus ring (2px `--scale`, 2px offset); real `<th scope>`
-and table captions; `aria-sort` on sortable headers; `aria-live="polite"` on run status; contrast per
-the measured tables above in **both** themes; tap targets at least 44px on mobile; no horizontal
-overflow at 390px; reduced-motion honoured; no information carried by colour alone.
+Keyboard reachable in visual order; visible focus ring (2px `--accent`, 2px offset, never `outline: none`
+without a replacement); real `<th scope>` and a caption above every table; `aria-sort` on sortable
+headers; `aria-live="polite"` on upload and commit status; contrast per the measured tables in **both**
+themes; tap targets ≥44px on mobile; **no horizontal overflow at 390px and none at desktop**; reduced
+motion honoured; no information carried by colour alone; framework debug routes (`/docs`, `/redoc`,
+`/openapi.json`) off outside dev.
 
 ## Swap test
 
-If the logo and product name were swapped out, the page still reads as its own thing: no other
-analytics console organises its screen around a logit ruler with item and person ranges on one scale,
-and the tick-rule motif is not a template part. Answer: passes.
+Swap out the wordmark: the page still cannot belong to anyone else. It organises every file around a
+measured band with real numbers, states its limits as exact values, and reads as an instrument for
+Indonesian assessment work. Answer: passes.

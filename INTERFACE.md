@@ -130,5 +130,72 @@ cd /root/projects/raschlab-web
 | `raw_gzip` | BYTEA | Gzip-compressed raw uploaded file bytes with mtime=0 (FROZEN). |
 | `raw_bytes` | BIGINT | Size in bytes of original uncompressed uploaded data (FROZEN). |
 | `created_at` | BIGINT | Unix epoch timestamp in seconds when uploaded (FROZEN). |
-| `committed_at` | BIGINT | Unix epoch timestamp in seconds when committed, nullable until committed (FROZEN). |
+## F2.5 — UI redesign, frozen names (24 Sep 2026)
+
+Design authority is `DESIGN.md` (rewritten: light "Instrumen" + dark "Sinematik", dials ENERGY 3 /
+RHYTHM 3 / MOTION 2). These names are final; a writer must not invent alternatives.
+
+### Static files (names frozen)
+
+| File | Holds |
+|---|---|
+| `app/static/tokens.css` | Tokens only: the light block in `:root`, the dark block in `[data-theme="dark"]`, plus `@media (prefers-color-scheme: dark)` for `:root:not([data-theme="light"])`. No layout, no components. |
+| `app/static/app.css` | All layout and components (shell, bands, buttons, inputs, chips, tables, dropzone, capacity band, motion + `prefers-reduced-motion` fallbacks). |
+| `app/static/app.js` | Vanilla JS only, no dependencies: theme toggle, table sorting, dropzone drag-over/file-name display. Must be loaded with `defer`. |
+| `app/static/favicon.svg` | Existing mark; keep. A `/favicon.ico` route is **not** added (browsers fall back to the svg link). |
+
+**No `<style>` block inside any template.** All CSS lives in the two files above.
+
+### Theme mechanism (frozen)
+
+- The active theme is the `data-theme` attribute on `<html>`, values `light` or `dark`.
+- Persisted in a **cookie named `rl_theme`** (values `light` / `dark`; absent = follow the OS).
+- The toggle button lives in the app bar, has a text label, `aria-label` naming the target theme, and is
+  keyboard operable. Both themes must be fully verified (no mode may break layout, contrast or fonts).
+
+### CSS custom property names (frozen)
+
+```
+--paper --surface --surface-2 --ink --muted --line --control --accent --accent-soft
+--fit --warn --misfit
+--font-ui --font-mono
+--step-12 --step-14 --step-16 --step-18 --step-22 --step-28 --step-40 --step-56
+--space-1 --space-2 --space-3 --space-4 --space-6 --space-8 --space-12 --space-16 --space-24
+--radius-sm --radius-md --radius-lg --shadow-1 --shadow-2 --dur-1 --dur-2 --dur-3
+--band-h --shell-max
+```
+
+Retired names (must not appear anywhere): `--raised`, `--rule`, `--scale`, `--step-13`,
+`--step-20`, `--step-24`, `--step-32`, `--step-44`, `--space-24` as a raw pixel value, `.tick-rule`.
+The motif is class `band-scale` (a labelled measured band with real numbers).
+
+### Template blocks (frozen)
+
+- `base.html` blocks: `title`, `head`, `content`, `footer`, plus a new `appbar_actions` (extra buttons in
+  the app bar, right of the theme toggle). `base.html` renders the app bar and links the three static
+  files itself.
+- `gate.html` keeps the exact sentence `Aplikasi ini belum dibuka untuk umum.` (verification greps it).
+- `datasets.html` must contain both limit numbers verbatim: `16 MB` and `8.000.000 sel`.
+
+### Storage caps (updated — the pair must agree)
+
+| Constant | Value |
+|---|---|
+| `MAX_UPLOAD_BYTES` | `16 * 1024 * 1024` (unchanged) |
+| `MAX_CELLS` | `8_000_000` (was `1_000_000`; the old value bound at ~1,9 MB, making the byte cap decorative — see `DESIGN.md` for the measured cost table) |
+
+### Verification commands (F2.5 additions)
+
+```bash
+# token names present and retired names gone
+grep -c 'band-scale' app/static/tokens.css app/static/app.css
+grep -rn 'tick-rule\|--rule\|--raised\|--scale' app/templates app/static || echo "retired names: none"
+
+# the two limit numbers reach the rendered page (constants -> copy)
+.venv/bin/python -m pytest -q tests/test_ui_contract.py
+
+# no debug routes outside dev
+APP_ENV=prod .venv/bin/python -c "from app.main import app; print([r.path for r in app.routes if 'docs' in r.path or 'openapi' in r.path.lower()])"
+```
+
 
