@@ -7,10 +7,10 @@ to keep the parity-verified engine frozen while guaranteeing zero drift
 between preview, commit, and verification tests.
 """
 
-import csv as _csv
-import io as _io
-from typing import Any as _Any, Iterable as _Iterable, NamedTuple as _NamedTuple
-import openpyxl as _openpyxl
+import csv
+import io
+from typing import Any, Iterable, NamedTuple
+import openpyxl
 
 from app.storage import (
     MAX_CELLS as _MAX_CELLS,
@@ -47,7 +47,7 @@ PERSON_LABEL_HEADERS: frozenset[str] = frozenset(
 )
 
 
-class ParsedDataset(_NamedTuple):
+class ParsedDataset(NamedTuple):
     """Standard container for wide person-by-item response matrices."""
 
     person_labels: list[str]
@@ -59,7 +59,7 @@ class ParsedDataset(_NamedTuple):
         return self.rows
 
 
-class PrnDataset(_NamedTuple):
+class PrnDataset(NamedTuple):
     """Container for parsed fixed-width Winsteps matrix rows."""
 
     person_labels: list[str]
@@ -77,7 +77,7 @@ def _sniff_delimiter(first_line: str) -> str:
     return best if counts[best] > 0 else ","
 
 
-def _format_cell(val: _Any) -> str:
+def _format_cell(val: Any) -> str:
     if val is None:
         return ""
     if isinstance(val, bool):
@@ -99,7 +99,7 @@ def parse_delimited(raw: bytes) -> ParsedDataset:
     if not first_line:
         return ParsedDataset(person_labels=[], item_labels=[], rows=[])
 
-    reader = _csv.reader(lines, delimiter=_sniff_delimiter(first_line))
+    reader = csv.reader(lines, delimiter=_sniff_delimiter(first_line))
     header: list[str] | None = None
     has_person_col, item_labels = False, []
     person_labels, rows = [], []
@@ -149,7 +149,7 @@ def parse_xlsx(raw: bytes) -> ParsedDataset:
             f"Payload size {len(raw)} bytes exceeds MAX_UPLOAD_BYTES ({_MAX_UPLOAD_BYTES})"
         )
 
-    wb = _openpyxl.load_workbook(_io.BytesIO(raw), read_only=True, data_only=True)
+    wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
     try:
         sheet_names = wb.sheetnames
         if not sheet_names:
@@ -205,7 +205,7 @@ def parse_xlsx(raw: bytes) -> ParsedDataset:
         wb.close()
 
 
-def parse_control(raw: bytes) -> dict[str, _Any]:
+def parse_control(raw: bytes) -> dict[str, Any]:
     """Parse Winsteps control directives from the &INST ... &END block."""
     lines = raw.decode("utf-8-sig").splitlines()
     inst_idx: int | None = None
@@ -224,7 +224,7 @@ def parse_control(raw: bytes) -> dict[str, _Any]:
     if end_idx is None:
         raise ValueError("Missing &END in control file")
 
-    result: dict[str, _Any] = {}
+    result: dict[str, Any] = {}
     for line in lines[inst_idx + 1 : end_idx]:
         content = line.split(";", 1)[0]
         if "=" not in content:
@@ -248,7 +248,7 @@ def parse_control(raw: bytes) -> dict[str, _Any]:
     return result
 
 
-def parse_prn(raw: bytes, control: dict[str, _Any]) -> PrnDataset:
+def parse_prn(raw: bytes, control: dict[str, Any]) -> PrnDataset:
     """Parse fixed-width Winsteps matrix rows using control directives."""
     item1 = int(control.get("ITEM1") or control.get("item1"))
     ni = int(control.get("NI") or control.get("ni"))
@@ -338,7 +338,7 @@ def distinct_tokens(
     return counts
 
 
-def validate_mapping(tokens: _Iterable[str], mapping: dict[str, str]) -> list[str]:
+def validate_mapping(tokens: Iterable[str], mapping: dict[str, str]) -> list[str]:
     """Return all tokens lacking an explicit assignment in CANONICAL_CLASSES."""
     unassigned: list[str] = []
     for token in tokens:
@@ -353,7 +353,7 @@ def validate_mapping(tokens: _Iterable[str], mapping: dict[str, str]) -> list[st
     return unassigned
 
 
-def default_mapping(tokens: _Iterable[str]) -> dict[str, str]:
+def default_mapping(tokens: Iterable[str]) -> dict[str, str]:
     """Build default Path A value mapping for distinct tokens per PLAN.md D5."""
     mapping: dict[str, str] = {}
     tokens_list = list(tokens)

@@ -85,3 +85,50 @@ cd /root/projects/raschlab-web
 .venv/bin/python -c "from app.main import app;print(sorted(r.path for r in app.routes))"
 .venv/bin/python -m alembic upgrade head --sql > /tmp/alembic_offline.sql && grep -c app_meta /tmp/alembic_offline.sql
 ```
+
+## F2 routes
+
+### HTTP routes
+
+| Route | Method | Behaviour |
+|---|---|---|
+| `/datasets` | GET | Lists user datasets with upload form; returns HTML (`datasets.html`, 200) or redirect to `/login` (303). |
+| `/datasets` | POST | Accepts multipart upload, validates and stages dataset; returns redirect to `/datasets/{id}` (303) or renders upload error (`datasets.html`, 200/429). |
+| `/datasets/{id}` | GET | Displays preview and mapping form for staged datasets, or summary for ready datasets; returns HTML (`dataset_detail.html`, 200) or 404. |
+| `/datasets/{id}/commit` | POST | Validates mapping, reparses stored raw data, marks status as ready; returns redirect to `/datasets/{id}` (303) or error page (`dataset_detail.html`, 422). |
+| `/datasets/{id}/discard` | POST | Deletes dataset record from database; returns redirect to `/datasets` (303) or 404. |
+
+### Multipart form fields and accepted extensions
+
+| Field | Requirement | Accepted extensions | Description |
+|---|---|---|---|
+| `data` | Required | `.csv`, `.xlsx`, `.prn` | Primary measurement data file. |
+| `con` | Optional | `.con` | Winsteps control file, required when data format is `.prn`. |
+
+### Storage size caps (app/storage.py)
+
+| Constant | Value | Description |
+|---|---|---|
+| `MAX_UPLOAD_BYTES` | `16 * 1024 * 1024` (16,777,216 bytes / 16 MiB) | Maximum per-file upload size cap. |
+| `MAX_CELLS` | `1_000_000` (1,000,000 cells) | Maximum total matrix cell limit. |
+
+### Datasets table columns (column names are FROZEN)
+
+| Column (FROZEN) | Type | Meaning |
+|---|---|---|
+| `id` | INTEGER | Primary key identifier for the dataset (FROZEN). |
+| `user_id` | INTEGER | Foreign key referencing users(id) with CASCADE deletion (FROZEN). |
+| `filename` | TEXT | Original upload filename (FROZEN). |
+| `kind` | TEXT | Ingest path category: delimited or winsteps (FROZEN). |
+| `format` | TEXT | Ingest file format: csv, xlsx, or prn (FROZEN). |
+| `status` | TEXT | Lifecycle stage: staged (preview) or ready (committed) (FROZEN). |
+| `n_persons` | INTEGER | Total count of respondents or persons (rows) (FROZEN). |
+| `n_items` | INTEGER | Total count of measurement items (columns) (FROZEN). |
+| `item_labels_json` | TEXT | JSON array of item column labels (FROZEN). |
+| `mapping_json` | TEXT | JSON object of token classification mapping or control parameters (FROZEN). |
+| `summary_json` | TEXT | JSON object containing shape, preview rows, distinct tokens, and missing counts (FROZEN). |
+| `raw_gzip` | BYTEA | Gzip-compressed raw uploaded file bytes with mtime=0 (FROZEN). |
+| `raw_bytes` | BIGINT | Size in bytes of original uncompressed uploaded data (FROZEN). |
+| `created_at` | BIGINT | Unix epoch timestamp in seconds when uploaded (FROZEN). |
+| `committed_at` | BIGINT | Unix epoch timestamp in seconds when committed, nullable until committed (FROZEN). |
+

@@ -1,0 +1,581 @@
+{% extends "base.html" %}
+
+{% block title %}Berkas Pengukuran: RaschLab{% endblock %}
+
+{% block head %}
+<style>
+  .datasets-layout {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    gap: var(--space-6);
+  }
+
+  .ds-card {
+    background-color: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-1);
+    padding: var(--space-6);
+  }
+
+  .ds-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .ds-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  .ds-account-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--step-44);
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--step-13);
+    font-weight: 500;
+    color: var(--scale);
+    text-decoration: none;
+    transition: background-color var(--dur-1) ease-out;
+  }
+
+  .ds-account-link:hover {
+    text-decoration: underline;
+    background-color: var(--paper);
+  }
+
+  .ds-title {
+    font-size: var(--step-24);
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+    line-height: 1.25;
+  }
+
+  .ds-lead {
+    font-size: var(--step-14);
+    color: var(--muted);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .ds-alert {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-4);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--misfit);
+    background-color: var(--surface);
+    color: var(--ink);
+    font-size: var(--step-14);
+  }
+
+  .ds-alert-title {
+    font-weight: 600;
+    color: var(--misfit);
+    margin: 0;
+  }
+
+  .ds-alert-text {
+    margin: 0;
+    color: var(--ink);
+    line-height: 1.45;
+  }
+
+  .upload-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .field-label {
+    font-size: var(--step-14);
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .field-hint {
+    font-size: var(--step-12);
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .file-input {
+    min-height: var(--step-44);
+    display: flex;
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    background-color: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: var(--step-13);
+    width: 100%;
+  }
+
+  .file-input:focus-visible {
+    border-color: var(--scale);
+  }
+
+  .file-picker-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .file-picker-enhanced {
+    display: none;
+  }
+
+  .js .file-picker-enhanced {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    min-height: var(--step-44);
+  }
+
+  .js .file-input-native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+    opacity: 0.001;
+  }
+
+  .file-picker-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--step-44);
+    padding: 0 var(--space-4);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-ui);
+    font-size: var(--step-13);
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--ink);
+    background-color: var(--surface);
+    border: 1px solid var(--rule);
+    transition: background-color var(--dur-1) ease-out, border-color var(--dur-1) ease-out;
+    user-select: none;
+  }
+
+  .file-picker-btn:hover {
+    background-color: var(--paper);
+    border-color: var(--scale);
+  }
+
+  .file-picker-btn:active {
+    filter: brightness(0.92);
+  }
+
+  .file-input-native:focus-visible ~ .file-picker-enhanced .file-picker-btn,
+  .file-picker-btn:focus-visible {
+    outline: 2px solid var(--scale);
+    outline-offset: 2px;
+    border-color: var(--scale);
+  }
+
+  .file-picker-status {
+    font-size: var(--step-13);
+    color: var(--muted);
+    line-height: 1.4;
+    word-break: break-all;
+  }
+
+  .upload-guidelines {
+    font-size: var(--step-12);
+    color: var(--muted);
+    line-height: 1.5;
+    background-color: var(--paper);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--scale);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--step-44);
+    padding: 0 var(--space-6);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-ui);
+    font-size: var(--step-14);
+    font-weight: 600;
+    cursor: pointer;
+    background-color: var(--scale);
+    color: var(--surface);
+    border: 1px solid var(--scale);
+    align-self: flex-start;
+    transition: background-color var(--dur-1) ease-out, border-color var(--dur-1) ease-out;
+  }
+
+  .btn-primary:hover {
+    filter: brightness(1.08);
+  }
+
+  .btn-primary:active {
+    filter: brightness(0.92);
+  }
+
+  .section-header-block {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-4);
+  }
+
+  .section-title {
+    font-size: var(--step-20);
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  .table-scroll-hint {
+    display: none;
+    font-size: var(--step-12);
+    color: var(--muted);
+    margin: 0 0 var(--space-2) 0;
+    line-height: 1.4;
+  }
+
+  @media (max-width: 500px) {
+    .table-scroll-hint {
+      display: block;
+    }
+  }
+
+  .table-scroll-container {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    background-color: var(--surface);
+    padding-right: var(--space-6);
+    box-shadow: inset -10px 0 8px -8px var(--rule);
+    background-image:
+      linear-gradient(to right, var(--surface) 30%, transparent),
+      linear-gradient(to left, var(--surface) 30%, transparent),
+      radial-gradient(farthest-side at 0 50%, var(--rule), transparent),
+      radial-gradient(farthest-side at 100% 50%, var(--rule), transparent);
+    background-repeat: no-repeat;
+    background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+    background-position: 0 0, 100% 0, 0 0, 100% 0;
+    background-attachment: local, local, scroll, scroll;
+  }
+
+  .ds-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--step-14);
+    text-align: left;
+  }
+
+  .ds-table th {
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--paper);
+    color: var(--ink);
+    font-weight: 600;
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+
+  .ds-table td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink);
+    vertical-align: middle;
+  }
+
+  .ds-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .ds-table tbody tr:hover {
+    background-color: var(--paper);
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ds-filename-link {
+    color: var(--scale);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .ds-filename-link:hover {
+    text-decoration: underline;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--step-12);
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+
+  .chip-staged {
+    background-color: var(--surface);
+    border: 1px solid var(--warn);
+    color: var(--warn);
+  }
+
+  .chip-ready {
+    background-color: var(--surface);
+    border: 1px solid var(--fit);
+    color: var(--fit);
+  }
+
+  .chip-format {
+    background-color: var(--paper);
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: var(--step-12);
+  }
+
+  .btn-table-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--step-44);
+    padding: 0 var(--space-4);
+    border-radius: var(--radius-sm);
+    font-size: var(--step-13);
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--scale);
+    background-color: var(--surface);
+    border: 1px solid var(--rule);
+    transition: background-color var(--dur-1) ease-out, border-color var(--dur-1) ease-out;
+  }
+
+  .btn-table-action:hover {
+    background-color: var(--paper);
+    border-color: var(--scale);
+  }
+
+  .ds-empty-state {
+    padding: var(--space-8) var(--space-4);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .ds-empty-title {
+    font-size: var(--step-16);
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  .ds-empty-text {
+    font-size: var(--step-14);
+    color: var(--muted);
+    max-width: 520px;
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn-primary, .btn-table-action, .ds-account-link, .file-picker-btn {
+      transition: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .btn-primary {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="datasets-layout">
+  {% if error %}
+  <div class="ds-alert" role="alert">
+    <h2 class="ds-alert-title">Gagal Mengunggah Berkas</h2>
+    <p class="ds-alert-text">{{ error }}</p>
+  </div>
+  {% endif %}
+
+  <div class="ds-card">
+    <header class="ds-header">
+      <div class="ds-header-row">
+        <h1 class="ds-title">Berkas Pengukuran</h1>
+        <a href="/account" class="ds-account-link">Profil Akun</a>
+      </div>
+      <p class="ds-lead">Unggah data respon instrumen untuk pemetaan token, verifikasi missing data, dan kalibrasi model Rasch.</p>
+    </header>
+
+    <form action="/datasets" method="post" enctype="multipart/form-data" class="upload-form">
+      <div class="form-grid">
+        <div class="field-group">
+          <label for="upload-data" class="field-label">Berkas Data (.csv, .xlsx, .prn) *</label>
+          <div class="file-picker-wrapper">
+            <input type="file" id="upload-data" name="data" accept=".csv,.xlsx,.prn" required class="file-input file-input-native">
+            <div class="file-picker-enhanced" aria-hidden="true">
+              <label for="upload-data" class="file-picker-btn">Pilih berkas</label>
+              <span class="file-picker-status" id="upload-data-status" aria-live="polite">Belum ada berkas dipilih</span>
+            </div>
+          </div>
+          <span class="field-hint">Berkas tabel respon responden x butir atau berkas teks terformat Winsteps PRN.</span>
+        </div>
+
+        <div class="field-group">
+          <label for="upload-con" class="field-label">Berkas Kontrol (.con) (Opsional)</label>
+          <div class="file-picker-wrapper">
+            <input type="file" id="upload-con" name="con" accept=".con,.CON" class="file-input file-input-native">
+            <div class="file-picker-enhanced" aria-hidden="true">
+              <label for="upload-con" class="file-picker-btn">Pilih berkas</label>
+              <span class="file-picker-status" id="upload-con-status" aria-live="polite">Belum ada berkas dipilih</span>
+            </div>
+          </div>
+          <span class="field-hint">Wajib disertakan apabila mengunggah berkas format Winsteps PRN.</span>
+        </div>
+      </div>
+
+      <div class="upload-guidelines">
+        <span>Batas ukuran berkas maksimal 16 MB dan maksimal 1.000.000 sel data.</span>
+        <span>Format CSV/XLSX diproses otomatis baris pertama sebagai nama butir dan kolom pertama sebagai identitas responden (jika berkepala id/nama/respondent).</span>
+        <span>Batas frekuensi unggah: maksimal 20 berkas per jam untuk setiap akun.</span>
+      </div>
+
+      <button type="submit" class="btn-primary">Unggah Berkas</button>
+    </form>
+  </div>
+
+  <div class="ds-card">
+    <div class="section-header-block">
+      <h2 class="section-title">Daftar Berkas Pengukuran</h2>
+      <span class="field-hint">{{ datasets | length }} berkas terdaftar</span>
+    </div>
+    <div class="tick-rule" aria-hidden="true" style="margin-bottom: var(--space-4);"></div>
+
+    {% if datasets %}
+    <p class="table-scroll-hint">Geser tabel ke samping untuk melihat kolom lainnya</p>
+    <div class="table-scroll-container" tabindex="0" role="region" aria-label="Tabel daftar berkas pengukuran">
+      <table class="ds-table">
+        <thead>
+          <tr>
+            <th scope="col">Nama Berkas</th>
+            <th scope="col">Format</th>
+            <th scope="col">Dimensi Data</th>
+            <th scope="col">Ukuran</th>
+            <th scope="col">Status</th>
+            <th scope="col">Tindakan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in datasets %}
+          <tr>
+            <td>
+              <a href="/datasets/{{ d.id }}" class="ds-filename-link font-mono">{{ d.filename }}</a>
+            </td>
+            <td>
+              <span class="chip chip-format">{{ d.format | upper }}</span>
+            </td>
+            <td class="font-mono">
+              {{ d.n_persons }} responden x {{ d.n_items }} butir
+            </td>
+            <td class="font-mono">
+              {{ (d.raw_bytes / 1024) | round(1) }} KB
+            </td>
+            <td>
+              {% if d.status == 'ready' %}
+              <span class="chip chip-ready">Siap</span>
+              {% else %}
+              <span class="chip chip-staged">Belum dikonfirmasi</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="/datasets/{{ d.id }}" class="btn-table-action">Buka Pratinjau</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="ds-empty-state">
+      <h3 class="ds-empty-title">Belum Ada Berkas Pengukuran</h3>
+      <p class="ds-empty-text">Anda belum mengunggah data pengukuran. Silakan gunakan formulir di atas untuk mengunggah berkas berformat CSV, XLSX, atau pasangan PRN dan CON.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<script>
+  document.documentElement.classList.add('js');
+  (function () {
+    function setupFilePicker(inputId, statusId) {
+      var input = document.getElementById(inputId);
+      var status = document.getElementById(statusId);
+      if (!input || !status) return;
+      input.addEventListener('change', function () {
+        if (input.files && input.files.length > 0) {
+          status.textContent = input.files[0].name;
+        } else {
+          status.textContent = 'Belum ada berkas dipilih';
+        }
+      });
+    }
+    setupFilePicker('upload-data', 'upload-data-status');
+    setupFilePicker('upload-con', 'upload-con-status');
+  })();
+</script>
+{% endblock %}
