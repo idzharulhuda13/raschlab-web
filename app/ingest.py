@@ -58,6 +58,7 @@ from app.parsers import (
     validate_mapping,
 )
 from app.ratelimit import check_limit, client_ip
+from app.analysis import AnalysisError, build_matrix_gzip, latest_done_analysis
 from app.security import now_epoch
 from app.storage import (
     MAX_UPLOAD_BYTES,
@@ -97,7 +98,7 @@ def _format_error(exc: Exception) -> str:
     if "MAX_UPLOAD_BYTES" in msg or "melebihi batas" in msg:
         return "Ukuran berkas melebihi batas maksimal 16 MB."
     if "MAX_CELLS" in msg:
-        return "Jumlah sel berkas melebihi batas maksimal 1.000.000 sel."
+        return "Jumlah sel berkas melebihi batas maksimal 2.000.000 sel."
     if isinstance(exc, (ValueError, StorageError)):
         return f"Berkas tidak valid: {msg}"
     return "Terjadi kesalahan saat memproses berkas. Pastikan format berkas sesuai."
@@ -336,10 +337,12 @@ def get_dataset(id: int, request: Request, db: Session = Depends(get_session)):
     if dataset is None or dataset.user_id != user.id:
         raise HTTPException(status_code=404, detail="Dataset tidak ditemukan.")
 
+    context = _build_dataset_context(request, user, dataset)
+    context["latest_analysis"] = latest_done_analysis(db, dataset.id)
     return templates.TemplateResponse(
         request=request,
         name="dataset_detail.html",
-        context=_build_dataset_context(request, user, dataset),
+        context=context,
         status_code=200,
     )
 
@@ -407,10 +410,36 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
             parsed, mapping=submitted_mapping
         )
 
+        try:
+            item_labels = (
+                json.loads(dataset.item_labels_json)
+                if dataset.item_labels_json
+                else parsed.item_labels
+            )
+            matrix_gzip = build_matrix_gzip(
+                kind="delimited",
+                person_labels=parsed.person_labels,
+                item_labels=item_labels,
+                rows=parsed.rows,
+                mapping=submitted_mapping,
+            )
+        except AnalysisError as exc:
+            context = _build_dataset_context(
+                request, user, dataset, error=str(exc)
+            )
+            context["mapping"] = submitted_mapping
+            return templates.TemplateResponse(
+                request=request,
+                name="dataset_detail.html",
+                context=context,
+                status_code=422,
+            )
+
         dataset.mapping_json = json.dumps(submitted_mapping)
         dataset.summary_json = json.dumps(summary)
         dataset.status = "ready"
         dataset.committed_at = now_epoch()
+        dataset.matrix_gzip = matrix_gzip
         db.commit()
         return RedirectResponse(f"/datasets/{dataset.id}", status_code=303)
 
@@ -452,10 +481,37 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
         if extra_missing:
             final_mapping["extra_missing"] = extra_missing
 
+        try:
+            item_labels = (
+                json.loads(dataset.item_labels_json)
+                if dataset.item_labels_json
+                else [f"I{i+1:02d}" for i in range(dataset.n_items)]
+            )
+            matrix_gzip = build_matrix_gzip(
+                kind="winsteps",
+                person_labels=parsed.person_labels,
+                item_labels=item_labels,
+                rows=parsed.rows,
+                mapping=final_mapping,
+                control=control,
+            )
+        except AnalysisError as exc:
+            context = _build_dataset_context(request, user, dataset, error=str(exc))
+            context["key"] = key
+            context["codes"] = codes
+            context["extra_missing"] = extra_missing
+            return templates.TemplateResponse(
+                request=request,
+                name="dataset_detail.html",
+                context=context,
+                status_code=422,
+            )
+
         dataset.mapping_json = json.dumps(final_mapping)
         dataset.summary_json = json.dumps(summary)
         dataset.status = "ready"
         dataset.committed_at = now_epoch()
+        dataset.matrix_gzip = matrix_gzip
         db.commit()
         return RedirectResponse(f"/datasets/{dataset.id}", status_code=303)
 

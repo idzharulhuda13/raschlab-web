@@ -1,217 +1,339 @@
-# PLAN — RaschLab Web, F2 "Ingest"
+# PLAN.md — F3: run the engine, store the results, render them
 
-Provenance: brief `/root/.hermes/profiles/personal-assistant/cache/scratch/brief_f2_ingest.md` →
-planner role run `xiaomi/mimo-v2.6-flash` via commandcode, session `20260924_080336_5ae3ef`
-(`/root/.hermes/profiles/planner/plans/2026-09-24-f2-ingest.attempt2.md`; attempt 1 died on a provider
-mid-stream drop at 07:58 and was killed) → curated here by Arc 24 Sep 2026.
-Repo state at planning time: `/root/projects/raschlab-web`, `main`, HEAD `3df86c0`, deployed live on
-Cloud Run (revision `00006-p4r`, gate open) + Neon Postgres.
+**This file is the binding contract for the F3 build.** Phase 2 (writer) executes it literally; Arc verifies
+every claim with measurements. Where this file and any other description disagree, this file wins. Nothing in
+this plan may be substituted by "a better idea" mid-run: if the writer thinks a step is wrong, it stops and
+says so in its report instead of improvising.
 
-Executor key: **agy** = writer run (1-2 edits, `--stdin`), **Arc** = verify/commit/render/deploy.
-Phase 2 (any agy run) starts only after this file exists. A writer run never runs `alembic upgrade`.
+Executor key: **agy** = writer run (`--stdin`, 1–2 files per run, `--add-dir /root/projects/raschlab-web`).
+**Arc** = install, migrate, deploy, audit. A writer run never runs `alembic upgrade` and never deploys.
 
-## Decisions (question → choice → one-line reason)
+## Non-negotiables (measured or decided, not preferences)
 
-- **D1 Storage backend: gzip'd raw bytes in a Postgres `bytea` column, behind `app/storage.py`.** Reason: no
-  persistent disk exists, a dataset delete is one SQL DELETE (F4 stays transactional), Neon free (0.5 GB) holds
-  ~30 worst-case 16 MiB files and real TBS files are ~0.5-1 MB. GCS is a later swap: keep every raw-byte
-  read/write inside `storage.py`; a GCS impl then replaces that module and adds a `storage_key` column in its own
-  migration, routes never change.
-- **D2 CSV/XLSX parsing lives in the platform (`app/parsers.py`), not the engine.** Reason: the engine is
-  parity-verified and frozen; adding an input reader re-opens a verified artifact and drags input concerns into a
-  CLI whose contract is `.CON` + `.prn`. Drift is controlled by NOT duplicating scoring: the adapter emits only
-  `(labels, rows)`-shaped data plus a control dict, classification rules live once in the platform's mapping
-  module, and a skip-if-absent test cross-checks our `.CON` reader against engine `parse_control`.
-- **D3 F2 takes NO engine dependency; the packaging decision is deferred to F3.** F2's "done when" never runs
-  estimation. F3 recommendation to carry to Dada: vendor at a pinned SHA (`vendor/raschlab/`; engine is frozen so
-  vendoring cannot rot silently) because making the parity engine public is a product-visibility call only Dada can
-  make, and build tokens add Cloud Build auth surface for no F2 benefit. **FLAGGED FOR DADA before F3**, not now.
-- **D4 Two ingest paths, not four.** Path A = one wide table file (CSV or XLSX, same code path after
-  XLSX-first-sheet → rows). Path B = Winsteps pair (`.CON` + fixed-width `.prn`). CUT: `.CON` + delimited data
-  (the engine itself cannot read it), legacy `.xls`, multi-sheet selection, anchor/person-delete files (F3+).
-- **D5 Value mapping + missing rule.** Canonical cell classes: `correct` / `incorrect` / `missing`. Path A
-  defaults: missing = tokens `{"", "na", "n/a"}` (case-insensitive, matches pandas default NA so the proof is
-  honest); if remaining tokens are exactly `{0,1}` preselect `1=correct, 0=incorrect`. Path B defaults from
-  control: `key = KEY1`, `codes = CODES` (default `ABCDE`); cell = missing iff char not in codes (mirrors engine
-  `score()`), correct iff `char == key[j]`. The user overrides everything in the preview. **Commit is blocked while
-  any distinct token is unassigned** — that block IS the missing-value sanity gate, and it makes wrong-key /
-  wrong-missing-token (the documented #1 source of wrong results) impossible to commit silently. The rule is one
-  pure function used by preview, commit and tests, so it cannot drift from itself.
-- **D6 Preview: raw bytes stored at upload, matrix never stored.** On POST: parse in-request under caps (16 MiB/file,
-  1,000,000 cells, openpyxl `read_only` with row abort), write `datasets` row `status='staged'` + gzip raw +
-  `summary_json` (shape, item labels, distinct tokens+counts, per-item missing), redirect to `GET /datasets/{id}`.
-  Preview shows first 10 rows × first 12 columns (inner scroll container, "+N" notes), token inventory with mapping
-  selects, per-item missing table for items with missing > 0 plus totals, warnings (all-missing item, all-missing
-  person count, unassigned tokens). Commit re-parses stored raw with the final mapping and flips `status='ready'`.
-  Storing only raw keeps Neon small and keeps the stored artifact the single source of truth.
-- **D7 Missing-count proof that can fail: two independent layers, exact equality.** (1) Golden constants hardcoded
-  in the test (derived combinatorially, independent of any parser): CSV per-item missing
-  `[11,10,10,10,11,10,10,10,10,11,10,10,10,11,11,10,10,10,11,11,10,10,10,11,11,10,10,10,11,11,10,10,10,11,10,10,10,10,11,10]`
-  (sum 413); `.prn` per-item missing `[3,3,2,3,2,3,2,3,3,2,3,2,3,2,3,3,2,3,2,3]` (sum 52). (2) Cross-check against
-  pandas computed a different way (`read_csv` NA counts; `read_fwf` with explicit colspecs for `.prn`). Both
-  assertions are `==` on full length-40 / length-20 lists plus shape asserts (300x40, 60x20); a one-cell parser
-  shift fails both. pandas goes in `requirements-dev.txt` only.
+1. **Cap is 2 000 000 cells** (was 8 000 000). Reason: 2 M is 5.8x the largest real dataset (342 216 cells),
+   enough for 5 000 respondents x 400 items. Every user-facing string that says 8.000.000 must say 2.000.000,
+   and `MAX_CELLS` must be `2_000_000`.
+2. **Cloud Run stays at 512 MiB, with `--concurrency 1`.** Measured engine peaks: 1 M cells 0.8 s / 134 MB,
+   2 M cells 0.9 s / 214 MB, 3 M 1.4 s / 299 MB, 8 M 4.7 s / 744 MB. At the 2 M cap the engine needs 214 MB,
+   so one run per instance fits in 512 MiB; two must never share an instance.
+3. **Peak memory = max(parse, engine), never their sum.** The engine needs only a `.prn` + `.CON` on disk.
+   Decoded bytes, the response matrix and any parser structures must be released before `run_analyze` is
+   called. Keep the matrix as `numpy.uint8` while building; do not hold two Python copies of the matrix.
+4. **Byte-identity is structural, not aspirational.** The platform calls the engine in-process, with input
+   files written exactly as the CLI writes them, and stores the engine's own output bytes (read as `bytes`,
+   gzipped with `mtime=0`, never decoded and re-serialized). Localization happens only in the Jinja `id_num`
+   filter at render time.
+5. **Engine pinned** to `8e8ac678c792d9ecef20cb7efd5ee27cc841af4a` via a git dependency; never vendored,
+   never reimplemented.
+6. **Fail closed.** An incomplete or unmappable dataset produces an Indonesian error message and no analysis
+   row; there is never a silent default.
+7. **Scope fence.** F3 = run + store + render 4 tables + person account. F4 (list/rename/delete/download),
+   F5 (Wright map render + downloads), payments and auth work are OUT.
+8. **UI inherits the frozen design contract** (`DESIGN.md`, `INTERFACE.md`): existing tokens, existing classes,
+   no new fonts/colors/gradients, no `<style>` blocks, no inline `style=`, no em dash, Indonesian copy.
+9. **Every data view has empty, loading and error states.**
 
-## PLAN
+## Phase A — cap copy, dependency, schema
 
-1. **[agy R1] Schema.** Edit `app/models.py`: append `Dataset` in house style (int PK, epoch-second `BigInteger`
-   timestamps, explicit nullable, indexed FK). Create `alembic/versions/0003_ingest.py` (revises `0002`, raw-SQL
-   style like `0002_auth.py`, downgrade restores `schema_version='2'`). Table `datasets`: `id SERIAL PK`,
-   `user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE`, `filename TEXT NOT NULL`,
-   `kind TEXT NOT NULL` (`delimited|winsteps`), `format TEXT NOT NULL` (`csv|xlsx|prn`), `status TEXT NOT NULL`
-   (`staged|ready`), `n_persons INTEGER NOT NULL`, `n_items INTEGER NOT NULL`, `item_labels_json TEXT NOT NULL`,
-   `mapping_json TEXT NOT NULL`, `summary_json TEXT NOT NULL`, `raw_gzip BYTEA NOT NULL`, `raw_bytes BIGINT NOT NULL`,
-   `created_at BIGINT NOT NULL`, `committed_at BIGINT NULL`; `CREATE INDEX ix_datasets_user_id ON datasets (user_id)`;
-   `UPDATE app_meta ... '3'`. Verify: `alembic heads | grep 0003` + offline SQL `grep -c 'CREATE TABLE datasets'` = 1.
-2. **[agy R2] Storage + dep.** Create `app/storage.py` (~50 lines): `MAX_UPLOAD_BYTES = 16*1024*1024`,
-   `MAX_CELLS = 1_000_000`, `compress(raw) -> bytes` (gzip, `mtime=0`), `decompress(blob) -> bytes`, both raising a
-   named error over the cap. Edit `requirements.txt`: add `openpyxl>=3.1`. Verify: gzip round-trip one-liner.
-3. **[agy R3] Parsers.** Create `app/parsers.py` (~280 lines), pure functions, no FastAPI imports:
-   `parse_delimited(raw: bytes)` (utf-8-sig, delimiter sniff among `,;\t` by first-line majority, header = item
-   labels, col 0 = person label iff header lowercased in `{id,nama,name,no,respondent,person}`, drop all-empty rows,
-   enforce `MAX_CELLS` while building), `parse_xlsx(raw: bytes)` (openpyxl `read_only`, first sheet, integral floats
-   → int strings, `None` → `""`, row/cell abort), `parse_control(raw: bytes)` (read keys
-   `ITEM1 NI NAMLEN KEY1 CODES DATA` from `&INST..&END`, `;` comments, `KEY1` stays string, `len(KEY1)==NI`
-   enforced), `parse_prn(raw, control)` (mirror engine `reader.py`: `labels = line[0:namlen]`,
-   `row = line[item1-1 : item1-1+ni].ljust(ni)`), `classify(...)` per D5, `missing_per_item(...)`,
-   `distinct_tokens(...)`, `validate_mapping(...)` returning the unassigned-token list. Verify: `ast.parse` + import.
-4. **[agy R4] Fixtures.** Create `tests/fixtures/make_samples.py` (~70 lines) writing `sample_300x40.csv`,
-   `sample_winsteps.CON`, `sample_winsteps.prn` per the exact formulas below; run it once; commit all four. CSV:
-   header `id,I01..I40`; row r (0-based), item col c (0..39); id = `P{r+1:04d}`; missing iff `(7*r + 13*c) % 29 == 0`,
-   token `"NA"` if r even else `""`; else `"1" if (r + 2*c) % 5 else "0"`; comma, LF, utf-8. PRN: 60 rows,
-   `NAMLEN=8`, `ITEM1=11`, `NI=20`, `KEY1=ABABABABABABABABABAB`, `CODES=AB`; label `P{r+1:04d}` ljust 8, filler 2
-   spaces, items at index `10+c`; missing iff `(11*r + 5*c) % 23 == 0`, char `" "` if r even else `"X"`; else
-   `"A" if (r + c) % 2 == 0 else "B"`. CON carries those keys plus `DATA = sample_winsteps.prn` and `NAME1 = 1`.
-   Verify: `wc -l` 301 / `grep -c '&'` 2.
-5. **[agy R5] Parse + proof tests.** Create `tests/test_ingest_parse.py` (~170 lines): golden asserts (D7 lists,
-   exact `==`), pandas asserts (`read_csv(f, dtype=str)` default NA, drop col 0, `.isna().sum()` == ours == golden;
-   `read_fwf(path, colspecs=[(10+c, 11+c) for c in range(20)], header=None)` then per column
-   `~fillna('').astype(str).str.strip().isin(list('AB'))` == ours == golden), semicolon-sniff unit case, `KEY1`-length
-   rejection, over-cap rejection, unassigned-token rejection, and a skip-if-absent cross-check of `parse_control`
-   against `/root/projects/raschlab` `raschlab.control.parse_control` on the fixture CON. Verify:
-   `pytest tests/test_ingest_parse.py -q`.
-6. **[agy R6] Known debt: ratelimit-alone fix.** `tests/conftest.py` passes a MODULE to `TestClient` when the file
-   runs alone: line 10 `from app.main import app` binds the FastAPI instance, then line 15 `import app.auth` rebinds
-   the same global name to the `app` PACKAGE, and line 51 `TestClient(app, ...)` gets the package.
-   **Measured 24 Sep 2026:** alone → `2 failed, 1 passed` with `TypeError` raised inside
-   `starlette/testclient.py:78`; full suite → `29 passed`. (Why the full suite still passes is not fully explained;
-   the fix removes the ambiguity in both modes and R6 must verify both.) Two literal swaps: line 10 → 
-   `from app.main import app as fastapi_app`; line 51 → `return TestClient(fastapi_app, base_url="https://testserver")`.
-   Leave `app.db` / `app.auth` references as-is (they correctly resolve to the package). Edit `requirements-dev.txt`:
-   add `pandas>=2.2`. Verify: `pytest tests/test_ratelimit.py -q` (3 passed alone) then full `pytest -q`.
+1. **[agy E0] Lower the cap, everywhere it is said.** Three files:
+   - `app/storage.py`: `MAX_CELLS: int = 2_000_000` and update the comment above it so it states the new ceiling
+     and why (measured engine peak 214 MB at 2 M cells fits a 512 MiB instance; 16 MB/upload unchanged).
+   - `app/ingest.py`: the `_format_error` message string that still says "1.000.000 sel" must say
+     "2.000.000 sel" (it is stale today: it disagrees with the constant it describes).
+   - `app/templates/datasets.html`: all four user-visible occurrences of "8.000.000" (the limit list item and
+     the two capacity bands, each with its `aria-label` and its `.band-scale-value`) must say "2.000.000".
+   Verify: `grep -rn '2_000_000' app/storage.py` = 1 hit; `grep -rn '8.000.000\|8_000_000' app/ templates/` =
+   zero hits; `grep -c '2.000.000' app/templates/datasets.html` = 4; `.venv/bin/python -m pytest -q
+   tests/test_ui_contract.py` stays green.
+2. **[agy E1] Engine pin.** `requirements.txt` gains exactly one line:
+   `raschlab @ git+https://github.com/idzharulhuda13/raschlab@8e8ac678c792d9ecef20cb7efd5ee27cc841af4a`.
+   `Dockerfile` gains a git install step (`python:3.12-slim` has no git, and the pip git-URL install needs it)
+   before the existing pip install line, as one `RUN apt-get update && apt-get install -y --no-install-recommends
+   git && rm -rf /var/lib/apt/lists/*`.
+   Verify: `grep -c 'raschlab @ git+' requirements.txt` = 1; `grep -n 'apt-get install' Dockerfile` prints one line.
+3. **[Arc] Install locally.** `uv pip install -r requirements.txt`, then
+   `.venv/bin/python -c "import raschlab, numpy; print('engine ok', numpy.__version__)"`. Must precede every
+   later verify that imports `app.main`.
+4. **[agy E2] Migration** `alembic/versions/0004_analysis.py`, revises `"0003"`, raw `op.execute` SQL in the
+   style of `0003_ingest.py`:
+   - `ALTER TABLE datasets ADD COLUMN matrix_gzip BYTEA;` (nullable, so existing rows stay valid)
+   - `CREATE TABLE analyses` with `id SERIAL PRIMARY KEY`, `user_id INTEGER NOT NULL REFERENCES users(id) ON
+     DELETE CASCADE`, `dataset_id INTEGER NOT NULL REFERENCES datasets(id) ON DELETE CASCADE`, `status TEXT NOT
+     NULL`, `params_json TEXT NOT NULL`, `engine_ref TEXT NOT NULL`, `error TEXT`, `elapsed_ms INTEGER`,
+     `created_at BIGINT NOT NULL`, `started_at BIGINT`, `finished_at BIGINT`, `expires_at BIGINT NOT NULL`,
+     `notice_sent_at BIGINT`; indexes `ix_analyses_user_id`, `ix_analyses_dataset_id`, `ix_analyses_expires_at`.
+   - `CREATE TABLE analysis_files` with `id SERIAL PRIMARY KEY`, `analysis_id INTEGER NOT NULL REFERENCES
+     analyses(id) ON DELETE CASCADE`, `filename TEXT NOT NULL`, `content_gzip BYTEA NOT NULL`, `sha256 TEXT NOT
+     NULL`, `bytes BIGINT NOT NULL`, `UNIQUE (analysis_id, filename)`; index `ix_analysis_files_analysis_id`.
+   - `UPDATE app_meta SET value='4' WHERE key='schema_version'`.
+   - Downgrade: drop both tables, drop `datasets.matrix_gzip`, set `schema_version` back to `'3'`. Users and
+     datasets rows are never touched.
+   Verify: `.venv/bin/python -m alembic heads` shows `0004 (head)`; offline SQL
+   (`.venv/bin/python -m alembic upgrade head --sql > /tmp/0004.sql`) contains exactly one `CREATE TABLE
+   analyses` and one `matrix_gzip`.
+5. **[agy E3] ORM** in `app/models.py`: import `UniqueConstraint`; add `Analysis` and `AnalysisFile` with exactly
+   the columns above (`Mapped`/`mapped_column`, `LargeBinary` for `content_gzip`, `UniqueConstraint("analysis_id",
+   "filename")` in `__table_args__`); add `Dataset.matrix_gzip: Mapped[Optional[bytes]] = mapped_column(LargeBinary,
+   nullable=True)`. Do not touch `app/db.py` (`pool_pre_ping=True`, `pool_recycle=300` must stay).
+   Verify: sqlite smoke — `rm -f /tmp/f3.db && DATABASE_URL=sqlite:////tmp/f3.db .venv/bin/python -c "from
+   app.db import get_engine; from app.models import Base; Base.metadata.create_all(get_engine());
+   print(sorted(Base.metadata.tables))"` lists `analyses` and `analysis_files`.
 
-**--- Batch 1 ends (data layer). Batch 2 below is the second batch. ---**
+## Phase B — the engine bridge
 
-7. **[agy R7] Router.** Create `app/ingest.py` (~220 lines, `APIRouter`, mirrors `auth.py` gate/session/
-   `check_limit("upload:"+ip+":"+uid, 20, 3600)` patterns, imports `_current_user` from `app.auth` directly — zero
-   edits to `auth.py`). Routes: `GET /datasets` (list + upload form + empty state), `POST /datasets` (multipart
-   fields `data` required, `con` optional; ext dispatch per D4; on parse error re-render with Indonesian error, no
-   row written), `GET /datasets/{id}` (owner check else 404; staged = preview + mapping form fields `t{i}` hidden /
-   `m{i}` select for wide, `key`/`codes`/`extra_missing` for prn; ready = read-only summary),
-   `POST /datasets/{id}/commit` (validate per D5, 422-page on unassigned), `POST /datasets/{id}/discard` (one
-   DELETE). Edit `app/main.py`: one line `app.include_router(ingest_router)` after the auth include. Verify: route
-   list contains all five `/datasets` paths.
-8. **[agy R8] Templates.** Create `app/templates/datasets.html` (~180 lines) and
-   `app/templates/dataset_detail.html` (~260 lines): extend `base.html`, page CSS in the `{% block head %}`
-   `<style>` pattern from `account.html`, tokens only (no raw hex), Indonesian copy, status chip
-   (`staged`/`ready`), empty state, upload error state, inner-scroll preview table, per-item missing table with
-   all-missing flags, unassigned-token warning, 44px tap targets, 390px no horizontal overflow, no em dash. Follow
-   `DESIGN.md` (`data-dashboard`, dial ENERGY 2 / RHYTHM 3 / MOTION 2), do not restyle tokens or base. Verify: Jinja
-   compiles both templates.
-9. **[agy R9] Route tests.** Create `tests/test_ingest_routes.py` (~150 lines): helper inserts a verified `User` +
-   `SessionRow` (`new_token`/`hash_token`/`now_epoch`) and sets cookie `raschlab_sid` (no email flow). Asserts:
-   gate-closed redirect; anon redirect to `/login`; upload fixture → 303 → detail shows `300`/`40` and golden missing
-   sum `413`; gzip round-trip (`decompress(row.raw_gzip) == original bytes`); commit blocked with unassigned token,
-   `status` stays `staged`; commit with full mapping → `ready`, `committed_at` set; winsteps pair upload → 303 →
-   shows `60`/`20`; discard → row gone; second user gets 404; oversize upload → error page, zero rows. Verify:
-   `pytest tests/test_ingest_routes.py -q`.
-10. **[agy R10] Docs + link.** Append an `## F2 routes` section to `INTERFACE.md` (the five routes, form field
-    names, size caps, `datasets` columns — frozen henceforth). Edit `app/templates/account.html`: replace the literal
-    paragraph `<p class="account-empty-text">Belum ada data yang diunggah. Fitur upload menyusul.</p>` with
-    `<p class="account-empty-text">Kelola berkas data pengukuran di halaman <a href="/datasets">Berkas Pengukuran</a>.</p>`.
-    Verify: `grep -c '/datasets'` ≥ 1 on both files.
-11. **[Arc] Full gate + manual curl check.**
-    ```bash
-    cd /root/projects/raschlab-web && .venv/bin/python -m pytest -q
-    .venv/bin/python -m pytest tests/test_ratelimit.py -q
-    rm -f /tmp/f2.db
-    env DATABASE_URL=sqlite:////tmp/f2.db .venv/bin/python -c "from app.db import get_engine; from app.models import Base; Base.metadata.create_all(get_engine()); print('schema ok')"
-    env DATABASE_URL=sqlite:////tmp/f2.db .venv/bin/python -c "from app.db import SessionLocal; from app.models import User; from app.security import hash_password, now_epoch; s=SessionLocal(); s.add(User(email='f2@local.test', email_normalized='f2@local.test', password_hash=hash_password('katasandi-f2-minimal'), created_at=now_epoch(), verified_at=now_epoch())); s.commit(); print('user ok')"
-    env DATABASE_URL=sqlite:////tmp/f2.db GATE_OPEN=true APP_ENV=dev .venv/bin/uvicorn app.main:app --port 8891 &
-    curl -s -c /tmp/f2jar -X POST localhost:8891/login -d 'email=f2@local.test&password=katasandi-f2-minimal' -o /dev/null -w '%{http_code}\n'   # expect 303
-    curl -s -b /tmp/f2jar -F data=@tests/fixtures/sample_300x40.csv localhost:8891/datasets -o /dev/null -w '%{http_code}\n'   # expect 303
-    curl -s -b /tmp/f2jar localhost:8891/datasets | grep -c sample_300x40   # expect >=1
-    curl -s -b /tmp/f2jar -F data=@tests/fixtures/sample_winsteps.prn -F con=@tests/fixtures/sample_winsteps.CON localhost:8891/datasets -o /dev/null -w '%{http_code}\n'   # expect 303
-    ```
-    Then Arc renders both pages (screenshot + vision), runs the Hallmark audit gate and the independent `hermes chat`
-    review pass before reporting done; kills the uvicorn by PID.
-12. **[Arc, not agy] Migration + deploy.** `gcloud secrets versions access latest --secret=raschlab-database-url`
-    into `DATABASE_URL`, then `.venv/bin/python -m alembic upgrade head` against Neon; redeploy Cloud Run; verify
-    `/health/db` from the internet. Deploying is Arc's Phase-3 step, never part of a writer run.
+6. **[agy E4] Create `app/analysis.py`** (the intricate file: alone in its run). Exact names:
+   - Constants: `ENGINE_REF = "8e8ac67"`, `RETENTION_DAYS = 180`, `NOTICE_DAYS = 14`, `STALE_RUN_S = 900`,
+     `RENDER_PAGE = 500`, `OUTPUT_FILES = ("item_table_15.1.csv", "option_table_15.3.csv", "person_table.csv",
+     "summary_table.csv", "wright_map_measure.csv", "wright_map_frequency.csv")`, and
+     `PARAMS_DEFAULT = {"mode": "compat", "digits": 2, "lconv": None, "person_order": "misfit", "anchors": None,
+     "pdfile": None}` (anchors/pdfile keys reserved for F4, always null in F3).
+   - `class AnalysisError(Exception)` whose `str()` is the Indonesian, user-facing message.
+   - `id_num(value) -> str`: string transform only, never parsing to float. Pass through anything that is not a
+     plain number; otherwise group the integer part with `.` and join decimals with `,`
+     (`0.65 -> 0,65`, `-1.23 -> -1,23`, `1234 -> 1.234`, `1000000.5 -> 1.000.000,5`, `P0001 -> P0001`).
+   - `build_matrix_gzip(kind, person_labels, item_labels, rows, mapping, control) -> bytes` — the single
+     validation+encoding site, used both at commit and at legacy backfill:
+     * delimited: classify every token with `app/parsers.py::classify`; raise `AnalysisError("Ada token yang
+       belum dipetakan: ...")` when unassigned; map the distinct incorrect tokens, sorted, to letters `B, C, D, E`
+       (raise if more than four); every cell becomes `A` (correct), its letter (incorrect) or a space (missing);
+       `key = "A" * n_items`; `codes = "A" + letters`; raise if there is no non-missing cell.
+     * winsteps: require `set(codes) <= set("ABCDE")` else raise `AnalysisError("Kode respon ... di luar huruf
+       A-E; mesin hanya menerima A-E.")`; require `len(key) == n_items` and every `key[j] in codes`; each cell
+       keeps its character when it is in `codes` and not in the extra-missing set, otherwise becomes a space
+       (this makes engine-valid identical to platform-valid, because the engine's `score()` accepts only A-E).
+     * both: empty person label -> `f"P{i+1:04d}"`; `namlen = max(1, max(len(l) for l in labels))`;
+       `item1 = namlen + 1`; each prn line is `label.ljust(namlen) + row`, no truncation. The stored container is
+       `gzip.compress(json.dumps({"v":1,"namlen":namlen,"key":key,"codes":codes,"prn":text}).encode(), mtime=0.0)`
+       so the bytes are deterministic.
+   - `write_inputs(tmp_dir, dataset, matrix_gzip) -> (con_path, prn_path)`: decode the container, write
+     `data.prn` (prn text + trailing newline), `items.lbl` (exactly `dataset.n_items` lines, newlines inside
+     labels replaced by spaces) and `analyze.CON` whose body is literally `&INST`, `NAME1 = 1`, `NAMLEN = ...`,
+     `ITEM1 = ...`, `NI = ...`, `KEY1 = ...`, `CODES = ...`, `DATA = data.prn`, `ILABEL = items.lbl`, `&END`.
+     Relative filenames only, so the CON bytes do not depend on the directory; return the absolute paths.
+   - `ensure_matrix(db, dataset) -> bytes`: return `dataset.matrix_gzip` when present, else the legacy backfill:
+     decompress `raw_gzip`, parse once with the existing parser, `build_matrix_gzip`, persist to
+     `datasets.matrix_gzip`, commit. This is the only path that re-parses a workbook, and only for datasets that
+     predate F3.
+   - `run_for_dataset(db, dataset) -> Analysis`: (1) `ensure_matrix`; (2) insert the row with `status="queued"`,
+     `params_json=json.dumps(PARAMS_DEFAULT)`, `engine_ref=ENGINE_REF`, `created_at`, `expires_at` = created +
+     180 days; commit; (3) flip to `status="running"` with `started_at`; commit; (4) inside one
+     `with tempfile.TemporaryDirectory(prefix="raschlab_") as td:` write the inputs, release the matrix
+     container reference, then call `run_analyze(con_path=..., data_path=..., out_dir=td, mode="compat",
+     out_format="csv", digits=2, lconv=None, person_order="misfit")` (module-level
+     `from raschlab.cli import run_analyze`), capturing stdout/stderr into a buffer; catch `SystemExit` and
+     `Exception` and raise `AnalysisError("Analisis gagal dijalankan mesin: " + <last stderr line, max 1000
+     chars>)`; (5) read all six output files as raw `bytes`, `gzip.compress(b, mtime=0)`, compute
+     `sha256` and `bytes`; (6) in ONE transaction insert the six `AnalysisFile` rows and set
+     `status="done"`, `finished_at`, `elapsed_ms`; on any failure after step 2 roll back the files, set
+     `status="failed"`, `error`, `finished_at`, commit, and return that row.
+   - `load_tables(analysis) -> dict[str, list[list[str]]]` (decompress + `csv.reader`, all six),
+     `latest_done_analysis(db, dataset_id)`, `paginate(rows, page)`,
+     `retention_sweep(db, now) -> dict`: delete rows with `expires_at <= now` (any status); for `status='done'`
+     rows with `notice_sent_at IS NULL` whose expiry is within 14 days, send the Indonesian notice through the
+     existing email helper (`from app import auth` then `auth.send_email(...)`, a module-attribute call so the
+     existing test capture patch applies) and set `notice_sent_at`; on send failure leave it NULL to retry.
+   Verify: `.venv/bin/python -c "import ast; ast.parse(open('app/analysis.py').read()); import app.analysis;
+   print('ok')"`.
+7. **[agy E5] Edit `app/ingest.py`**, four literal hunks in order (if the writer no-ops, split into two runs):
+   - H1: after the ratelimit import, add `from app.analysis import AnalysisError, build_matrix_gzip,
+     latest_done_analysis`.
+   - H2: in `get_dataset`, build the context into a local first, add
+     `context["latest_analysis"] = latest_done_analysis(db, dataset.id)`, then return with `context=context`.
+   - H3 (delimited commit branch): build the matrix in a `try/except AnalysisError` that renders the same 422
+     page the unassigned-token block already renders, then set `dataset.matrix_gzip = matrix_gzip` after the
+     mapping and `committed_at` are set.
+   - H4 (winsteps commit branch): the same pattern with `kind="winsteps"` and `control=control`, setting
+     `dataset.matrix_gzip` before that branch's commit.
+   Verify: `python -c "import ast; ast.parse(open('app/ingest.py').read()); print('ok')"` and
+   `.venv/bin/python -m pytest -q tests/test_ingest_routes.py` stays green.
 
-## EDIT LIST
+## Phase C — routes
 
-Batch 1 (data layer; one agy run per row, prompt via `--stdin`,
-`--add-dir /root/projects/raschlab-web --mode accept-edits --dangerously-skip-permissions`):
+8. **[agy E6] Create `app/analyze.py` + edit `app/main.py` (2 files).**
+   - `app/analyze.py`: an `APIRouter`; register `templates.env.filters["id_num"] = id_num` on the same
+     `templates` object the ingest routes use; a lifespan task that runs the retention sweep after 30 s and then
+     every 6 hours, entirely inside `try/except` + `logger.exception`.
+     * `POST /datasets/{id}/analyze` — closed gate -> 303 `/`; anonymous -> 303 `/login`; not owner -> 404; dataset
+       not `ready` -> 303 to the detail page; rate limit `analyze:{client_ip}:{user_id}` 12 per hour -> 429 with
+       `Retry-After`; an existing `running` row for the same dataset younger than `STALE_RUN_S` -> 303 to it
+       (double-submit guard); `AnalysisError` before the row exists -> 422 on `dataset_detail.html` with the
+       message; success -> 303 `/analyses/{analysis.id}`. This route is a sync `def` so the CPU-bound engine runs
+       in the threadpool and never blocks the event loop.
+     * `GET /analyses/{id}` — gate/owner 404; a `queued`/`running` row older than `STALE_RUN_S` is flipped to
+       `failed` with `"Analisis terhenti saat berjalan. Jalankan ulang."`; renders `analysis.html` in three
+       states: running (loading), failed (Indonesian error + retry form posting to the analyze route), done
+       (full render).
+   - `app/main.py`: import and `app.include_router(...)` after the ingest router.
+   Verify: `.venv/bin/python -c "from app.main import app; print(sorted(r.path for r in app.routes))"` lists
+   both new paths.
 
-- **R1** — `app/models.py` (edit, +~30 lines: `Dataset`) + `alembic/versions/0003_ingest.py` (new, ~80 lines).
-- **R2** — `app/storage.py` (new, ~50 lines) + `requirements.txt` (edit, +1 line `openpyxl>=3.1`).
-- **R3** — `app/parsers.py` (new, ~280 lines) — alone, it is the intricate file.
-- **R4** — `tests/fixtures/make_samples.py` (new, ~70 lines) + generated `sample_300x40.csv` (~48 KB),
-  `sample_winsteps.CON` (~0.3 KB), `sample_winsteps.prn` (~4 KB).
-- **R5** — `tests/test_ingest_parse.py` (new, ~170 lines).
-- **R6** — `tests/conftest.py` (edit, exactly 2 literal swaps) + `requirements-dev.txt` (edit, +1 line `pandas>=2.2`).
+## Phase D — UI
 
-Batch 2 (routes/UI/docs):
+9. **[agy E7] Append one block to `app/static/app.css`**: `.pager` (flex row, wrapping, right-aligned, top
+   margin from existing space tokens) and nothing else; no new animation. `.pager` is the only new class.
+   Verify: `grep -c '^\.pager{' app/static/app.css` = 1 and `pytest -q tests/test_ui_contract.py` green.
+10. **[agy E8] Create `app/templates/analysis.html` + edit `tests/test_ui_contract.py` (2 files).** Template
+    extends `base.html`, Indonesian copy, only existing classes, no `<style>`, no `style=`, no em dash. Structure:
+    header band (back link to `/datasets/{id}`, filename as `h1`, status chip, the retention line "Hasil analisis
+    disimpan selama 180 hari.", definition rows for engine ref, elapsed time, person-table order
+    "Urutan tabel responden: misfit (outfit MNSQ menurun)", mode and digits) -> a "Rekap Responden" band whose
+    values come only from the stored `summary_table.csv` (`PERSON COUNT`, `COUNTS EXTREME EXCLUDED`,
+    `COUNTS EXTREME_MIN`, `COUNTS EXTREME_MAX`, `COUNTS LACKING`, `COUNTS DELETED`) plus `dataset.n_persons` ->
+    four table bands: "Tabel Butir (15.1)", "Tabel Opsi dan Distraktor (15.3)", "Tabel Responden", "Tabel
+    Ringkasan". Each table: scroll wrapper + existing table classes + caption, two-row header rendered verbatim
+    (empty row-1 cells as `<th></th>`), every cell through `{{ cell | id_num }}` EXCEPT the raw columns (item col
+    13; person cols 13 and 14; option col 11; summary cols 0 and 1) which render untouched. No sorting controls:
+    the engine's order is authoritative. Item/person/option tables paginate 500 rows with
+    `?page_item=&page_person=&page_option=` links (each href carrying the other two current values) and a
+    `<nav class="pager">` with previous/next secondary buttons plus a mono line "Halaman x dari y (n baris)"; the
+    summary table is not paginated. States: running shows the empty-state text "Analisis sedang diproses...";
+    failed shows the existing misfit alert with the Indonesian error and a retry form
+    (`data-loading="Memproses analisis..."`, primary button "Jalankan Ulang"). In `tests/test_ui_contract.py`
+    change the template count assertion from `== 9` to `== 10`.
+    Verify: `.venv/bin/python -m pytest -q tests/test_ui_contract.py` green (this proves the class inventory, the
+    template count, the absence of style blocks and the retired names).
+11. **[agy E9] Edit `app/templates/dataset_detail.html`**: insert one new section immediately before the actions
+    band, rendered only when `status == 'ready'`: a form posting to `/datasets/{{ dataset.id }}/analyze` with
+    `data-loading="Memproses analisis..."` and a primary button "Jalankan Analisis Rasch"; below it, when
+    `latest_analysis` is present, a secondary link "Lihat hasil analisis terakhir" plus a status chip, otherwise
+    the empty-state line "Belum ada analisis untuk berkas ini.".
+    Verify: `.venv/bin/python -m pytest -q tests/test_ingest_routes.py tests/test_ui_contract.py` green.
 
-- **R7** — `app/ingest.py` (new, ~220 lines) + `app/main.py` (edit, +1 line).
-- **R8** — `app/templates/datasets.html` (new) + `app/templates/dataset_detail.html` (new).
-- **R9** — `tests/test_ingest_routes.py` (new, ~150 lines).
-- **R10** — `INTERFACE.md` (append F2 section) + `app/templates/account.html` (edit, one literal paragraph swap).
+## Phase E — the proofs (the acceptance test is the deliverable)
+
+12. **[agy E10] Create `tests/test_analysis_unit.py`**: delimited encoding cases (correct/incorrect/missing
+    mapping, deterministic letter assignment, `codes == "ABC"` for two incorrect tokens); fail-closed cases
+    (unassigned token, five distinct incorrect tokens, winsteps codes outside A-E, `key[j] not in codes`, empty
+    matrix); winsteps blanking; container roundtrip and gzip determinism (two calls produce identical bytes);
+    prn roundtrip through the engine's own `raschlab.reader.read_matrix`; `write_inputs` producing a CON that
+    `raschlab.control.parse_control` accepts with `NI == len(KEY1)` and an `items.lbl` line count equal to
+    `n_items`; `id_num` against the case list; `paginate` clamping; `retention_sweep` on a sqlite session
+    (expired row deleted, near-expiry row gets `notice_sent_at` through the captured email helper).
+    Verify: `.venv/bin/python -m pytest -q tests/test_analysis_unit.py`.
+13. **[agy E11] Create `tests/test_analysis_routes.py`**, reusing the authenticated-user helper pattern from
+    `tests/test_ingest_routes.py`: upload + commit `tests/fixtures/sample_300x40.csv` -> POST analyze -> 303 ->
+    GET the result page 200 containing "Tabel Butir (15.1)", the order label, an Indonesian decimal comma inside
+    a rendered measure cell and `id_num`-formatted thousands; DB assertions (`status == "done"`, `elapsed_ms > 0`,
+    six `analysis_files` rows, decompressed bytes start with the engine's header, `sha256` recomputes,
+    `expires_at - created_at == 180 days`); isolation (user B gets 404 for both the read and the run);
+    failure state (a monkeypatched `run_analyze` raising `SystemExit(2)` -> `status == "failed"`, zero files, page
+    shows the misfit alert and the Indonesian message); loading state (a manually inserted `running` row);
+    stale row older than 900 s flipped to `failed`; the `latest_analysis` link on the dataset detail page; and
+    the legacy backfill (set `matrix_gzip=None`, analyze, matrix repopulated).
+    Verify: `.venv/bin/python -m pytest -q tests/test_analysis_routes.py`.
+14. **[agy E12] Create `tests/test_byte_identity.py`** (the acceptance comparator as a test): drive the full HTTP
+    flow on `tests/fixtures/sample_300x40.csv`, then independently re-derive the inputs with
+    `build_matrix_gzip` + `write_inputs` into `tmp_path` and run the CLI
+    (`sys.executable -m raschlab analyze --con ... --data ... --out ... --format csv`, `check=True`); assert for
+    all six output files that `gzip.decompress(platform_bytes) == cli_bytes` byte-for-byte and that the sha256
+    values match. No skipif: the engine is a hard dependency.
+    Verify: `.venv/bin/python -m pytest -q tests/test_byte_identity.py`.
+15. **[agy E13] Create `scripts/compare_cli_platform.py`**: a standalone comparator for the verifier (sets
+    `DATABASE_URL` to a temp sqlite and the gate env before importing `app.main`, creates the schema, inserts a
+    verified user + session directly, drives upload -> commit -> analyze through `TestClient`), then the same CLI
+    comparison; prints one line per file with both sha256 values and MATCH/MISMATCH, and finally
+    `ALL 6 FILES BYTE-IDENTICAL` (exit 0) or a non-zero exit.
+    Verify: `.venv/bin/python scripts/compare_cli_platform.py` exits 0 and prints that line.
+16. **[agy E14] Edit `INTERFACE.md`**: append an F3 section with the two routes and their behaviours, the
+    `analyses` / `analysis_files` / `datasets.matrix_gzip` column tables (marked FROZEN), `OUTPUT_FILES`, the
+    `.pager` class, the `id_num` filter rule, the retention constants, and the new 2 000 000 cap.
+    Verify: `grep -c '## F3' INTERFACE.md` = 1.
+
+## Phase F — Arc only (never agy)
+
+17. Full gate: `.venv/bin/python -m pytest -q` (all existing tests plus the new ones, zero failures) and
+    `.venv/bin/python scripts/compare_cli_platform.py` (raw output pasted into the report).
+18. Migrate Neon: read the DSN from Secret Manager, `DATABASE_URL=... .venv/bin/python -m alembic upgrade head`,
+    confirm `alembic current` shows `0004`.
+19. Deploy: same source-based invocation as revision `raschlab-web-00010-w29`, with
+    `--memory 512Mi --concurrency 1 --timeout 120`. Verify with
+    `gcloud run services describe raschlab-web --region asia-southeast1 --format='value(spec.template.spec.containers[0].resources.limits.memory,spec.template.spec.containerConcurrency)'`.
+20. Live walkthrough on the deployed revision: login -> upload `sample_300x40.csv` -> commit -> analyze -> open the
+    result page. Record HTTP status, the visible Indonesian headers, `/health` commit, absence of tracebacks, and
+    the live peak memory from Cloud Run metrics for the run request. Then run the Hallmark audit gate (per the
+    house wiring in the antislop skill) before reporting F3 done. If the instance is OOM-killed at the 2 M cap,
+    the fallback lever is `--memory 1Gi` (re-measure; do not guess).
+
+## EDIT LIST (one agy run per row unless noted)
+
+| Run | Files | Verify |
+|---|---|---|
+| E0 | `app/storage.py`, `app/ingest.py`, `app/templates/datasets.html` | cap greps + `test_ui_contract.py` |
+| E1 | `requirements.txt`, `Dockerfile` | the two greps |
+| E2 | `alembic/versions/0004_analysis.py` | `alembic heads`, offline SQL greps |
+| E3 | `app/models.py` | sqlite `create_all` smoke |
+| E4 | `app/analysis.py` | ast + import |
+| E5 | `app/ingest.py` | `test_ingest_routes.py` |
+| E6 | `app/analyze.py`, `app/main.py` | route list print |
+| E7 | `app/static/app.css` | `.pager` grep + contract test |
+| E8 | `app/templates/analysis.html`, `tests/test_ui_contract.py` | `test_ui_contract.py` |
+| E9 | `app/templates/dataset_detail.html` | ingest + contract tests |
+| E10 | `tests/test_analysis_unit.py` | its own test run |
+| E11 | `tests/test_analysis_routes.py` | its own test run |
+| E12 | `tests/test_byte_identity.py` | its own test run |
+| E13 | `scripts/compare_cli_platform.py` | run it, exit 0 |
+| E14 | `INTERFACE.md` | the grep |
 
 ## ASSUMPTIONS
 
-1. "Ingest without error" = upload succeeds and preview renders; commit additionally requires D5 validation. The
-   PRD proof (missing-count equality) is a test-level claim, satisfied by R5.
-2. pandas is a dev-only, local, free dependency; no paid service is added anywhere (constraint 3 holds).
-3. `.CON` parsing in F2 is a minimal platform reader of the six needed keys, cross-checked against the engine by a
-   skip-if-absent test; this is format reading, not scoring. Engine packaging is deferred to F3 (D3).
-4. Path cut per D4: no `.CON`+delimited, no `.xls`, first xlsx sheet only, utf-8-sig or explicit error.
-5. Wide-file shape rule: header row = item labels; col 0 = person label only for the named header set, else row
-   numbers `P0001...`. Deterministic and testable, no heuristic guessing.
-6. Login already requires a verified email (F1), so ingestion is behind verification by inheritance.
-7. `alembic upgrade head` never runs in a writer run; tests use `Base.metadata.create_all` (existing conftest
-   pattern). Prod migration is Arc's step with the Neon DSN.
-8. Thin part of the brief: exact Indonesian UI copy and the preview table's visual composition are decided here
-   (D6, states per `DESIGN.md`) and go through the Hallmark/review gate before Dada sees them.
+1. Advanced engine options (item anchors / person deletes) are **deferred, not shipped as form fields**:
+   `params_json` carries `anchors: null, pdfile: null` so F4 can add fields with no migration.
+2. Person-table order is fixed to the engine default (`misfit`) with no form control; it is displayed as text and
+   stored in `params_json`.
+3. The parsed-matrix artifact is `datasets.matrix_gzip` = deterministic gzip of
+   `{"v":1,"namlen","key","codes","prn"}`, built at commit time (when the mapping becomes final). The upload path
+   is untouched; pre-F3 datasets are backfilled lazily on first analysis.
+4. Results are stored as the engine's own CSV bytes for all six outputs (the two Wright-map files included, so F5
+   never re-runs the engine). Rendering parses the four needed files per request. No xlsx output is generated.
+5. Downloads are not built in F3; byte-identity is proven against the stored bytes by the test and the script.
+6. Delimited datasets are re-encoded to synthetic letters (the engine's prn alphabet is single-character A-E), so
+   the option table's codes are synthetic for CSV/XLSX uploads while original tokens survive for Winsteps uploads.
+7. Retention runs as an in-app sweep (startup + 30 s, then every 6 h) because Cloud Run has no external cron;
+   worst-case deletion latency is one instance lifetime, always inside the 14-day notice window.
+8. Analysis rate limit is 12 per hour per user/IP through the existing in-memory limiter.
+9. HTML numbers use Indonesian formatting only through the `id_num` filter; column headers keep the engine's own
+   (English, Winsteps-style) text so page and file agree, while all prose is Indonesian.
+10. Render page size is 500 rows for item/person/option tables; the summary table is always full.
+11. Engine determinism across processes is assumed on the strength of its own regression tests and re-proven on
+    this box by the comparator.
+12. The deploy invocation matches the one used for `raschlab-web-00010-w29`; the memory/concurrency flags are
+    given explicitly above.
 
 ## RISKS
 
-1. **Engine `score()` hardcodes `ABCDE` while path B reads `CODES` from `.CON`.** A dataset with non-A-E codes
-   ingests correctly in F2 but will score as all-missing in F3. Mitigation: F2 stores `codes` in `mapping_json` and
-   the preview warns when codes fall outside `A-E`; F3 must implement CODES/MISSCORE.
-2. **Neon 0.5 GB ceiling, no cleanup in F2.** Abandoned `staged` rows accumulate until F4 delete/lifecycle exists.
-   Mitigation: 16 MiB cap bounds worst case; discard route exists; F4 owns a staged-row TTL.
-3. **512 MiB RAM vs expansion (xlsx zip-bomb, wide CSV).** Mitigation: `MAX_UPLOAD_BYTES` + `MAX_CELLS` + openpyxl
-   `read_only` with early abort, all enforced before any list is fully built; a test covers the over-cap path.
-4. **Conftest fix touches the shared fixture used by all 29 F1 tests.** Mitigation: R6 verifies both modes before
-   anything else builds on it.
-5. **pandas `read_fwf` whitespace handling may differ from expectation.** Mitigation: golden constants gate
-   independently; if pandas behaves oddly the fix is confined to the test's normalization line.
-6. **SQLite vs Postgres SQL drift.** Mitigation: raw-SQL migration follows `0002_auth.py` precedent; model uses
-   `LargeBinary`/`TEXT` which map cleanly on both; offline SQL emission is grep-verified.
+1. **Memory at the cap (rank 1).** 8 M cells measured 744 MB, which is why the cap is now 2 M (214 MB measured).
+   With 512 MiB and `--concurrency 1`, one engine run per instance fits; the design must never hold two matrix
+   copies (non-negotiable 3). Live peak memory is checked after deploy; the fallback lever is 1 GiB.
+2. **Byte-identity drift (rank 2).** The stored bytes are the engine's own; localization exists only in `id_num`
+   at render. Guarded by `test_byte_identity.py` + `scripts/compare_cli_platform.py`.
+3. **Temp-file cleanup (rank 3).** Everything lives inside one `TemporaryDirectory` context; the engine's
+   `SystemExit` is caught inside that context; the failure-path test proves no files and no `done` status.
+4. **Per-user isolation (rank 4).** Both routes 404 for a foreign user, proved by tests on read and run.
+5. **Partially written result (rank 5).** `queued -> running -> done|failed`; the six file rows and `done` commit
+   in one transaction, so `done` implies six files; `running` rows older than 900 s flip to `failed`.
+6. **Docker build breakage (rank 6).** The pinned git dependency needs git in the slim image; proved locally by
+   `uv pip install` before any code imports it.
+7. **Contract-test collision (rank 7).** The new template changes the `== 9` assertion and the new CSS class must
+   pass the class inventory; `.pager` lands in E7 before the template in E8, and the contract test runs after each.
+8. **Legacy datasets (rank 8).** The first analysis of a pre-F3 dataset re-parses its raw file once and persists
+   the matrix afterwards.
+9. **Retention on ephemeral instances (rank 9).** Sweep at startup and every 6 h; email failures retry on the next
+   sweep because `notice_sent_at` stays NULL.
+10. **Neon growth (rank 10).** Results are KB-scale, the matrix container is MB-scale, retention is 180 days, and
+    datasets themselves are never auto-deleted.
+11. **Winsteps datasets with codes outside A-E (rank 11).** Fails closed at commit with an Indonesian message; no
+    silent wrong numbers.
+12. **Concurrent double-runs (rank 12).** A young `running` row for the same dataset redirects to it instead of
+    starting a second job.
 
 ## ROLLBACK
 
-`git revert` the F2 commit range in `/root/projects/raschlab-web`, then run
-`.venv/bin/python -m alembic downgrade 0002` against the target DB (the `0003` downgrade drops `datasets` and
-restores `schema_version='2'`; nothing in 0001/0002 is modified by F2, so F1 comes back as it was).
+Code first, schema second; user data (users, datasets, raw uploads) is never dropped by either step.
 
-## Curation notes (Arc, 24 Sep 2026)
-
-- Dada closed option 3 on the gate: `GATE_OPEN=true` permanently (revision `00006-p4r`). F2 must not undo it; the
-  gate-closed branches in R7/R9 are tested by monkeypatching `settings.gate_open`, not by changing the deployment.
-- **Domain is PARKED by Dada** ("nanti aja domain kalau platformnya udah ready end to end") — not a blocker for F2.
-- Engine repo visibility (D3) stays open until F3; nothing in Batch 1 or 2 depends on it.
-- Verified by Arc before locking: conftest failure mode (alone `2 failed, 1 passed` vs full `29 passed`), migration
-  head is `0002`, `app_meta.schema_version = '2'`, gate route behaviour in both flag states.
+1. Send traffic back to the known-good revision (old code simply ignores the new tables):
+   `gcloud run services update-traffic raschlab-web --region asia-southeast1 --to-revisions=raschlab-web-00010-w29=100`
+2. `git revert` the F3 commits, push, redeploy, and confirm `/health` before touching anything else.
+3. Only if the migration itself must go:
+   `DATABASE_URL=... .venv/bin/python -m alembic downgrade 0003` — drops `analyses`, `analysis_files` and
+   `datasets.matrix_gzip` (derived, re-runnable analysis results only; `schema_version` returns to 3; users and
+   datasets rows untouched). Restore the old cap copy by reverting commit E0.

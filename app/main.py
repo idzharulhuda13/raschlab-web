@@ -10,10 +10,22 @@ from app.config import settings
 from app.db import check_db
 from app.auth import router as auth_router
 from app.ingest import router as ingest_router
+from app.analyze import router as analyze_router
 
 APP_VERSION = "0.1.0"
 
-app = FastAPI(
+
+class App(FastAPI):
+    @property
+    def routes(self):
+        return [
+            route
+            for r in self.router.routes
+            for route in (r.original_router.routes if hasattr(r, "original_router") else [r])
+        ]
+
+
+app = App(
     title="RaschLab",
     docs_url="/docs" if settings.app_env.lower() == "dev" else None,
     redoc_url="/redoc" if settings.app_env.lower() == "dev" else None,
@@ -32,6 +44,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 app.include_router(auth_router)
 app.include_router(ingest_router)
+app.include_router(analyze_router)
 
 
 @app.get("/", response_class=HTMLResponse)

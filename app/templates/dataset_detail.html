@@ -339,6 +339,30 @@
   {% endif %}
 </section>
 
+{% if status == 'ready' %}
+<section class="band">
+  <form action="/datasets/{{ dataset.id }}/analyze" method="post" data-loading="Memproses analisis...">
+    <button type="submit" class="btn btn--primary">Jalankan Analisis Rasch</button>
+  </form>
+  {% if latest_analysis %}
+  <p>
+    <a href="/analyses/{{ latest_analysis.id }}" class="btn btn--secondary">Lihat hasil analisis terakhir</a>
+    {% if latest_analysis.status == 'done' %}
+    <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
+    {% elif latest_analysis.status in ('running', 'queued') %}
+    <span class="chip chip--accent"><span class="chip-glyph">...</span> Memproses</span>
+    {% elif latest_analysis.status == 'failed' %}
+    <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
+    {% else %}
+    <span class="chip">{{ latest_analysis.status }}</span>
+    {% endif %}
+  </p>
+  {% else %}
+  <p class="empty-text">Belum ada analisis untuk berkas ini.</p>
+  {% endif %}
+</section>
+{% endif %}
+
 <section class="band band--actions">
   <form action="/datasets/{{ dataset.id }}/discard" method="post" onsubmit="return confirm('Apakah Anda yakin ingin membuang berkas pengukuran ini? Tindakan ini akan menghapus data mentah dan tidak dapat dibatalkan.');">
     <button type="submit" class="btn btn--danger">Buang Berkas</button>

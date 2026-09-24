@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, LargeBinary, String, Text
+from sqlalchemy import BigInteger, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -59,3 +59,35 @@ class Dataset(Base):
     raw_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
     committed_at: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    matrix_gzip: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+
+
+class Analysis(Base):
+    __tablename__ = "analyses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    dataset_id: Mapped[int] = mapped_column(ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    params_json: Mapped[str] = mapped_column(Text, nullable=False)
+    engine_ref: Mapped[str] = mapped_column(String, nullable=False)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    elapsed_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    started_at: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    finished_at: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    expires_at: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    notice_sent_at: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+
+
+class AnalysisFile(Base):
+    __tablename__ = "analysis_files"
+    __table_args__ = (UniqueConstraint("analysis_id", "filename"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    analysis_id: Mapped[int] = mapped_column(ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False, index=True)
+    filename: Mapped[str] = mapped_column(String, nullable=False)
+    content_gzip: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    sha256: Mapped[str] = mapped_column(String, nullable=False)
+    bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+

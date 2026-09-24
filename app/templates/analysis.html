@@ -1,0 +1,322 @@
+<!-- RaschLab F3 | design-system: DESIGN.md | macrostructure: analysis-dashboard -->
+{% extends "base.html" %}
+
+{% block title %}{{ dataset.filename }}: Hasil Analisis: RaschLab{% endblock %}
+
+{% block content %}
+<section class="band band--header">
+  <a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke Berkas Pengukuran</a>
+  <h1 class="detail-title mono">{{ dataset.filename }}</h1>
+  <div>
+    {% if status == 'done' %}
+    <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
+    {% elif status in ('running', 'queued') %}
+    <span class="chip chip--accent"><span class="chip-glyph">...</span> Memproses</span>
+    {% elif status == 'failed' %}
+    <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
+    {% endif %}
+  </div>
+  <p class="field-hint">Hasil analisis disimpan selama 180 hari.</p>
+  <div class="header-pairs">
+    <div class="def-row">
+      <span class="def-label">Versi Mesin: </span>
+      <span class="def-value mono">{{ engine_ref }}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Waktu Eksekusi: </span>
+      <span class="def-value mono">{% if elapsed_ms is not none %}{{ elapsed_ms | id_num }} ms{% else %}-{% endif %}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Urutan Responden: </span>
+      <span class="def-value mono">Urutan tabel responden: misfit (outfit MNSQ menurun)</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Mode: </span>
+      <span class="def-value mono">{{ params.get('mode', 'compat') if params else 'compat' }}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Desimal: </span>
+      <span class="def-value mono">{{ params.get('digits', 2) if params else '2' }}</span>
+    </div>
+  </div>
+</section>
+
+{% if status in ('running', 'queued') %}
+<section class="band">
+  <div class="empty">
+    <p class="empty-text">Analisis sedang diproses...</p>
+  </div>
+</section>
+{% elif status == 'failed' %}
+<section class="band">
+  <div class="alert alert--misfit" role="alert">
+    <strong>Analisis Gagal</strong>
+    <p>{{ error }}</p>
+  </div>
+  <form method="post" action="/datasets/{{ dataset.id }}/analyze" data-loading="Memproses analisis...">
+    <button type="submit" class="btn btn--primary">Jalankan Ulang</button>
+  </form>
+</section>
+{% elif status == 'done' %}
+<section class="band">
+  <h2>Rekap Responden</h2>
+  <div class="header-pairs">
+    <div class="def-row">
+      <span class="def-label">Total Responden Berkas: </span>
+      <span class="def-value mono">{{ dataset.n_persons | id_num }}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Responden Dianalisis (PERSON COUNT): </span>
+      <span class="def-value mono">{{ rekap.get('PERSON COUNT', '-') | id_num }}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Ekstrem Dikecualikan (COUNTS EXTREME EXCLUDED): </span>
+      <span class="def-value mono">{{ rekap.get('COUNTS EXTREME EXCLUDED', '-') | id_num }}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Ekstrem Minimum (COUNTS EXTREME_MIN): </span>
+      <span class="def-value mono">{{ rekap.get('COUNTS EXTREME_MIN', '-') | id_num }}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Ekstrem Maksimum (COUNTS EXTREME_MAX): </span>
+      <span class="def-value mono">{{ rekap.get('COUNTS EXTREME_MAX', '-') | id_num }}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Kurang Respon (COUNTS LACKING): </span>
+      <span class="def-value mono">{{ rekap.get('COUNTS LACKING', '-') | id_num }}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Dihapus (COUNTS DELETED): </span>
+      <span class="def-value mono">{{ rekap.get('COUNTS DELETED', '-') | id_num }}</span>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <h2>Tabel Butir (15.1)</h2>
+  <div class="table-scroll">
+    <table class="data-table">
+      <caption class="table-caption">Tabel Butir (15.1)</caption>
+      <thead>
+        {% if item_headers | length >= 2 %}
+        <tr>
+          {% for col in item_headers[0] %}
+            {% if col %}
+              <th scope="col" class="mono">{{ col }}</th>
+            {% else %}
+              <th></th>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        <tr>
+          {% for col in item_headers[1] %}
+            {% if col %}
+              <th scope="col" class="mono">{{ col }}</th>
+            {% else %}
+              <th></th>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endif %}
+      </thead>
+      <tbody>
+        {% for row in item_paged %}
+        <tr>
+          {% for cell in row %}
+            {% if loop.index0 == 13 %}
+              <td class="mono">{{ cell }}</td>
+            {% else %}
+              <td class="num-col mono">{{ cell | id_num }}</td>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <nav class="pager" aria-label="Navigasi halaman butir">
+    <span class="mono">Halaman {{ item_paged.page }} dari {{ item_paged.total_pages }} ({{ item_paged.total_rows | id_num }} baris)</span>
+    {% if item_paged.has_prev %}
+    <a href="?page_item={{ item_paged.prev_page }}&page_person={{ page_person }}&page_option={{ page_option }}" class="btn btn--secondary">Sebelumnya</a>
+    {% else %}
+    <button type="button" class="btn btn--secondary" disabled>Sebelumnya</button>
+    {% endif %}
+    {% if item_paged.has_next %}
+    <a href="?page_item={{ item_paged.next_page }}&page_person={{ page_person }}&page_option={{ page_option }}" class="btn btn--secondary">Selanjutnya</a>
+    {% else %}
+    <button type="button" class="btn btn--secondary" disabled>Selanjutnya</button>
+    {% endif %}
+  </nav>
+</section>
+
+<section class="band">
+  <h2>Tabel Opsi dan Distraktor (15.3)</h2>
+  <div class="table-scroll">
+    <table class="data-table">
+      <caption class="table-caption">Tabel Opsi dan Distraktor (15.3)</caption>
+      <thead>
+        {% if option_headers | length >= 2 %}
+        <tr>
+          {% for col in option_headers[0] %}
+            {% if col %}
+              <th scope="col" class="mono">{{ col }}</th>
+            {% else %}
+              <th></th>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        <tr>
+          {% for col in option_headers[1] %}
+            {% if col %}
+              <th scope="col" class="mono">{{ col }}</th>
+            {% else %}
+              <th></th>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endif %}
+      </thead>
+      <tbody>
+        {% for row in option_paged %}
+        <tr>
+          {% for cell in row %}
+            {% if loop.index0 == 11 %}
+              <td class="mono">{{ cell }}</td>
+            {% else %}
+              <td class="num-col mono">{{ cell | id_num }}</td>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <nav class="pager" aria-label="Navigasi halaman opsi dan distraktor">
+    <span class="mono">Halaman {{ option_paged.page }} dari {{ option_paged.total_pages }} ({{ option_paged.total_rows | id_num }} baris)</span>
+    {% if option_paged.has_prev %}
+    <a href="?page_item={{ page_item }}&page_person={{ page_person }}&page_option={{ option_paged.prev_page }}" class="btn btn--secondary">Sebelumnya</a>
+    {% else %}
+    <button type="button" class="btn btn--secondary" disabled>Sebelumnya</button>
+    {% endif %}
+    {% if option_paged.has_next %}
+    <a href="?page_item={{ page_item }}&page_person={{ page_person }}&page_option={{ option_paged.next_page }}" class="btn btn--secondary">Selanjutnya</a>
+    {% else %}
+    <button type="button" class="btn btn--secondary" disabled>Selanjutnya</button>
+    {% endif %}
+  </nav>
+</section>
+
+<section class="band">
+  <h2>Tabel Responden</h2>
+  <div class="table-scroll">
+    <table class="data-table">
+      <caption class="table-caption">Tabel Responden</caption>
+      <thead>
+        {% if person_headers | length >= 2 %}
+        <tr>
+          {% for col in person_headers[0] %}
+            {% if col %}
+              <th scope="col" class="mono">{{ col }}</th>
+            {% else %}
+              <th></th>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        <tr>
+          {% for col in person_headers[1] %}
+            {% if col %}
+              <th scope="col" class="mono">{{ col }}</th>
+            {% else %}
+              <th></th>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endif %}
+      </thead>
+      <tbody>
+        {% for row in person_paged %}
+        <tr>
+          {% for cell in row %}
+            {% if loop.index0 in (13, 14) %}
+              <td class="mono">{{ cell }}</td>
+            {% else %}
+              <td class="num-col mono">{{ cell | id_num }}</td>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <nav class="pager" aria-label="Navigasi halaman responden">
+    <span class="mono">Halaman {{ person_paged.page }} dari {{ person_paged.total_pages }} ({{ person_paged.total_rows | id_num }} baris)</span>
+    {% if person_paged.has_prev %}
+    <a href="?page_item={{ page_item }}&page_person={{ person_paged.prev_page }}&page_option={{ page_option }}" class="btn btn--secondary">Sebelumnya</a>
+    {% else %}
+    <button type="button" class="btn btn--secondary" disabled>Sebelumnya</button>
+    {% endif %}
+    {% if person_paged.has_next %}
+    <a href="?page_item={{ page_item }}&page_person={{ person_paged.next_page }}&page_option={{ page_option }}" class="btn btn--secondary">Selanjutnya</a>
+    {% else %}
+    <button type="button" class="btn btn--secondary" disabled>Selanjutnya</button>
+    {% endif %}
+  </nav>
+</section>
+
+<section class="band">
+  <h2>Tabel Ringkasan</h2>
+  {% set sum_headers = summary_rows[:2] if (summary_rows | length >= 2 and summary_rows[1] == ['', '', '']) else summary_headers %}
+  {% set sum_data = summary_rows[2:] if (summary_rows | length >= 2 and summary_rows[1] == ['', '', '']) else (summary_rows[1:] if summary_rows | length >= 1 else []) %}
+  <div class="table-scroll">
+    <table class="data-table">
+      <caption class="table-caption">Tabel Ringkasan</caption>
+      <thead>
+        {% if sum_headers | length >= 2 %}
+        <tr>
+          {% for col in sum_headers[0] %}
+            {% if col %}
+              <th scope="col" class="mono">{{ col }}</th>
+            {% else %}
+              <th></th>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        <tr>
+          {% for col in sum_headers[1] %}
+            {% if col %}
+              <th scope="col" class="mono">{{ col }}</th>
+            {% else %}
+              <th></th>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% elif sum_headers | length == 1 %}
+        <tr>
+          {% for col in sum_headers[0] %}
+            {% if col %}
+              <th scope="col" class="mono">{{ col }}</th>
+            {% else %}
+              <th></th>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endif %}
+      </thead>
+      <tbody>
+        {% for row in sum_data %}
+        <tr>
+          {% for cell in row %}
+            {% if loop.index0 in (0, 1) %}
+              <td class="mono">{{ cell }}</td>
+            {% else %}
+              <td class="num-col mono">{{ cell | id_num }}</td>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -198,4 +198,97 @@ grep -rn 'tick-rule\|--rule\|--raised\|--scale' app/templates app/static || echo
 APP_ENV=prod .venv/bin/python -c "from app.main import app; print([r.path for r in app.routes if 'docs' in r.path or 'openapi' in r.path.lower()])"
 ```
 
+## F3: Engine execution, result storage, and presentation
+
+### Storage size caps (updated)
+
+| Constant | Value | Description |
+|---|---|---|
+| `MAX_UPLOAD_BYTES` | `16 * 1024 * 1024` (16 MiB) | Maximum per-file upload size cap (unchanged). |
+| `MAX_CELLS` | `2_000_000` (2,000,000 cells) | Maximum total matrix cell limit (was 8,000,000; lowered so 214 MB engine peak fits 512 MiB instance at concurrency 1). |
+
+### HTTP routes (F3)
+
+| Route | Method | Behaviour |
+|---|---|---|
+| `/datasets/{id}/analyze` | POST | Triggers Rasch analysis on a ready dataset. Closed gate redirects to `/` (303); unauthenticated redirects to `/login` (303); non-owner returns 404; dataset status not ready redirects to `/datasets/{id}` (303); rate-limited to 12 per hour per IP/user (429 with `Retry-After`); double-submit guard redirects to active running analysis (303) if started within `STALE_RUN_S` (900 s); synchronous thread execution runs engine; on `AnalysisError` before analysis record creation, renders `dataset_detail.html` (422) with Indonesian error message; on success, redirects to `/analyses/{id}` (303). |
+| `/analyses/{id}` | GET | Displays analysis view or progress state. Closed gate or unauthenticated returns 404; non-owner returns 404; stale running or queued analyses older than `STALE_RUN_S` (900 s) flip to `failed` status with retry option; renders `analysis.html` (200) for running (in-progress notice), failed (error alert with retry form), and done (four output tables, respondent recap, metadata) states. |
+
+### Database schema additions (column names are FROZEN)
+
+#### Datasets table modification (FROZEN)
+
+| Column (FROZEN) | Type | Meaning |
+|---|---|---|
+| `matrix_gzip` | BYTEA | Gzip-compressed deterministic JSON container (`v=1`, `namlen`, `key`, `codes`, `prn`) with mtime=0, built at commit or lazily backfilled on analysis (FROZEN). |
+
+#### Analyses table columns (column names are FROZEN)
+
+| Column (FROZEN) | Type | Meaning |
+|---|---|---|
+| `id` | INTEGER | Primary key identifier for the analysis run (SERIAL, FROZEN). |
+| `user_id` | INTEGER | Foreign key referencing users(id) with CASCADE deletion, indexed (`ix_analyses_user_id`) (FROZEN). |
+| `dataset_id` | INTEGER | Foreign key referencing datasets(id) with CASCADE deletion, indexed (`ix_analyses_dataset_id`) (FROZEN). |
+| `status` | TEXT | Analysis execution state: `queued`, `running`, `done`, or `failed` (FROZEN). |
+| `params_json` | TEXT | JSON object of analysis parameters (`mode`, `digits`, `lconv`, `person_order`, `anchors`, `pdfile`) (FROZEN). |
+| `engine_ref` | TEXT | Git commit hash reference of the pinned raschlab engine (FROZEN). |
+| `error` | TEXT | Indonesian error message string if analysis execution failed, nullable (FROZEN). |
+| `elapsed_ms` | INTEGER | Total engine execution time in milliseconds, nullable (FROZEN). |
+| `created_at` | BIGINT | Unix epoch timestamp in seconds when the analysis was queued (FROZEN). |
+| `started_at` | BIGINT | Unix epoch timestamp in seconds when engine processing began, nullable (FROZEN). |
+| `finished_at` | BIGINT | Unix epoch timestamp in seconds when execution finished or failed, nullable (FROZEN). |
+| `expires_at` | BIGINT | Unix epoch timestamp in seconds for data retention cleanup (`created_at` + 180 days), indexed (`ix_analyses_expires_at`) (FROZEN). |
+| `notice_sent_at` | BIGINT | Unix epoch timestamp in seconds when expiry warning email was sent, nullable (FROZEN). |
+
+#### Analysis files table columns (column names are FROZEN)
+
+| Column (FROZEN) | Type | Meaning |
+|---|---|---|
+| `id` | INTEGER | Primary key identifier for the stored file (SERIAL, FROZEN). |
+| `analysis_id` | INTEGER | Foreign key referencing analyses(id) with CASCADE deletion, indexed (`ix_analysis_files_analysis_id`) (FROZEN). |
+| `filename` | TEXT | Engine output filename (`item_table_15.1.csv`, etc.) (FROZEN). |
+| `content_gzip` | BYTEA | Gzip-compressed raw engine output bytes with mtime=0 (FROZEN). |
+| `sha256` | TEXT | SHA-256 hex digest of the uncompressed output bytes (FROZEN). |
+| `bytes` | BIGINT | Size in bytes of the uncompressed output content (FROZEN). |
+
+Table constraints: `UNIQUE (analysis_id, filename)`.
+
+### Output files (`OUTPUT_FILES`)
+
+The engine produces six authoritative output files stored verbatim as deterministic gzip bytes:
+
+```python
+OUTPUT_FILES = (
+    "item_table_15.1.csv",
+    "option_table_15.3.csv",
+    "person_table.csv",
+    "summary_table.csv",
+    "wright_map_measure.csv",
+    "wright_map_frequency.csv",
+)
+```
+
+### CSS component additions
+
+- `.pager`: Navigation flex container for paginated table navigation (`<nav class="pager">`). Displays flex row, wrapping, right-aligned, with gap `var(--space-3)` and top margin `var(--space-4)`. Contains previous/next secondary button controls and mono page position text.
+
+### Jinja filter rule (`id_num`)
+
+- `id_num(value) -> str`: String transformation filter for Indonesian numeric formatting without parsing to float.
+- Rules:
+  - Non-numeric strings (e.g. respondent IDs like `P0001`, headers, status labels) are passed through unmodified.
+  - Plain integer numbers: thousands grouped with period `.` (`1234 -> 1.234`).
+  - Decimal numbers: integer portion grouped with period `.`, decimal portion joined with comma `,` (`0.65 -> 0,65`, `-1.23 -> -1,23`, `1000000.5 -> 1.000.000,5`).
+- Application:
+  - All numeric cells in analysis tables pass through `{{ cell | id_num }}` at render time.
+  - Raw identifier and count columns bypass `id_num` and render untouched: item table col 13; person table cols 13 and 14; option table col 11; summary table cols 0 and 1.
+
+### Retention lifecycle constants
+
+- `RETENTION_DAYS = 180`: Analysis records and their output files expire 180 days after creation.
+- `NOTICE_DAYS = 14`: Warning notification email is dispatched 14 days before expiration for completed analyses where `notice_sent_at` is null.
+- `STALE_RUN_S = 900`: Active runs exceeding 900 seconds (15 minutes) are marked failed upon inspection or prevent redundant duplicate execution within the window.
+- Background retention worker runs 30 seconds after application startup and sweeps every 6 hours: purges expired analyses and dispatches pending notice emails.
+
+
 

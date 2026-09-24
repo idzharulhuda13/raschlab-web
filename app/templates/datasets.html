@@ -40,7 +40,7 @@
 
     <ul class="limits">
       <li class="limit-item">Maksimal 16 MB per berkas.</li>
-      <li class="limit-item">Maksimal 8.000.000 sel per dataset.</li>
+      <li class="limit-item">Maksimal 2.000.000 sel per dataset.</li>
       <li class="limit-item">CSV dan XLSX: baris pertama nama butir, kolom pertama identitas responden.</li>
       <li class="limit-item">Maksimal 20 berkas per jam untuk setiap akun.</li>
     </ul>
@@ -85,14 +85,14 @@
         </td>
         <td>
           {% set cells = d.n_persons * d.n_items %}
-          {% set cell_pct = (cells / 8000000) * 100 %}
+          {% set cell_pct = (cells / 2000000) * 100 %}
           <svg class="band-scale" viewBox="0 0 100 12" preserveAspectRatio="none" role="img"
-               aria-label="Kapasitas matriks: {{ '{:,}'.format(cells).replace(',', '.') }} dari 8.000.000 sel, {{ '%.2f' | format(cell_pct) | replace('.', ',') }} persen">
+               aria-label="Kapasitas matriks: {{ '{:,}'.format(cells).replace(',', '.') }} dari 2.000.000 sel, {{ '%.2f' | format(cell_pct) | replace('.', ',') }} persen">
             <rect class="band-scale-fill" x="0" y="0" width="{{ cell_pct | round(2) }}" height="12"></rect>
             <line class="band-scale-mark" x1="{{ cell_pct | round(2) }}" y1="0"
                   x2="{{ cell_pct | round(2) }}" y2="12" vector-effect="non-scaling-stroke"></line>
           </svg>
-          <p class="band-scale-value">{{ '{:,}'.format(cells).replace(',', '.') }} sel terpakai ({{ '%.2f' | format(cell_pct) | replace('.', ',') }}% dari 8.000.000 sel)</p>
+          <p class="band-scale-value">{{ '{:,}'.format(cells).replace(',', '.') }} sel terpakai ({{ '%.2f' | format(cell_pct) | replace('.', ',') }}% dari 2.000.000 sel)</p>
         </td>
         <td class="mono">
           {{ ((d.raw_bytes / 1024) | round(1) | string).replace('.', ',') }} KB
@@ -133,14 +133,14 @@
       </div>
       <div>
         {% set cells = d.n_persons * d.n_items %}
-        {% set cell_pct = (cells / 8000000) * 100 %}
+        {% set cell_pct = (cells / 2000000) * 100 %}
         <svg class="band-scale" viewBox="0 0 100 12" preserveAspectRatio="none" role="img"
-             aria-label="Kapasitas matriks: {{ '{:,}'.format(cells).replace(',', '.') }} dari 8.000.000 sel, {{ '%.2f' | format(cell_pct) | replace('.', ',') }} persen">
+             aria-label="Kapasitas matriks: {{ '{:,}'.format(cells).replace(',', '.') }} dari 2.000.000 sel, {{ '%.2f' | format(cell_pct) | replace('.', ',') }} persen">
           <rect class="band-scale-fill" x="0" y="0" width="{{ cell_pct | round(2) }}" height="12"></rect>
           <line class="band-scale-mark" x1="{{ cell_pct | round(2) }}" y1="0"
                 x2="{{ cell_pct | round(2) }}" y2="12" vector-effect="non-scaling-stroke"></line>
         </svg>
-        <p class="band-scale-value">{{ '{:,}'.format(cells).replace(',', '.') }} sel terpakai ({{ '%.2f' | format(cell_pct) | replace('.', ',') }}% dari 8.000.000 sel)</p>
+        <p class="band-scale-value">{{ '{:,}'.format(cells).replace(',', '.') }} sel terpakai ({{ '%.2f' | format(cell_pct) | replace('.', ',') }}% dari 2.000.000 sel)</p>
         <p class="band-scale-caption">Kapasitas matriks</p>
       </div>
       <div>
