@@ -37,6 +37,7 @@ dataset_detail.html:
 import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -351,7 +352,7 @@ async def post_datasets(
         )
         db.add(dataset)
         db.commit()
-        return RedirectResponse(f"/datasets/{dataset.id}", status_code=303)
+        return RedirectResponse(f"/datasets/{dataset.id}?msg={quote('uploaded')}", status_code=303)
 
     except Exception as exc:
         db.rollback()
@@ -520,7 +521,7 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
         dataset.committed_at = now_epoch()
         dataset.matrix_gzip = matrix_gzip
         db.commit()
-        return RedirectResponse(f"/datasets/{dataset.id}", status_code=303)
+        return RedirectResponse(f"/datasets/{dataset.id}?msg={quote('committed')}", status_code=303)
 
     else:
         control = dict(summary.get("control", {}))
@@ -592,7 +593,7 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
         dataset.committed_at = now_epoch()
         dataset.matrix_gzip = matrix_gzip
         db.commit()
-        return RedirectResponse(f"/datasets/{dataset.id}", status_code=303)
+        return RedirectResponse(f"/datasets/{dataset.id}?msg={quote('committed')}", status_code=303)
 
 
 @router.post("/datasets/{id}/discard")
@@ -609,4 +610,4 @@ def post_dataset_discard(id: int, request: Request, db: Session = Depends(get_se
 
     db.delete(dataset)
     db.commit()
-    return RedirectResponse("/datasets", status_code=303)
+    return RedirectResponse(f"/datasets?msg={quote('discarded')}", status_code=303)

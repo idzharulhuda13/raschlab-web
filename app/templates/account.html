@@ -35,10 +35,10 @@
         <h2 class="section-title">Berkas Pengukuran</h2>
         {% if file_count > 0 %}
         <p class="summary-figure"><span class="mono">{{ file_count }}</span> <span class="section-text">berkas tersimpan</span></p>
-        <p class="section-text"><a href="/datasets">Buka daftar berkas</a></p>
+        <p class="section-text"><a href="/datasets" class="text-link">Buka daftar berkas</a></p>
         {% else %}
         <p class="section-text">Belum ada berkas</p>
-        <p class="section-text">Unggah berkas data pengukuran di halaman <a href="/datasets">Berkas Pengukuran</a>.</p>
+        <p class="section-text">Unggah berkas data pengukuran di halaman <a href="/datasets" class="text-link">Berkas Pengukuran</a>.</p>
         {% endif %}
         <p class="section-text">Maksimal {{ limit_mb }} per berkas dan {{ limit_cells }} per dataset.</p>
       </div>
@@ -58,11 +58,11 @@
           <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
           {% endif %}
         </p>
-        <p class="section-text"><a href="/analyses/{{ last_analysis.id }}">Lihat hasil terakhir</a></p>
+        <p class="section-text"><a href="/analyses/{{ last_analysis.id }}" class="text-link">Lihat hasil terakhir</a></p>
         {% endif %}
         {% else %}
         <p class="section-text">Belum ada analisis</p>
-        <p class="section-text">Analisis dijalankan dari halaman <a href="/datasets">Berkas Pengukuran</a>.</p>
+        <p class="section-text">Analisis dijalankan dari halaman <a href="/datasets" class="text-link">Berkas Pengukuran</a>.</p>
         {% endif %}
       </div>
     </div>

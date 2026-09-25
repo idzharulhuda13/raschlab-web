@@ -63,7 +63,7 @@ def _upload(client: TestClient, filename: str, payload: bytes, email: str) -> in
     elapsed_ms = (time.perf_counter() - started) * 1000
     assert resp.status_code == 303, resp.text[:300]
     assert elapsed_ms < UPLOAD_MS_BUDGET, f"upload took {elapsed_ms:.0f} ms"
-    return int(resp.headers["location"].split("/")[-1])
+    return int(resp.headers["location"].split("/")[-1].split("?")[0])
 
 
 def test_large_dataset_pages_stay_inside_the_byte_budget(client: TestClient):

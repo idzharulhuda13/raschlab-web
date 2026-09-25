@@ -120,7 +120,7 @@ a:hover {
 }
 
 .wordmark-caption {
-  font-size: 12px;
+  font-size: var(--step-14);
   color: var(--muted);
 }
 
@@ -408,7 +408,7 @@ h2,
 }
 
 .micro {
-  font-size: 12px;
+  font-size: var(--step-14);
   color: var(--muted);
 }
 
@@ -443,7 +443,7 @@ h2,
     font-size: 14px;
   }
   .micro {
-    font-size: 12px;
+    font-size: var(--step-14);
   }
 
   .appbar-inner {
@@ -587,7 +587,7 @@ h2,
 }
 
 .field-hint {
-  font-size: 12px;
+  font-size: var(--step-14);
   color: var(--muted);
   margin-top: var(--space-2);
 }
@@ -661,6 +661,8 @@ h2,
   font-weight: 500;
   white-space: nowrap;
   color: var(--ink);
+  box-shadow: none;
+  cursor: default;
 }
 
 .chip--fit {
@@ -685,7 +687,7 @@ h2,
 
 .chip--format {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--step-14);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -708,7 +710,7 @@ h2,
 }
 
 .table-caption {
-  display: block;
+  caption-side: top;
   font-size: var(--step-14);
   color: var(--muted);
   text-align: left;
@@ -759,7 +761,7 @@ h2,
 
 .data-table th {
   text-align: left;
-  font-size: var(--step-12);
+  font-size: var(--step-14);
   font-weight: 600;
   color: var(--muted);
   padding: var(--space-2) var(--space-3);
@@ -960,7 +962,7 @@ rect.band-scale-fill {
   display: flex;
   justify-content: space-between;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--step-14);
   color: var(--muted);
   margin-top: var(--space-2);
 }
@@ -974,7 +976,7 @@ rect.band-scale-fill {
 }
 
 .band-scale-caption {
-  font-size: 12px;
+  font-size: var(--step-14);
   color: var(--muted);
   margin-top: var(--space-1);
 }
@@ -992,7 +994,7 @@ line.miss-marker {
 .miss-marker-label {
   display: block;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--step-14);
   color: var(--accent);
   margin-top: var(--space-1);
 }
@@ -1019,11 +1021,14 @@ line.miss-marker {
 }
 
 .detail-title {
-  font-family: var(--font-mono);
+  font-family: var(--font-display);
   font-size: 22px;
   font-weight: 600;
-  word-break: break-all;
   margin: 0 0 var(--space-2);
+}
+
+.detail-title .mono {
+  overflow-wrap: anywhere;
 }
 
 .header-pairs {
@@ -1100,18 +1105,37 @@ line.miss-marker {
   color: var(--muted);
 }
 
-.commit-bar {
-  position: sticky;
-  bottom: var(--space-4);
+.action-bar {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-3);
-  padding: var(--space-3);
+}
+
+.commit-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   background: var(--surface);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
   border-top: 1px solid var(--line);
   box-shadow: var(--shadow-2);
-  z-index: 5;
   margin-top: var(--space-6);
+}
+
+.action-group--danger { border-top: 1px solid var(--line); padding-top: var(--space-4); }
+.danger-gap { margin-top: var(--space-24); }
+
+.page-exit {
+  width: 100%;
+  max-width: var(--shell-max);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-4);
 }
 
 .sev-fit {
@@ -1187,6 +1211,11 @@ line.miss-marker {
   .file-table {
     display: none;
   }
+
+  .action-bar,
+  .commit-bar { flex-direction: column; }
+  .action-bar > *,
+  .commit-bar > * { width: 100%; }
 }
 
 .panel {
@@ -1535,6 +1564,11 @@ line.miss-marker {
 
 /* Compare strip */
 .compare-strip {
+  position: sticky;
+  top: 72px;
+  z-index: 5;
+  background: var(--surface);
+  padding-block: var(--space-3);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: var(--space-2) var(--space-4);
@@ -1575,8 +1609,17 @@ line.miss-marker {
   white-space: nowrap;
 }
 
+@media (min-width: 720px) {
+  .compare-strip {
+    max-width: var(--shell-max);
+    margin-inline: auto;
+    padding-inline: var(--space-6);
+  }
+}
+
 @media (max-width: 719px) {
   .compare-strip {
+    top: 64px;
     grid-template-columns: 1fr;
     gap: var(--space-2);
   }
@@ -1650,7 +1693,7 @@ figure.summary-figure {
 
 figure.summary-figure .def-label {
   color: var(--muted);
-  font-size: var(--step-12);
+  font-size: var(--step-14);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1669,6 +1712,18 @@ figure.summary-figure .def-value {
   figure.summary-figure .def-value {
     font-size: var(--step-22);
   }
+
+  .th-sort { min-width: 44px; min-height: 44px; }
+  .back-link { display: inline-block; padding: 14px 8px; }
+  .wordmark { display: inline-block; padding: 10px 8px; }
+  .text-link { display: inline-block; padding: 14px 8px; }
+  .cmp-filter {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    min-height: 44px;
+  }
+  .cmp-filter label { flex: 1; margin-bottom: 0; }
 }
 
 /* Chart text follows the pinned type scale. The viewBox units are geometry; the rendered size is
@@ -1677,7 +1732,7 @@ figure.summary-figure .def-value {
 #wright-scale svg text,
 #partisipan-chart svg text,
 #cmp-chart svg text {
-  font-size: var(--step-12);
+  font-size: var(--step-14);
 }
 
 /* Interactive chart elements */
@@ -1708,7 +1763,7 @@ figure.summary-figure .def-value {
   stroke: var(--control);
   fill: var(--muted);
   font-family: var(--font-mono);
-  font-size: var(--step-12);
+  font-size: var(--step-14);
 }
 
 .focus-ring {
@@ -1726,6 +1781,9 @@ figure.summary-figure .def-value {
 .wright-item-tick.is-misfit-highlight .focus-ring {
   stroke: var(--misfit);
 }
+
+.data-table tbody tr:focus-visible,
+#wright-scale [tabindex]:focus-visible { outline: 2px solid var(--accent); }
 
 .delta-row {
   vertical-align: top;

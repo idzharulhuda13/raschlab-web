@@ -172,7 +172,7 @@ The motif is class `band-scale` (a labelled measured band with real numbers).
 ### Template blocks (frozen)
 
 - `base.html` blocks: `title`, `head`, `content`, `footer`, plus a new `appbar_actions` (extra buttons in
-  the app bar, right of the theme toggle). `base.html` renders the app bar and links the three static
+  the app bar, right of the theme toggle). `base.html` renders the app bar (navigation: `Berkas` and `Hasil Analisis`) and links the three static
   files itself.
 - `gate.html` keeps the exact sentence `Aplikasi ini belum dibuka untuk umum.` (verification greps it).
 - `datasets.html` must contain both limit numbers verbatim: `16 MB` and `8.000.000 sel`.
@@ -211,6 +211,7 @@ APP_ENV=prod .venv/bin/python -c "from app.main import app; print([r.path for r 
 
 | Route | Method | Behaviour |
 |---|---|---|
+| `/analyses` | GET | Lists user's finished analyses (newest first). Unauthenticated redirects to `/login` (303); renders `analyses.html` (200). |
 | `/datasets/{id}/analyze` | POST | Triggers Rasch analysis on a ready dataset. Closed gate redirects to `/` (303); unauthenticated redirects to `/login` (303); non-owner returns 404; dataset status not ready redirects to `/datasets/{id}` (303); rate-limited to 12 per hour per IP/user (429 with `Retry-After`); double-submit guard redirects to active running analysis (303) if started within `STALE_RUN_S` (900 s); synchronous thread execution runs engine; on `AnalysisError` before analysis record creation, renders `dataset_detail.html` (422) with Indonesian error message; on success, redirects to `/analyses/{id}` (303). |
 | `/analyses/{id}` | GET | Displays analysis view or progress state. Closed gate or unauthenticated returns 404; non-owner returns 404; stale running or queued analyses older than `STALE_RUN_S` (900 s) flip to `failed` status with retry option; renders `analysis.html` (200) for running (in-progress notice), failed (error alert with retry form), and done (four output tables, respondent recap, metadata) states. |
 
@@ -420,9 +421,9 @@ No `<style>` block and no `style="..."` attribute in any explorer template; all 
 
 ### Verification (F4)
 
-- `python3 -c` key grep over this file → `INTERFACE OK` (keys: `/analyses/{id}/explore`, `fragment=`, `explorer-data`, `cmp-data`, `explorer-charts.js`, `RaschExplorer`, `q_item`, `q_person`, `explore/fragment.html`, `render_view`, `data-explorer-table`, `Jelajahi hasil`, `184`).
+- `python3 -c` key grep over this file → `INTERFACE OK` (keys: `/analyses/{id}/explore`, `fragment=`, `explorer-data`, `cmp-data`, `explorer-charts.js`, `RaschExplorer`, `q_item`, `q_person`, `explore/fragment.html`, `render_view`, `data-explorer-table`, `Jelajahi hasil`, `190`).
 - `tests/test_explorer_routes.py` (21 tests) plus the pre-existing suite → `149 passed`.
-- `python3 scripts/verify_explorer.py` → 184 browser checks in 11 groups, `184/184 PASS`, `rc=0`; budgets: `loadEventEnd ≤ 400 ms`, first `butir` activation ≤ 150 ms, cached re-activation ≤ 50 ms, 147-row sort ≤ 100 ms, search round-trip ≤ 250 ms, zero long tasks > 100 ms, initial HTML ≤ 120,000 B, embedded payload ≤ 60,000 B.
+- `python3 scripts/verify_explorer.py` → 190 browser checks in 11 groups, `190/190 PASS`, `rc=0`; budgets: `loadEventEnd ≤ 400 ms`, first `butir` activation ≤ 150 ms, cached re-activation ≤ 50 ms, 147-row sort ≤ 100 ms, search round-trip ≤ 250 ms, zero long tasks > 100 ms, initial HTML ≤ 120,000 B, embedded payload ≤ 60,000 B.
 
 ## F5 — Identity columns, answer keys, and render budgets (25 Sep 2026, frozen)
 

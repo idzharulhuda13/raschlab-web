@@ -619,6 +619,19 @@
     handleTableSort(table, sortBtn);
   });
 
+  // ponytail: one tab stop per item (147 here) keeps the change tiny; upgrade path is a roving tabindex
+  // (one tab stop per group, arrow keys inside), only if this proves annoying in use.
+  // Delegated keyboard listener for selectable table rows
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    var row = e.target.closest('tr[data-order][tabindex="0"]');
+    if (!row) return;
+    if (e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+    }
+    row.click();
+  });
+
   /**
    * The participant histogram has its own boot: the Wright payload the main boot waits for does not
    * exist on this view, and the earlier build returned before ever reaching the chart.

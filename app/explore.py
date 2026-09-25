@@ -4,6 +4,7 @@ import datetime
 from decimal import Decimal, ROUND_HALF_UP
 import json
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -384,6 +385,8 @@ def get_explore(
             k = f"{row[0]} {row[1]}".strip()
             rekap[k] = row[2]
 
+    tab_params = "&".join(f"{k}={quote(str(v))}" for k, v in request.query_params.multi_items() if k != "view")
+
     context: dict[str, Any] = {
         "user": user,
         "dataset": dataset,
@@ -397,6 +400,7 @@ def get_explore(
         "active_view": active_view,
         "render_view": render_view,
         "views": list(VIEWS),
+        "tab_params": tab_params,
         "q_item": q_item,
         "q_person": q_person,
         "page_item": page_item_req,

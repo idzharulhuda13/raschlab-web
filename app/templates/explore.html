@@ -1,7 +1,10 @@
 <!-- RaschLab F4 | design-system: DESIGN.md | macrostructure: analysis-dashboard -->
 {% extends "base.html" %}
 
-{% block title %}{{ dataset.filename }}: Jelajahi Hasil: RaschLab{% endblock %}
+{% set view_labels = {'wright': 'Peta Wright', 'butir': 'Butir', 'partisipan': 'Partisipan',
+                      'ringkasan': 'Ringkasan', 'bandingkan': 'Bandingkan'} %}
+{% set view_label = view_labels.get(active_view, active_view) %}
+{% block title %}{{ view_label }}: {{ dataset.filename }}: RaschLab{% endblock %}
 
 {% block head %}
 <script src="/static/explorer-charts.js" defer></script>
@@ -11,7 +14,7 @@
 {% block content %}
 <section class="band band--header">
   <a href="/analyses/{{ analysis.id }}" class="back-link">Kembali ke Hasil Analisis</a>
-  <h1 class="detail-title mono">{{ dataset.filename }}</h1>
+  <h1 class="detail-title">{{ view_label }}: <span class="mono">{{ dataset.filename }}</span></h1>
   <div class="header-actions">
     <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
   </div>
@@ -38,16 +41,16 @@
 
 <noscript>
   <div class="alert alert--warn" role="alert">
-    Halaman penjelajah ini membutuhkan JavaScript. Buka halaman hasil analisis untuk melihat tabel lengkap. <a href="/analyses/{{ analysis.id }}">Buka halaman hasil analisis.</a>
+    Halaman ini membutuhkan JavaScript untuk tampilan interaktif. Untuk melihat tabel lengkap, <a href="/analyses/{{ analysis.id }}">buka halaman hasil analisis</a>.
   </div>
 </noscript>
 
 <div id="tablist" class="tabs" role="tablist">
-  <a id="tab-wright" href="?view=wright" class="tab{% if active_view == 'wright' %} is-active{% endif %}" role="tab" aria-controls="panel-wright" aria-selected="{{ 'true' if active_view == 'wright' else 'false' }}">Peta Wright</a>
-  <a id="tab-butir" href="?view=butir" class="tab{% if active_view == 'butir' %} is-active{% endif %}" role="tab" aria-controls="panel-butir" aria-selected="{{ 'true' if active_view == 'butir' else 'false' }}">Butir</a>
-  <a id="tab-partisipan" href="?view=partisipan" class="tab{% if active_view == 'partisipan' %} is-active{% endif %}" role="tab" aria-controls="panel-partisipan" aria-selected="{{ 'true' if active_view == 'partisipan' else 'false' }}">Partisipan</a>
-  <a id="tab-ringkasan" href="?view=ringkasan" class="tab{% if active_view == 'ringkasan' %} is-active{% endif %}" role="tab" aria-controls="panel-ringkasan" aria-selected="{{ 'true' if active_view == 'ringkasan' else 'false' }}">Ringkasan</a>
-  <a id="tab-bandingkan" href="?view=bandingkan" class="tab{% if active_view == 'bandingkan' %} is-active{% endif %}" role="tab" aria-controls="panel-bandingkan" aria-selected="{{ 'true' if active_view == 'bandingkan' else 'false' }}">Bandingkan</a>
+  <a id="tab-wright" href="?view=wright{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'wright' %} is-active{% endif %}" role="tab" aria-controls="panel-wright" aria-selected="{{ 'true' if active_view == 'wright' else 'false' }}">Peta Wright</a>
+  <a id="tab-butir" href="?view=butir{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'butir' %} is-active{% endif %}" role="tab" aria-controls="panel-butir" aria-selected="{{ 'true' if active_view == 'butir' else 'false' }}">Butir</a>
+  <a id="tab-partisipan" href="?view=partisipan{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'partisipan' %} is-active{% endif %}" role="tab" aria-controls="panel-partisipan" aria-selected="{{ 'true' if active_view == 'partisipan' else 'false' }}">Partisipan</a>
+  <a id="tab-ringkasan" href="?view=ringkasan{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'ringkasan' %} is-active{% endif %}" role="tab" aria-controls="panel-ringkasan" aria-selected="{{ 'true' if active_view == 'ringkasan' else 'false' }}">Ringkasan</a>
+  <a id="tab-bandingkan" href="?view=bandingkan{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'bandingkan' %} is-active{% endif %}" role="tab" aria-controls="panel-bandingkan" aria-selected="{{ 'true' if active_view == 'bandingkan' else 'false' }}">Bandingkan</a>
 </div>
 
 <div id="panel-wright" class="explorer-panel{% if active_view == 'wright' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-wright">
@@ -105,6 +108,8 @@
     </div>
   {% endif %}
 </div>
+
+<div class="page-exit"><a href="/analyses/{{ analysis.id }}" class="back-link">Kembali ke Hasil Analisis</a></div>
 
 {% if payload_json %}<script type="application/json" id="explorer-data">{{ payload_json | safe }}</script>{% endif %}
 

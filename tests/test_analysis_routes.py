@@ -70,7 +70,7 @@ def _upload_and_commit_sample(client: TestClient, fixture_name: str = "sample_30
         follow_redirects=False,
     )
     assert upload_resp.status_code == 303
-    dataset_id = int(upload_resp.headers["location"].split("/")[-1])
+    dataset_id = int(upload_resp.headers["location"].split("/")[-1].split("?")[0])
 
     commit_resp = client.post(
         f"/datasets/{dataset_id}/commit",
@@ -98,7 +98,7 @@ def test_analyze_flow_and_result_page_contract(client: TestClient):
     assert post_resp.status_code == 303
     location = post_resp.headers["location"]
     assert location.startswith("/analyses/")
-    analysis_id = int(location.split("/")[-1])
+    analysis_id = int(location.split("/")[-1].split("?")[0])
 
     get_resp = client.get(location)
     assert get_resp.status_code == 200
@@ -162,7 +162,7 @@ def test_analysis_user_isolation_blocks_foreign_read_and_run(client: TestClient)
 
     post_resp = client.post(f"/datasets/{dataset_id}/analyze", follow_redirects=False)
     assert post_resp.status_code == 303
-    analysis_id = int(post_resp.headers["location"].split("/")[-1])
+    analysis_id = int(post_resp.headers["location"].split("/")[-1].split("?")[0])
 
     user_b_id = _create_authenticated_user(client, email="userb@example.test")
     assert user_b_id != user_a_id
@@ -187,7 +187,7 @@ def test_analysis_engine_failure_produces_failed_status_and_misfit_alert(
 
     post_resp = client.post(f"/datasets/{dataset_id}/analyze", follow_redirects=False)
     assert post_resp.status_code == 303
-    analysis_id = int(post_resp.headers["location"].split("/")[-1])
+    analysis_id = int(post_resp.headers["location"].split("/")[-1].split("?")[0])
 
     with SessionLocal() as db:
         analysis = db.scalar(select(Analysis).where(Analysis.id == analysis_id))
@@ -238,7 +238,7 @@ def test_analysis_loading_state_rendering_and_in_flight_redirect(client: TestCli
 
     post_resp = client.post(f"/datasets/{dataset_id}/analyze", follow_redirects=False)
     assert post_resp.status_code == 303
-    assert post_resp.headers["location"] == f"/analyses/{analysis_id}"
+    assert post_resp.headers["location"].startswith(f"/analyses/{analysis_id}")
 
 
 def test_analysis_stale_running_row_flips_to_failed(client: TestClient):
@@ -286,7 +286,7 @@ def test_dataset_detail_shows_latest_analysis_link(client: TestClient):
 
     post_resp = client.post(f"/datasets/{dataset_id}/analyze", follow_redirects=False)
     assert post_resp.status_code == 303
-    analysis_id = int(post_resp.headers["location"].split("/")[-1])
+    analysis_id = int(post_resp.headers["location"].split("/")[-1].split("?")[0])
 
     detail_after = client.get(f"/datasets/{dataset_id}")
     assert detail_after.status_code == 200
@@ -311,7 +311,7 @@ def test_legacy_dataset_backfill_matrix_gzip_on_analyze(client: TestClient):
 
     post_resp = client.post(f"/datasets/{dataset_id}/analyze", follow_redirects=False)
     assert post_resp.status_code == 303
-    analysis_id = int(post_resp.headers["location"].split("/")[-1])
+    analysis_id = int(post_resp.headers["location"].split("/")[-1].split("?")[0])
 
     with SessionLocal() as db:
         ds = db.scalar(select(Dataset).where(Dataset.id == dataset_id))

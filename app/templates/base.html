@@ -31,8 +31,14 @@
         <span class="wordmark-caption">skala logit</span>
       </a>
       {% if acct %}
+      {% set nav_path = request.url.path if request else '' %}
       <nav class="appnav">
-        <a href="/datasets" class="appnav-link{% if request and request.url.path.startswith('/datasets') %} is-active{% endif %}">Berkas</a>
+        <a href="/datasets" class="appnav-link{% if nav_path.startswith('/datasets') %} is-active{% endif %}"
+           {% if nav_path.startswith('/datasets') %}aria-current="page"{% endif %}>Berkas</a>
+        <a href="/analyses" class="appnav-link{% if nav_path.startswith('/analyses') %} is-active{% endif %}"
+           {% if nav_path.startswith('/analyses') %}aria-current="page"{% endif %}>Hasil Analisis</a>
+        <a href="/account" class="appnav-link{% if nav_path.startswith('/account') %} is-active{% endif %}"
+           {% if nav_path.startswith('/account') %}aria-current="page"{% endif %}>Akun</a>
       </nav>
       {% endif %}
       {% if acct %}

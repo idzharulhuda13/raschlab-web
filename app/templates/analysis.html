@@ -1,12 +1,33 @@
 <!-- RaschLab F3 | design-system: DESIGN.md | macrostructure: analysis-dashboard -->
 {% extends "base.html" %}
 
-{% block title %}{{ dataset.filename }}: Hasil Analisis: RaschLab{% endblock %}
+{% block title %}Hasil Analisis: {{ dataset.filename }}: RaschLab{% endblock %}
 
 {% block content %}
+{% set metric_labels = {
+  'PERSON COUNT': 'Jumlah Partisipan',
+  'COUNTS EXTREME EXCLUDED': 'Jumlah Dikecualikan (skor ekstrem)',
+  'COUNTS EXTREME_MIN': 'Jumlah pada Skor Ekstrem Minimum',
+  'COUNTS EXTREME_MAX': 'Jumlah pada Skor Ekstrem Maksimum',
+  'EXTREME INCL COUNT': 'Jumlah Termasuk Skor Ekstrem',
+  'ITEM MEASURE MEAN': 'Rata-rata MEASURE Butir (logit)',
+  'PERSON MEASURE MEAN': 'Rata-rata MEASURE Partisipan (logit)',
+  'COUNTS LACKING': 'Jumlah Kurang Respon',
+  'COUNTS DELETED': 'Jumlah Dihapus',
+  'ITEM COUNT': 'Jumlah Butir',
+  'PERSON EXTREME INCL COUNT': 'Jumlah Termasuk Skor Ekstrem'
+} %}
+
+{% set query_msg = (request.query_params.get('msg') if request and request.query_params else None) or msg %}
+{% if query_msg == 'analyzed' %}
+<div class="alert alert--fit" role="status">
+  Analisis berhasil dimulai. Tunggu hingga berstatus Selesai, lalu buka Jelajahi hasil.
+</div>
+{% endif %}
+
 <section class="band band--header">
-  <a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke Berkas Pengukuran</a>
-  <h1 class="detail-title mono">{{ dataset.filename }}</h1>
+  <a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a>
+  <h1 class="detail-title">Hasil Analisis: <span class="mono">{{ dataset.filename }}</span></h1>
   <div class="header-actions">
     {% if status == 'done' %}
     <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
@@ -16,7 +37,9 @@
     <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
     {% endif %}
     {% if status == 'done' %}
-    <a href="/analyses/{{ analysis.id }}/explore" class="btn btn--primary">Jelajahi hasil</a>
+    <div class="action-bar">
+      <a href="/analyses/{{ analysis.id }}/explore" class="btn btn--primary">Jelajahi hasil</a>
+    </div>
     {% endif %}
   </div>
   <p class="field-hint">Hasil analisis disimpan selama 180 hari.</p>
@@ -61,6 +84,16 @@
   </form>
 </section>
 {% elif status == 'done' %}
+{% if n_item > 0 %}
+<section class="band">
+  <h2>Butir Bermasalah</h2>
+  <div class="alert {% if n_misfit > 0 %}alert--warn{% else %}alert--fit{% endif %}" role="status">
+    <p>{{ n_misfit | id_num }} dari {{ n_item | id_num }} butir melewati ambang misfit INFIT MNSQ ≥ 1,50.</p>
+    <a href="/analyses/{{ analysis.id }}/explore?view=butir" class="btn btn--secondary">Lihat rincian butir</a>
+  </div>
+</section>
+{% endif %}
+
 <section class="band">
   <h2>Rekap Responden</h2>
   <div class="header-pairs">
@@ -69,27 +102,27 @@
       <span class="def-value mono">{{ dataset.n_persons | id_num }}</span>
     </div>
     <div class="def-row">
-      <span class="def-label">Responden Dianalisis (PERSON COUNT): </span>
+      <span class="def-label">{{ metric_labels.get('PERSON COUNT', 'PERSON COUNT') }}: </span>
       <span class="def-value mono">{{ rekap.get('PERSON COUNT', '-') | id_num }}</span>
     </div>
     <div class="def-row">
-      <span class="def-label">Ekstrem Dikecualikan (COUNTS EXTREME EXCLUDED): </span>
+      <span class="def-label">{{ metric_labels.get('COUNTS EXTREME EXCLUDED', 'COUNTS EXTREME EXCLUDED') }}: </span>
       <span class="def-value mono">{{ rekap.get('COUNTS EXTREME EXCLUDED', '-') | id_num }}</span>
     </div>
     <div class="def-row">
-      <span class="def-label">Ekstrem Minimum (COUNTS EXTREME_MIN): </span>
+      <span class="def-label">{{ metric_labels.get('COUNTS EXTREME_MIN', 'COUNTS EXTREME_MIN') }}: </span>
       <span class="def-value mono">{{ rekap.get('COUNTS EXTREME_MIN', '-') | id_num }}</span>
     </div>
     <div class="def-row">
-      <span class="def-label">Ekstrem Maksimum (COUNTS EXTREME_MAX): </span>
+      <span class="def-label">{{ metric_labels.get('COUNTS EXTREME_MAX', 'COUNTS EXTREME_MAX') }}: </span>
       <span class="def-value mono">{{ rekap.get('COUNTS EXTREME_MAX', '-') | id_num }}</span>
     </div>
     <div class="def-row">
-      <span class="def-label">Kurang Respon (COUNTS LACKING): </span>
+      <span class="def-label">{{ metric_labels.get('COUNTS LACKING', 'COUNTS LACKING') }}: </span>
       <span class="def-value mono">{{ rekap.get('COUNTS LACKING', '-') | id_num }}</span>
     </div>
     <div class="def-row">
-      <span class="def-label">Dihapus (COUNTS DELETED): </span>
+      <span class="def-label">{{ metric_labels.get('COUNTS DELETED', 'COUNTS DELETED') }}: </span>
       <span class="def-value mono">{{ rekap.get('COUNTS DELETED', '-') | id_num }}</span>
     </div>
   </div>
@@ -105,7 +138,7 @@
         <tr>
           {% for col in item_headers[0] %}
             {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
+              <th scope="col" class="mono">{% if col.strip() == 'MEASURE' %}MEASURE (logit){% elif col.strip() == 'S.E.' %}S.E. (logit){% else %}{{ metric_labels.get(col, col) }}{% endif %}</th>
             {% else %}
               <th></th>
             {% endif %}
@@ -162,7 +195,7 @@
         <tr>
           {% for col in option_headers[0] %}
             {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
+              <th scope="col" class="mono">{% if col.strip() == 'MEASURE' %}MEASURE (logit){% elif col.strip() == 'S.E.' %}S.E. (logit){% else %}{{ metric_labels.get(col, col) }}{% endif %}</th>
             {% else %}
               <th></th>
             {% endif %}
@@ -219,7 +252,7 @@
         <tr>
           {% for col in person_headers[0] %}
             {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
+              <th scope="col" class="mono">{% if col.strip() == 'MEASURE' %}MEASURE (logit){% elif col.strip() == 'S.E.' %}S.E. (logit){% else %}{{ metric_labels.get(col, col) }}{% endif %}</th>
             {% else %}
               <th></th>
             {% endif %}
@@ -266,60 +299,6 @@
   </nav>
 </section>
 
-<section class="band">
-  <h2>Tabel Ringkasan</h2>
-  {% set sum_headers = summary_rows[:2] if (summary_rows | length >= 2 and summary_rows[1] == ['', '', '']) else summary_headers %}
-  {% set sum_data = summary_rows[2:] if (summary_rows | length >= 2 and summary_rows[1] == ['', '', '']) else (summary_rows[1:] if summary_rows | length >= 1 else []) %}
-  <div class="table-scroll">
-    <table class="data-table">
-      <caption class="table-caption">Memuat statistik agregat dari mesin untuk keseluruhan proses analisis.</caption>
-      <thead>
-        {% if sum_headers | length >= 2 %}
-        <tr>
-          {% for col in sum_headers[0] %}
-            {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
-            {% else %}
-              <th></th>
-            {% endif %}
-          {% endfor %}
-        </tr>
-        <tr>
-          {% for col in sum_headers[1] %}
-            {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
-            {% else %}
-              <th></th>
-            {% endif %}
-          {% endfor %}
-        </tr>
-        {% elif sum_headers | length == 1 %}
-        <tr>
-          {% for col in sum_headers[0] %}
-            {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
-            {% else %}
-              <th></th>
-            {% endif %}
-          {% endfor %}
-        </tr>
-        {% endif %}
-      </thead>
-      <tbody>
-        {% for row in sum_data %}
-        <tr>
-          {% for cell in row %}
-            {% if loop.index0 in (0, 1) %}
-              <td class="mono">{{ cell }}</td>
-            {% else %}
-              <td class="num-col mono">{{ cell | id_num }}</td>
-            {% endif %}
-          {% endfor %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
+<div class="page-exit"><a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a></div>
 {% endif %}
 {% endblock %}

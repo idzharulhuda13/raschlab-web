@@ -1,0 +1,81 @@
+<!-- RaschLab F2.5 | design-system: DESIGN.md | macrostructure: analyses-list -->
+{% extends "base.html" %}
+
+{% block title %}Hasil Analisis: RaschLab{% endblock %}
+
+{% block content %}
+<section class="band band--title">
+  <h1 class="page-title">Hasil Analisis</h1>
+  <p class="lead">Daftar hasil kalibrasi model Rasch yang telah selesai diproses.</p>
+</section>
+
+<section class="band band--list">
+  <h2>Daftar Hasil Analisis</h2>
+  <p class="sec">{{ analyses | length | id_num }} analisis selesai</p>
+
+  {% if not analyses %}
+  <div class="empty">
+    <h3 class="empty-title">Belum ada hasil analisis</h3>
+    <p class="empty-text">Belum ada hasil analisis. Unggah berkas dan jalankan analisis untuk memulai. <a href="/datasets" class="text-link">Buka Berkas Pengukuran</a></p>
+  </div>
+  {% else %}
+  <div class="table-scroll file-table">
+    <table class="data-table">
+      <caption class="table-caption">Daftar kalibrasi model Rasch yang telah selesai</caption>
+      <thead>
+        <tr>
+          <th scope="col">Nama Berkas</th>
+          <th scope="col">Waktu Selesai</th>
+          <th scope="col">Dimensi Data</th>
+          <th scope="col">Hasil</th>
+          <th scope="col">Eksplorasi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in analyses %}
+        <tr>
+          <td>
+            <a href="/datasets/{{ a.dataset_id }}" class="mono">{{ a.dataset_filename }}</a>
+          </td>
+          <td class="mono">
+            {{ a.created_at }}
+          </td>
+          <td class="mono">
+            {% if a.n_persons is not none and a.n_items is not none %}
+            {{ a.n_persons | id_num }} responden x {{ a.n_items | id_num }} butir
+            {% endif %}
+          </td>
+          <td>
+            <a href="/analyses/{{ a.id }}" class="btn btn--secondary">Buka hasil</a>
+          </td>
+          <td>
+            <a href="/analyses/{{ a.id }}/explore" class="btn btn--secondary">Jelajahi</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <ul class="file-cards">
+    {% for a in analyses %}
+    <li class="file-card">
+      <div>
+        <a href="/datasets/{{ a.dataset_id }}" class="mono">{{ a.dataset_filename }}</a>
+      </div>
+      <div class="meta-line">
+        <span class="mono">{{ a.created_at }}</span>
+        {% if a.n_persons is not none and a.n_items is not none %}
+        <span class="mono">{{ a.n_persons | id_num }} responden x {{ a.n_items | id_num }} butir</span>
+        {% endif %}
+      </div>
+      <div class="action-bar">
+        <a href="/analyses/{{ a.id }}" class="btn btn--secondary">Buka hasil</a>
+        <a href="/analyses/{{ a.id }}/explore" class="btn btn--secondary">Jelajahi</a>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endblock %}

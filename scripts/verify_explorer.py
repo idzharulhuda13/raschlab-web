@@ -3,7 +3,7 @@
 
 Boots the real app on a temporary SQLite database, seeds crafted data,
 drives a real Chromium via Playwright, and prints a per-group PASS/FAIL
-table. Exactly 184 checks in 11 groups. Exit 0 only when all 184 pass.
+table. Exactly 193 checks in 11 groups. Exit 0 only when all 193 pass.
 """
 
 from __future__ import annotations
@@ -210,15 +210,26 @@ def seed_database(db_path: str) -> dict[str, Any]:
             (user_id, token_hash, NOW_EPOCH, FAR_FUTURE),
         )
 
-    def add_dataset(user_id: int, filename: str) -> int:
+    def add_dataset(user_id: int, filename: str, status: str = "ready") -> int:
+        n_items = N_ITEMS
+        labels = [f"LBL{i:03d}" for i in range(1, n_items + 1)]
+        missing = [5 + (i % 20) for i in range(n_items)]
+        missing[4] = N_PERSONS
+        summary = {
+            "distinct_tokens": {"1": 41000, "0": 24000, "a": 1200, "b": 900, "?": 320},
+            "missing_per_item": missing,
+            "total_missing": sum(missing),
+            "control": {"CODES": "ABCDE"},
+            "preview_person_labels": [f"P{i:04d}" for i in range(1, 11)],
+            "preview_rows": [["1" if (r_ + c) % 7 else "0" for c in range(12)] for r_ in range(10)],
+        }
         cur.execute(
             "INSERT INTO datasets (user_id, filename, kind, format, status, "
             "n_persons, n_items, item_labels_json, mapping_json, summary_json, "
             "raw_gzip, raw_bytes, created_at) VALUES "
-            "(?, ?, 'delimited', 'csv', 'ready', ?, ?, ?, '{}', '{}', ?, 5, ?)",
-            (user_id, filename, N_PERSONS, N_ITEMS,
-             json.dumps([f"LBL{i:03d}" for i in range(1, N_ITEMS + 1)]),
-             dummy_gz, NOW_EPOCH),
+            "(?, ?, 'delimited', 'csv', ?, ?, ?, ?, '{}', ?, ?, 5, ?)",
+            (user_id, filename, status, N_PERSONS, n_items,
+             json.dumps(labels), json.dumps(summary), dummy_gz, NOW_EPOCH),
         )
         return cur.lastrowid
 
@@ -264,9 +275,9 @@ def seed_database(db_path: str) -> dict[str, Any]:
     add_session(user_a, SESSION_TOKEN_HASH)
     add_session(user_b, FOREIGN_TOKEN_HASH)
 
-    ds1 = add_dataset(user_a, "dataset1.csv")
-    ds2 = add_dataset(user_a, "dataset2.csv")
-    ds3 = add_dataset(user_a, "dataset3.csv")
+    ds1 = add_dataset(user_a, "dataset1.csv", status="staged")
+    ds2 = add_dataset(user_a, "dataset2.csv", status="ready")
+    ds3 = add_dataset(user_a, "dataset3.csv", status="ready")
 
     ds_b = add_dataset(user_b, "foreign.csv")
 
@@ -401,7 +412,7 @@ def goto(page: Any, url: str) -> None:
 
 def group_a_responsive(page: Any, base_url: str, analysis1_id: int,
                         res: Results) -> None:
-    """50 checks: 5 views x 5 viewports x 2 themes."""
+    """51 checks: 50 responsive matrix + 1 mobile touch target check."""
     print("\n[A] Responsive")
     views = ["wright", "butir", "partisipan", "ringkasan", "bandingkan"]
     viewports = [360, 390, 414, 768, 1440]
@@ -427,6 +438,24 @@ def group_a_responsive(page: Any, base_url: str, analysis1_id: int,
                 res.record(f"responsive {view} {w}w {theme}",
                            f"scrollWidth={scroll_w} clientWidth={client_w}", ok)
 
+    # Mobile touch targets at 390px (back-link and comparison checkbox row >= 44px)
+    page.set_viewport_size({"width": 390, "height": 900})
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=bandingkan")
+    targets = page.evaluate("""() => {
+        const backLink = document.querySelector('.back-link');
+        const cmpRow = document.querySelector('.cmp-filter');
+        return {
+            back_h: backLink ? backLink.getBoundingClientRect().height : 0,
+            row_h: cmpRow ? cmpRow.getBoundingClientRect().height : 0
+        };
+    }""")
+    targets_ok = bool(targets and targets["back_h"] >= 44 and targets["row_h"] >= 44)
+    res.record(
+        "responsive: mobile touch targets at 390px (back-link and cmp-filter row >= 44px)",
+        f"back_link={targets['back_h']:.1f}px cmp_filter={targets['row_h']:.1f}px" if targets else "missing elements",
+        targets_ok,
+    )
+
     # Restore to 1440 light
     page.set_viewport_size({"width": 1440, "height": 900})
     page.context.clear_cookies()
@@ -437,13 +466,13 @@ def group_a_responsive(page: Any, base_url: str, analysis1_id: int,
 
 
 # ---------------------------------------------------------------------------
-# Group B: Shell and panel structure (56 checks)
+# Group B: Shell and panel structure (57 checks)
 # ---------------------------------------------------------------------------
 
 
 def group_b_shell(page: Any, base_url: str, analysis1_id: int,
-                  analysis2_id: int, res: Results) -> None:
-    """56 checks: 11 shell + 9 per panel x 5 panels."""
+                  analysis2_id: int, dataset1_id: int, res: Results) -> None:
+    """57 checks: 12 shell + 9 per panel x 5 panels."""
     print("\n[B] Shell and panel structure")
 
     goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=wright")
@@ -677,6 +706,49 @@ def group_b_shell(page: Any, base_url: str, analysis1_id: int,
         res.record(f"panel {view}: no horizontal overflow",
                    overflow, isinstance(overflow, (int, float)) and overflow <= 0)
 
+    # B.10 GET /analyses reachable signed in and renders at least one row with a result link
+    goto(page, f"{base_url}/analyses")
+    row_count = page.evaluate("document.querySelectorAll('.data-table tbody tr').length")
+    has_res_link = page.evaluate("Boolean(document.querySelector('.data-table a[href*=\"/analyses/\"]'))")
+    b10_ok = bool(row_count and row_count >= 1 and has_res_link)
+    res.record(
+        "shell: GET /analyses reachable signed in with result link",
+        f"rows={row_count} has_link={has_res_link}",
+        b10_ok,
+    )
+
+    # B.11 Sticky commit bar remains in viewport on staged dataset detail while scrolling
+    goto(page, f"{base_url}/datasets/{dataset1_id}")
+    page.evaluate("window.scrollTo(0, 1300)")
+    time.sleep(0.15)
+    scroll_y = page.evaluate("window.scrollY")
+    btn_rect = page.evaluate("""() => {
+        const btn = document.querySelector('.commit-bar button') || document.querySelector('.commit-bar .btn');
+        const appbar = document.querySelector('.appbar');
+        if (!btn) return null;
+        const r = btn.getBoundingClientRect();
+        const bar = appbar ? appbar.getBoundingClientRect() : {bottom: 72};
+        return {
+            top: r.top,
+            bottom: r.bottom,
+            appbar_bottom: bar.bottom,
+            vh: window.innerHeight
+        };
+    }""")
+    b11_ok = bool(
+        btn_rect and
+        scroll_y >= 1200 and
+        btn_rect["bottom"] <= btn_rect["vh"] and
+        btn_rect["bottom"] >= (btn_rect["vh"] - 160) and
+        btn_rect["top"] < btn_rect["vh"] and
+        btn_rect["top"] >= btn_rect["appbar_bottom"]
+    )
+    res.record(
+        "shell: sticky commit bar in viewport while scrolling staged dataset",
+        f"viewport y={btn_rect['top']:.0f} bottom={btn_rect['bottom']:.0f} scrollY={scroll_y}" if btn_rect else "no commit bar found",
+        b11_ok,
+    )
+
 
 # ---------------------------------------------------------------------------
 # Group C: Contrast (16 checks)
@@ -804,6 +876,23 @@ def group_d_dom_reconciliation(page: Any, base_url: str,
     res.record("dom: wright-meta item count",
                f"expect={item_fmt} found={bool(meta) and item_fmt in meta}",
                bool(meta) and item_fmt in meta)
+
+    # D13: analysis page misfit band number equals explorer wright-meta misfit count
+    goto(page, f"{base_url}/analyses/{analysis1_id}")
+    band_txt = page.evaluate("""() => {
+        const el = document.querySelector('.alert p');
+        return el ? el.textContent : '';
+    }""")
+    m_band = re.search(r"(\d+)\s+dari", band_txt)
+    band_n = m_band.group(1) if m_band else "0"
+    m_meta = re.search(r"Butir misfit \(INFIT MNSQ [≥>=]+ 1,50\):\s*(\d+)", meta)
+    meta_n = m_meta.group(1) if m_meta else "0"
+    d13_ok = bool(m_band and m_meta and band_n == meta_n)
+    res.record(
+        "dom: analysis misfit band equals explorer wright-meta count",
+        f"band={band_n} meta={meta_n}",
+        d13_ok,
+    )
 
     # D3: number of item rows
     goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=butir")
@@ -954,6 +1043,19 @@ def group_e_interactive(page: Any, base_url: str,
             f"document.getElementById('panel-{view}').classList.contains('is-active') : false"
         )
         res.record(f"interactive: tab {view} activates panel", active, bool(active))
+
+    # E31: clicking a tab preserves other query parameters
+    goto(page, f"{base_explore}?view=bandingkan&from={analysis1_id}&to={analysis2_id}")
+    page.click("#tab-butir")
+    page.wait_for_load_state("domcontentloaded")
+    time.sleep(0.15)
+    e31_url = page.url
+    e31_ok = bool(f"from={analysis1_id}" in e31_url and f"to={analysis2_id}" in e31_url)
+    res.record(
+        "interactive: tab click preserves other query parameters",
+        f"url={e31_url}",
+        e31_ok,
+    )
 
     # E6: Item search produces filtered rows
     goto(page, base_explore + "?view=butir")
@@ -1197,6 +1299,36 @@ def group_e_interactive(page: Any, base_url: str,
     res.record("interactive: item tick selection updates the readout",
                f"'{readout_after.strip()[:40]}'", e27_ok)
 
+    # E27b: Wright map hit area: clicking 20px from tick center selects the item
+    hit_info = page.evaluate("""() => {
+        const g = document.querySelector('#wright-scale svg .wright-item-tick');
+        if (!g) return null;
+        const rect = g.querySelector("rect[opacity='0']");
+        if (!rect) return null;
+        const b = rect.getBoundingClientRect();
+        return {
+            entry: g.getAttribute("data-entry"),
+            cx: b.left + b.width / 2,
+            cy: b.top + b.height / 2,
+            w: b.width,
+            h: b.height,
+        };
+    }""")
+    selected_hit_entry = None
+    if hit_info:
+        page.mouse.click(hit_info["cx"], hit_info["cy"] - 20)
+        time.sleep(0.2)
+        selected_hit_entry = page.evaluate("""() => {
+            const act = document.querySelector('#wright-scale svg .wright-item-tick.is-active');
+            return act ? act.getAttribute('data-entry') : null;
+        }""")
+    e27b_ok = bool(hit_info and hit_info["w"] >= 44 and selected_hit_entry == hit_info["entry"])
+    res.record(
+        "interactive: wright map hit area selectable 20px from tick center",
+        f"entry={selected_hit_entry} target={hit_info['entry']} hit_w={hit_info['w']:.1f} hit_h={hit_info['h']:.1f}" if hit_info else "no hit rect found",
+        e27b_ok,
+    )
+
     # E28: all 8 sortable columns clickable
     goto(page, butir_url)
     total_btns = page.evaluate("document.querySelectorAll('#panel-butir .th-sort').length")
@@ -1235,7 +1367,7 @@ def group_e_interactive(page: Any, base_url: str,
         const svg = document.querySelector('#wright-scale svg');
         if (!svg) return null;
         const boxes = [...svg.querySelectorAll('.wright-item-tick rect')]
-            .filter(r => !r.classList.contains('focus-ring'))
+            .filter(r => !r.classList.contains('focus-ring') && r.getAttribute('opacity') !== '0')
             .map(r => r.getBoundingClientRect());
         const labels = [...svg.querySelectorAll('.wright-item-tick text')]
             .map(t => t.getBoundingClientRect());
@@ -1260,7 +1392,7 @@ def group_e_interactive(page: Any, base_url: str,
         let uncovered = 0;
         let tethered = 0;
         for (const g of groups) {
-            const box = g.querySelector('rect:not(.focus-ring)');
+            const box = g.querySelector('rect:not(.focus-ring):not([opacity="0"])');
             const binX = parseFloat(g.getAttribute('data-bin-x'));
             if (!box || isNaN(binX)) continue;
             const b = box.getBoundingClientRect();
@@ -1347,8 +1479,9 @@ def group_e_interactive(page: Any, base_url: str,
 
 def group_f_states(page: Any, base_url: str,
                    analysis1_id: int, analysis3_id: int,
-                   analysis4_id: int, res: Results) -> None:
-    """5 state checks as visible rendered text."""
+                   analysis4_id: int, dataset1_id: int,
+                   res: Results) -> None:
+    """6 state checks as visible rendered text."""
     print("\n[F] States as rendered text")
 
     base_explore = f"{base_url}/analyses/{analysis1_id}/explore"
@@ -1401,6 +1534,20 @@ def group_f_states(page: Any, base_url: str,
     res.record("state: malformed wright shows error reason",
                error_txt[:80],
                bool(error_txt) and "Wright" in error_txt)
+
+    # F6: after commit POST the landing page shows the confirmation sentence
+    goto(page, f"{base_url}/datasets/{dataset1_id}?msg=committed")
+    commit_alert = page.evaluate("""() => {
+        const el = document.querySelector('.alert--fit') || document.querySelector('.alert');
+        return el ? el.textContent.trim() : (document.body ? document.body.innerText.slice(0, 100) : '');
+    }""")
+    expected_sentence = "Pemetaan respon berhasil dikonfirmasi. Jalankan analisis untuk memperoleh hasil."
+    f6_ok = bool(expected_sentence in commit_alert)
+    res.record(
+        "state: commit landing page shows confirmation sentence",
+        commit_alert[:80],
+        f6_ok,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1545,7 +1692,7 @@ def group_i_static(page: Any, base_url: str, analysis1_id: int,
     res.record("static: no em dash in visible text", em_dash, em_dash == 0)
 
     # I4: Zero console errors during the whole run
-    res.record("static: zero console errors", len(console_errors),
+    res.record("static: zero console errors", f"{len(console_errors)}: {console_errors}" if console_errors else 0,
                len(console_errors) == 0)
 
 
@@ -1780,6 +1927,7 @@ def main() -> int:
         # Seed database
         print("Seeding database...")
         ids = seed_database(db_path)
+        dataset1_id      = ids["dataset1_id"]
         analysis1_id     = ids["analysis1_id"]
         analysis2_id     = ids["analysis2_id"]
         analysis3_id     = ids["analysis3_id"]
@@ -1841,7 +1989,7 @@ def main() -> int:
                     group_a_responsive, page, base_url, analysis1_id, all_results)
 
             capture("B", "Shell and panel structure",
-                    group_b_shell, page, base_url, analysis1_id, analysis2_id, all_results)
+                    group_b_shell, page, base_url, analysis1_id, analysis2_id, dataset1_id, all_results)
 
             capture("C", "Contrast",
                     group_c_contrast, page, base_url, analysis1_id, all_results)
@@ -1856,7 +2004,7 @@ def main() -> int:
 
             capture("F", "States as rendered text",
                     group_f_states, page, base_url,
-                    analysis1_id, analysis3_id, analysis4_id, all_results)
+                    analysis1_id, analysis3_id, analysis4_id, dataset1_id, all_results)
 
             capture("G", "Keyboard",
                     group_g_keyboard, page, base_url, analysis1_id, all_results)
@@ -1893,7 +2041,7 @@ def main() -> int:
         print(f"TOTAL: {total} checks  |  {passed} PASS  |  {failed} FAIL")
         print(f"{'=' * 72}")
 
-        EXPECTED_TOTAL = 186
+        EXPECTED_TOTAL = 193
         if total != EXPECTED_TOTAL:
             print(
                 f"\nERROR: Expected {EXPECTED_TOTAL} checks, got {total}. "
@@ -1905,7 +2053,7 @@ def main() -> int:
             print(f"\nFAIL: {failed} check(s) failed.")
             return 1
 
-        print("\n184/184 PASS")
+        print("\n193/193 PASS")
         return 0
 
     finally:

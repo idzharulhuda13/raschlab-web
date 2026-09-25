@@ -46,7 +46,7 @@
     </thead>
     <tbody>
       {% for row in item_ctx.rows %}
-      <tr data-order="{{ loop.index0 }}">
+      <tr data-order="{{ loop.index0 }}" tabindex="0">
         {% for cell in row %}
           {% if loop.index0 == 13 %}
             <td class="mono">{{ cell }}</td>
@@ -260,7 +260,9 @@
     <option value="{{ o.id }}"{% if o.id == compare_ctx.to_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}</option>
     {% endfor %}
   </select>
-  <button type="submit" class="btn btn--primary">Bandingkan</button>
+  <div class="action-bar">
+    <button type="submit" class="btn btn--primary">Tampilkan Perbandingan</button>
+  </div>
 </form>
 
 <p id="cmp-statement">{% if compare_ctx.statement %}{{ compare_ctx.statement }}{% else %}Pilih dua analisis untuk dibandingkan.{% endif %}</p>
@@ -271,7 +273,7 @@
 
 <p id="cmp-means">{% if compare_ctx.means %}Rata-rata measure butir: {{ compare_ctx.means.from | id_num }} (analisis pertama) vs {{ compare_ctx.means.to | id_num }} (analisis kedua).{% endif %}</p>
 
-<div class="field">
+<div class="field cmp-filter">
   <input type="checkbox" id="cmp-delta-only">
   <label class="field-label" for="cmp-delta-only">Tampilkan hanya perubahan ≥ 0,30 (ambang tampilan, bukan uji statistik).</label>
 </div>
@@ -285,7 +287,7 @@
         <th scope="col" class="mono" colspan="2">Butir</th>
         <th scope="col" class="mono">Measure analisis pertama</th>
         <th scope="col" class="mono">Measure analisis kedua</th>
-        <th scope="col" class="mono">Selisih</th>
+        <th scope="col" class="mono">Selisih (kedua − pertama)</th>
       </tr>
     </thead>
     <tbody id="cmp-tbody">

@@ -67,7 +67,7 @@ def test_byte_identity_sample_300x40(client: TestClient, tmp_path: Path) -> None
         follow_redirects=False,
     )
     assert upload_resp.status_code == 303
-    dataset_id = int(upload_resp.headers["location"].split("/")[-1])
+    dataset_id = int(upload_resp.headers["location"].split("/")[-1].split("?")[0])
 
     commit_resp = client.post(
         f"/datasets/{dataset_id}/commit",
@@ -88,7 +88,7 @@ def test_byte_identity_sample_300x40(client: TestClient, tmp_path: Path) -> None
     post_resp = client.post(f"/datasets/{dataset_id}/analyze", follow_redirects=False)
     assert post_resp.status_code == 303
     location = post_resp.headers["location"]
-    analysis_id = int(location.split("/")[-1])
+    analysis_id = int(location.split("/")[-1].split("?")[0])
 
     get_resp = client.get(location)
     assert get_resp.status_code == 200

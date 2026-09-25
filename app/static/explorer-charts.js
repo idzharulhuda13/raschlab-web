@@ -526,11 +526,13 @@
           height: 15,
           rx: 2
         }));
+        // ponytail: one tab stop per item (147 here) keeps the change tiny; upgrade path is a roving tabindex
+        // (one tab stop per group, arrow keys inside), only if this proves annoying in use.
         g.appendChild(svgEl('rect', {
-          x: boxL,
-          y: itemY - 11,
-          width: LABEL_BOX_W,
-          height: 15,
+          x: Math.round(colX - 22),
+          y: Math.round(itemY - 22),
+          width: 44,
+          height: 44,
           'pointer-events': 'all',
           opacity: '0'
         }));

@@ -69,7 +69,7 @@ def test_upload_csv_preview_and_decompressed_bytes_roundtrip(client: TestClient)
     assert response.status_code == 303
     location = response.headers["location"]
     assert location.startswith("/datasets/")
-    dataset_id = int(location.split("/")[-1])
+    dataset_id = int(location.split("/")[-1].split("?")[0])
 
     detail_response = client.get(location)
     assert detail_response.status_code == 200
@@ -96,7 +96,7 @@ def test_commit_with_unassigned_token_is_blocked(client: TestClient):
         files={"data": ("sample_300x40.csv", csv_bytes, "text/csv")},
         follow_redirects=False,
     )
-    dataset_id = int(upload_resp.headers["location"].split("/")[-1])
+    dataset_id = int(upload_resp.headers["location"].split("/")[-1].split("?")[0])
 
     # Omit tokens 'NA' and '' so they remain unassigned
     commit_resp = client.post(
@@ -122,7 +122,7 @@ def test_commit_with_complete_mapping_flips_to_ready(client: TestClient):
         files={"data": ("sample_300x40.csv", csv_bytes, "text/csv")},
         follow_redirects=False,
     )
-    dataset_id = int(upload_resp.headers["location"].split("/")[-1])
+    dataset_id = int(upload_resp.headers["location"].split("/")[-1].split("?")[0])
 
     commit_resp = client.post(
         f"/datasets/{dataset_id}/commit",
@@ -139,7 +139,7 @@ def test_commit_with_complete_mapping_flips_to_ready(client: TestClient):
         follow_redirects=False,
     )
     assert commit_resp.status_code == 303
-    assert commit_resp.headers["location"] == f"/datasets/{dataset_id}"
+    assert commit_resp.headers["location"].startswith(f"/datasets/{dataset_id}")
 
     with SessionLocal() as db:
         row = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one()
@@ -163,7 +163,7 @@ def test_winsteps_pair_upload_shows_expected_dimensions(client: TestClient):
     )
     assert response.status_code == 303
     location = response.headers["location"]
-    dataset_id = int(location.split("/")[-1])
+    dataset_id = int(location.split("/")[-1].split("?")[0])
 
     detail_response = client.get(location)
     assert detail_response.status_code == 200
@@ -186,11 +186,11 @@ def test_discard_dataset_removes_row_from_database(client: TestClient):
         files={"data": ("sample_300x40.csv", csv_bytes, "text/csv")},
         follow_redirects=False,
     )
-    dataset_id = int(upload_resp.headers["location"].split("/")[-1])
+    dataset_id = int(upload_resp.headers["location"].split("/")[-1].split("?")[0])
 
     discard_resp = client.post(f"/datasets/{dataset_id}/discard", follow_redirects=False)
     assert discard_resp.status_code == 303
-    assert discard_resp.headers["location"] == "/datasets"
+    assert discard_resp.headers["location"].startswith("/datasets")
 
     with SessionLocal() as db:
         row = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one_or_none()
@@ -206,7 +206,7 @@ def test_second_user_accessing_dataset_returns_404(client: TestClient):
         files={"data": ("sample_300x40.csv", csv_bytes, "text/csv")},
         follow_redirects=False,
     )
-    dataset_id = int(upload_resp.headers["location"].split("/")[-1])
+    dataset_id = int(upload_resp.headers["location"].split("/")[-1].split("?")[0])
 
     _create_authenticated_user(client, email="user2@example.test")
     detail_resp = client.get(f"/datasets/{dataset_id}")
@@ -291,7 +291,7 @@ def test_csv_upload_with_all_empty_respondent_stores_missing_person_count(client
         follow_redirects=False,
     )
     assert response.status_code == 303
-    dataset_id = int(response.headers["location"].split("/")[-1])
+    dataset_id = int(response.headers["location"].split("/")[-1].split("?")[0])
 
     with SessionLocal() as db:
         row = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one()
@@ -312,7 +312,7 @@ def test_winsteps_commit_with_extra_missing_updates_summary(client: TestClient):
         },
         follow_redirects=False,
     )
-    dataset_id = int(upload_resp.headers["location"].split("/")[-1])
+    dataset_id = int(upload_resp.headers["location"].split("/")[-1].split("?")[0])
 
     with SessionLocal() as db:
         staged = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one()
@@ -343,7 +343,7 @@ def _upload_csv(client: TestClient, filename: str, payload: bytes) -> int:
         "/datasets", files={"data": (filename, payload, "text/csv")}, follow_redirects=False
     )
     assert resp.status_code == 303, resp.text[:400]
-    return int(resp.headers["location"].split("/")[-1])
+    return int(resp.headers["location"].split("/")[-1].split("?")[0])
 
 
 def test_username_column_and_key_row_upload_keeps_page_small(client: TestClient):

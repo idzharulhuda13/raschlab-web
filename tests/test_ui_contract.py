@@ -71,7 +71,7 @@ def test_no_style_blocks_in_any_template():
         assert "<style" not in content, f"<style tag found in {html_file}"
 
     page_templates = list(templates_dir.glob("*.html"))
-    assert len(page_templates) == 11, f"Expected 11 page templates directly under app/templates, found {len(page_templates)}"
+    assert len(page_templates) == 12, f"Expected 12 page templates directly under app/templates, found {len(page_templates)}"
     for html_file in page_templates:
         content = html_file.read_text()
         assert 'style="' not in content, f'style=" attribute found in page template {html_file}'
@@ -319,9 +319,9 @@ def test_all_template_classes_defined_in_app_css():
     # Pinning both numbers makes adding or dropping a class a deliberate act.
     # 136: the partisipan histogram added .chart-block and .chart-caption, both defined in app.css and
     # both carrying contract meaning, so the count moves with them on purpose.
-    assert len(used_classes) == 136, f"Used template class count changed to {len(used_classes)}"
-    # 150: .chart-block and .chart-caption came in with the partisipan histogram.
-    assert len(defined_classes) == 150, f"Defined app.css class count changed to {len(defined_classes)}"
+    # 142 / 156 (F9: readability, placement, navigation): action-bar, action-group--danger, danger-gap, page-exit, text-link, cmp-filter.
+    assert len(used_classes) == 142, f"Used template class count changed to {len(used_classes)}"
+    assert len(defined_classes) == 156, f"Defined app.css class count changed to {len(defined_classes)}"
 
 
 def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_ujian.csv") -> tuple[int, int]:

@@ -4,9 +4,24 @@
 {% block title %}{{ dataset.filename }}: Pratinjau Pengukuran: RaschLab{% endblock %}
 
 {% block content %}
+{% set query_msg = (request.query_params.get('msg') if request and request.query_params else None) or msg %}
+{% if query_msg == 'uploaded' %}
+<div class="alert alert--fit" role="status">
+  Berkas berhasil diunggah. Periksa pratinjau, lalu tetapkan klasifikasi token.
+</div>
+{% elif query_msg == 'committed' %}
+<div class="alert alert--fit" role="status">
+  Pemetaan respon berhasil dikonfirmasi. Jalankan analisis untuk memperoleh hasil.
+</div>
+{% elif query_msg == 'discarded' %}
+<div class="alert alert--fit" role="status">
+  Berkas berhasil dibuang. Unggah berkas baru untuk memulai kembali.
+</div>
+{% endif %}
+
 <section class="band band--header">
   <a href="/datasets" class="back-link">Kembali ke Berkas Pengukuran</a>
-  <h1 class="detail-title mono">{{ dataset.filename }}</h1>
+  <h1 class="detail-title">Pratinjau Berkas: <span class="mono">{{ dataset.filename }}</span></h1>
   <div>
     {% if status == 'ready' %}
     <span class="chip chip--fit"><span class="chip-glyph">OK</span> Siap dianalisis</span>
@@ -387,9 +402,13 @@
 {% endif %}
 
 <section class="band band--actions">
-  <form action="/datasets/{{ dataset.id }}/discard" method="post" onsubmit="return confirm('Apakah Anda yakin ingin membuang berkas pengukuran ini? Tindakan ini akan menghapus data mentah dan tidak dapat dibatalkan.');">
-    <button type="submit" class="btn btn--danger">Buang Berkas</button>
-  </form>
-  <a href="/datasets" class="btn btn--secondary">Kembali ke Berkas Pengukuran</a>
+  <div class="action-group--danger">
+    <form action="/datasets/{{ dataset.id }}/discard" method="post" onsubmit="return confirm('Apakah Anda yakin ingin membuang berkas pengukuran ini? Tindakan ini akan menghapus data mentah dan tidak dapat dibatalkan.');">
+      <button type="submit" class="btn btn--danger">Buang Berkas</button>
+    </form>
+  </div>
+  <div class="danger-gap">
+    <a href="/datasets" class="btn btn--secondary">Kembali ke Berkas Pengukuran</a>
+  </div>
 </section>
 {% endblock %}

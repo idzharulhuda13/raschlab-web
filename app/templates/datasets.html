@@ -4,6 +4,17 @@
 {% block title %}Berkas Pengukuran: RaschLab{% endblock %}
 
 {% block content %}
+{% set query_msg = (request.query_params.get('msg') if request and request.query_params else None) or msg %}
+{% if query_msg == 'uploaded' %}
+<div class="alert alert--fit" role="status">
+  Berkas berhasil diunggah. Periksa pratinjau, lalu tetapkan klasifikasi token.
+</div>
+{% elif query_msg == 'discarded' %}
+<div class="alert alert--fit" role="status">
+  Berkas berhasil dibuang. Unggah berkas baru untuk memulai kembali.
+</div>
+{% endif %}
+
 <section class="band band--title">
   <h1 class="page-title">Berkas Pengukuran</h1>
   <p class="lead">Unggah data respon instrumen untuk pemetaan token, verifikasi missing data, dan kalibrasi model Rasch.</p>
@@ -29,13 +40,16 @@
       <p class="dropzone-name" aria-live="polite">Belum ada berkas dipilih</p>
       <label for="upload-data" class="btn btn--secondary">Pilih berkas</label>
     </div>
-    <button type="submit" class="btn btn--primary">Unggah Berkas</button>
 
     <div class="dropzone dropzone--sub">
       <input type="file" id="upload-con" name="con" accept=".con,.CON" class="dropzone-input">
       <label for="upload-con" class="btn btn--secondary">Pilih berkas kontrol</label>
       <p class="dropzone-format">Berkas kontrol Winsteps (.con). Wajib untuk berkas PRN.</p>
       <p class="dropzone-name" aria-live="polite">Belum ada berkas kontrol dipilih</p>
+    </div>
+
+    <div class="action-bar">
+      <button type="submit" class="btn btn--primary">Unggah Berkas</button>
     </div>
 
     <ul class="limits">
@@ -119,6 +133,7 @@
       <div>
         <span class="chip chip--format">{{ d.format | upper }}</span>
         <a href="/datasets/{{ d.id }}" class="mono">{{ d.filename }}</a>
+        <a href="/datasets/{{ d.id }}" class="btn btn--secondary">Buka</a>
       </div>
       <div class="meta-line">
         <span>{{ d.n_persons }} responden x {{ d.n_items }} butir</span>
@@ -142,9 +157,6 @@
         </svg>
         <p class="band-scale-value">{{ '{:,}'.format(cells).replace(',', '.') }} sel terpakai ({{ '%.2f' | format(cell_pct) | replace('.', ',') }}% dari {{ '{:,}'.format(max_cells).replace(',', '.') }} sel)</p>
         <p class="band-scale-caption">Kapasitas matriks</p>
-      </div>
-      <div>
-        <a href="/datasets/{{ d.id }}" class="btn btn--secondary">Buka</a>
       </div>
     </li>
     {% endfor %}

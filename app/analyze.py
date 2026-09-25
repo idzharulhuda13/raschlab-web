@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import datetime
 import json
 import logging
 from typing import Any
@@ -37,6 +38,8 @@ from app.ratelimit import check_limit, client_ip
 from app.security import now_epoch
 
 logger = logging.getLogger("app.analyze")
+
+MISFIT_THRESHOLD = 1.50  # INFIT MNSQ at or above this value flags an item (same rule the explorer uses)
 
 templates.env.filters["id_num"] = id_num
 
@@ -115,7 +118,7 @@ def post_dataset_analyze(
         .order_by(Analysis.id.desc())
     ).first()
     if existing_running is not None:
-        return RedirectResponse(f"/analyses/{existing_running.id}", status_code=303)
+        return RedirectResponse(f"/analyses/{existing_running.id}?msg=analyzed", status_code=303)
 
     try:
         analysis = run_for_dataset(db, dataset)
@@ -129,7 +132,60 @@ def post_dataset_analyze(
             status_code=422,
         )
 
-    return RedirectResponse(f"/analyses/{analysis.id}", status_code=303)
+    return RedirectResponse(f"/analyses/{analysis.id}?msg=analyzed", status_code=303)
+
+
+@router.get("/analyses", response_class=HTMLResponse)
+def get_analyses(
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    if _gate_closed():
+        raise HTTPException(status_code=404, detail="Halaman tidak ditemukan.")
+    user = _current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+
+    # ponytail: ceiling is unpaginated list of user's finished analyses; upgrade path is cursor/page pagination when count exceeds 100.
+    stmt = (
+        select(Analysis, Dataset)
+        .join(Dataset, Analysis.dataset_id == Dataset.id)
+        .where(
+            Analysis.user_id == user.id,
+            Analysis.status == "done",
+            Dataset.user_id == user.id,
+        )
+        .order_by(Analysis.created_at.desc(), Analysis.id.desc())
+    )
+    rows = db.execute(stmt).all()
+
+    analyses = [
+        {
+            "id": analysis.id,
+            "created_at": datetime.datetime.fromtimestamp(
+                analysis.finished_at or analysis.created_at
+            ).strftime("%Y-%m-%d %H:%M"),
+            "dataset_id": dataset.id,
+            "dataset_filename": dataset.filename,
+            "filename": dataset.filename,
+            "n_persons": dataset.n_persons,
+            "n_items": dataset.n_items,
+            "analysis": analysis,
+            "dataset": dataset,
+        }
+        for analysis, dataset in rows
+    ]
+
+    return templates.TemplateResponse(
+        request=request,
+        name="analyses.html",
+        context={
+            "request": request,
+            "user": user,
+            "analyses": analyses,
+            "rows": analyses,
+        },
+    )
 
 
 @router.get("/analyses/{id}", response_class=HTMLResponse)
@@ -171,6 +227,8 @@ def get_analysis(
         "engine_ref": analysis.engine_ref,
         "elapsed_ms": analysis.elapsed_ms,
         "retention_days": RETENTION_DAYS,
+        "n_misfit": 0,
+        "n_item": 0,
     }
 
     if analysis.status == "done":
@@ -179,6 +237,26 @@ def get_analysis(
         option_rows = tables.get("option_table_15.3.csv", [])
         person_rows = tables.get("person_table.csv", [])
         summary_rows = tables.get("summary_table.csv", [])
+
+        n_misfit = 0
+        n_item = 0
+        if len(item_rows) >= 3:
+            long_headers = [str(h).strip().upper() for h in item_rows[0]]
+            try:
+                infit_idx = long_headers.index("INFIT MNSQ")
+            except ValueError:
+                infit_idx = -1
+
+            if infit_idx != -1:
+                item_data_rows = item_rows[2:]
+                n_item = len(item_data_rows)
+                for r in item_data_rows:
+                    if infit_idx < len(r):
+                        try:
+                            if float(r[infit_idx]) >= MISFIT_THRESHOLD:
+                                n_misfit += 1
+                        except (ValueError, TypeError):
+                            pass
 
         item_headers = item_rows[:2] if len(item_rows) >= 2 else []
         item_data = item_rows[2:] if len(item_rows) >= 2 else []
@@ -205,6 +283,8 @@ def get_analysis(
 
         context.update(
             {
+                "n_misfit": n_misfit,
+                "n_item": n_item,
                 "tables": tables,
                 "item_headers": item_headers,
                 "item_paged": item_paged,

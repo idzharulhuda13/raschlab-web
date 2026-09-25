@@ -384,7 +384,7 @@ def test_explore_done_renders_shell_and_payload(client: TestClient):
 
     # noscript block exists.
     assert "<noscript>" in html
-    assert "Halaman penjelajah ini membutuhkan JavaScript." in html
+    assert "membutuhkan JavaScript" in html
 
 
 # ---------------------------------------------------------------------------
