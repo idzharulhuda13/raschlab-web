@@ -381,6 +381,18 @@ All values are strings exactly as stored in the CSVs; `ENTRY` is the only intege
     `scripts/verify_explorer.py` (E29).
   - The `Batas misfit 1,50` legend sits at the top-right of the plot (y 32/36), never inside the
     item strip. Gridlines sit at the count levels behind the bars.
+  - A label box is a target, not decoration: `.focus-ring` is transparent at rest and takes
+    `--accent` (or `--misfit` when highlighted) on hover, focus-visible or selection. Painting all
+    label boxes at once turned a 59-item strip into a mesh of borders.
+  - Chart text renders at `--step-12` (the pinned micro label) and never shrinks below it: the SVG
+    keeps a 1:1 minimum width (`min-width: <svgWidth>px`), scales up with the container, and scrolls
+    inside `.chart-scroll` when the viewport is narrower. A chart whose text scales down with the
+    viewport is a defect (measured once: 11px labels rendered at 6,4px on a 390px screen).
+  - Colours are resolved from CSS tokens at draw time, so both charts repaint when the theme
+    changes: `drawWright` and `drawDelta` remember their last call and a `data-theme`
+    MutationObserver (plus the `prefers-color-scheme` listener) re-runs it. A chart that keeps its
+    light-theme fills in the dark theme is a defect (measured once: item labels at 1,22:1 contrast
+    on the dark panel, against a 4,5:1 requirement).
 - State classes: `is-active`, `is-loaded`, `is-misfit`, `is-misfit-highlight`, `is-prominent`, `is-muted`.
 
 Rule: a class used in a template must be in this list or already defined in `app/static/app.css`; the exhaustive class and template counts are pinned by `tests/test_ui_contract.py`.

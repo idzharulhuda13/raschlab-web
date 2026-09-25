@@ -1629,6 +1629,14 @@ figure.summary-figure .def-value {
   }
 }
 
+/* Chart text follows the pinned type scale. The viewBox units are geometry; the rendered size is
+   the design system's micro label, and it never shrinks with the viewport (the chart keeps a 1:1
+   minimum width and scrolls inside .chart-scroll instead). */
+#wright-scale svg text,
+#cmp-chart svg text {
+  font-size: var(--step-12);
+}
+
 /* Interactive chart elements */
 .wright-item-tick {
   cursor: pointer;
@@ -1661,11 +1669,19 @@ figure.summary-figure .def-value {
 }
 
 .focus-ring {
-  stroke: var(--accent);
+  stroke: transparent;
   stroke-width: 2;
   fill: none;
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+}
+
+.wright-item-tick:hover .focus-ring,
+.wright-item-tick:focus-visible .focus-ring,
+.wright-item-tick.is-active .focus-ring {
+  stroke: var(--accent);
+}
+
+.wright-item-tick.is-misfit-highlight .focus-ring {
+  stroke: var(--misfit);
 }
 
 .delta-row {

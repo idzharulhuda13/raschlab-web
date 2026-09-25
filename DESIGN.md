@@ -246,22 +246,26 @@ uncovered transition is a failure, not a nitpick.
 Upload limits are pinned as a PAIR and the rendered page must state both exact numbers:
 
 - **16 MB per file** (`MAX_UPLOAD_BYTES = 16 * 1024 * 1024`)
-- **8.000.000 cells per dataset** (`MAX_CELLS = 8_000_000`)
+- **6.000.000 cells per dataset** (`MAX_CELLS = 6_000_000`)
 
-Why 8M and not 1M: the previous 1.000.000 cap bound at about 1,9 MB of CSV, so the 16 MB byte cap was
-decorative and a normal file was refused for cells while being far inside the size limit. Measured with
-the real parser (probe process, constant bypassed, 512Mi instance):
+Why 6M and not 8M: the ceiling is set by **memory, never by time**, and it moves with the instance. The
+engine needs 5,2 s for 2,29 M cells and 11,2 s for 3,90 M cells against a 120 s request timeout, while
+peak RSS on a 45.833-person matrix grows from 0,31 GiB (0,69 M cells) to 0,70 GiB (2,29 M) to 0,94 GiB
+(3,90 M). At 3,90 M cells a 1 GiB instance would OOM, so the instance is **2 GiB** (`deploy_ui.sh`) and
+6 M cells lands near 1,4 GiB with about 30% headroom. Raising this number without raising the instance
+memory is a defect. Measured with the real parser plus the real engine:
 
-| Cells | File | Parse | Peak memory |
-|---|---|---|---|
-| 1.002.000 | 1,9 MB | 0,18 s | 10,9 MB |
-| 5.000.000 | 9,4 MB | 0,64 s | 52,8 MB |
-| 7.400.000 (50.000 × 148) | 14,1 MB | 1,72 s | 82,2 MB |
-| 8.000.000 | 15,0 MB | 1,20 s | 82,6 MB |
+| Cells | File | Upload | Engine | Peak RSS |
+|---|---|---|---|---|
+| 0,69 M (45.833 × 15) | 1,7 MB | 1,07 s | 8,4 s | 0,31 GiB |
+| 2,29 M (45.833 × 50) | 5,3 MB | 1,29 s | 5,2 s | 0,70 GiB |
+| 3,90 M (45.833 × 85) | 8,5 MB | 3,04 s | 11,2 s | 0,94 GiB |
 
-The owner's real datasets (TBS 2025, 6 runs) top out at 2.328 × 147 = 342.216 cells, so the new cap keeps
-23× headroom. A test must assert the rendered upload page contains both numbers, so the copy can never
-drift from the constants.
+The owner's real datasets (TBS 2025, 6 runs) top out at 2.328 × 147 = 342.216 cells, and the assessment
+file that drove this work is 45.833 × 59 = 2,7 M cells, so 6 M keeps 2,2× headroom over the largest real
+file seen. A test must assert the rendered upload page contains both numbers, so the copy can never
+drift from the constants: the dataset page renders every occurrence of the cell cap from the `max_cells`
+context value, and a literal limit in that template is a defect.
 
 ## Tells to avoid, by name (rejected on sight)
 

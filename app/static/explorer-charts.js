@@ -8,6 +8,36 @@
 
   var SVG_NS = 'http://www.w3.org/2000/svg';
 
+  // Colours are resolved from CSS tokens at draw time, so a theme switch has to redraw the charts.
+  // Without this the dark theme kept the light-theme fills: measured 1,22:1 contrast for item
+  // labels on the dark panel, against a 4,5:1 requirement. One listener repaints the last draw.
+  var lastDraw = null;
+
+  function rememberDraw(kind, container, data) {
+    lastDraw = { kind: kind, container: container, data: data };
+  }
+
+  function repaintForTheme() {
+    if (!lastDraw || !lastDraw.container) return;
+    if (lastDraw.kind === 'wright') drawWright(lastDraw.container, lastDraw.data);
+    else if (lastDraw.kind === 'delta') drawDelta(lastDraw.container, lastDraw.data);
+  }
+
+  function attachThemeRepaint() {
+    if (typeof window === 'undefined' || window.__raschThemeRepaint) return;
+    window.__raschThemeRepaint = true;
+    if (window.MutationObserver && document.documentElement) {
+      new MutationObserver(repaintForTheme).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme']
+      });
+    }
+    if (window.matchMedia) {
+      var mq = window.matchMedia('(prefers-color-scheme: dark)');
+      if (mq && typeof mq.addEventListener === 'function') mq.addEventListener('change', repaintForTheme);
+    }
+  }
+
   function clearElement(element) {
     if (!element) return;
     while (element.firstChild) {
@@ -120,6 +150,9 @@
       return null;
     }
 
+    rememberDraw('wright', container, payload);
+    attachThemeRepaint();
+
     var bins = payload.bins.slice().sort(function (a, b) {
       return parseFloat(String(a[0]).replace(',', '.')) - parseFloat(String(b[0]).replace(',', '.'));
     });
@@ -222,7 +255,7 @@
       role: 'img',
       'aria-label': 'Peta Wright: rentang ' + formatNum(bins[0][0]) + ' hingga ' + formatNum(bins[bins.length - 1][0]) + ' logit, ' + formatNum(totalPersons) + ' partisipan, ' + formatNum(totalItems) + ' butir',
       viewBox: '0 0 ' + svgWidth + ' ' + svgHeight,
-      style: 'min-width: 600px; width: 100%; height: auto; display: block;'
+      style: 'min-width: ' + svgWidth + 'px; width: 100%; height: auto; display: block;'
     });
     svg.appendChild(svgEl('title', null, 'Histogram sebaran partisipan'));
 
@@ -548,6 +581,9 @@
     if (!cmpData || !cmpData.pairs || !Array.isArray(cmpData.pairs) || cmpData.pairs.length === 0) {
       return null;
     }
+
+    rememberDraw('delta', container, cmpData);
+    attachThemeRepaint();
 
     var pairs = [];
     var maxAbsDelta = 0.5;
