@@ -3,8 +3,13 @@
 Design contract for every UI artifact in this repo. Arc owns this file; a writer executes it and never
 re-picks a direction, never mixes in a second palette, never opens a second direction skill.
 
-- **Direction skill for writers: `clean-minimal-beige-light-mode`** (subject: a calibre instrument for
-  measurement, read on warm paper surfaces — not a cold enterprise console).
+- **Direction skill for writers: `data-dashboard`** (subject: a console that has to render dense
+  measurement numbers legibly, read on warm paper surfaces).
+- **The published artifact is the reference implementation.** The owner's verdict (25 Sep 2026):
+  *"kenapa semua tampilannya berubah dari yang di artifact ya? padahal yang di artifact udah bagus
+  banget"*, then, offered the scope: **the whole app follows the artifact** — display face, density
+  and per-view composition. The artifact lives in `/root/projects/web-artifacts/rasch-explorer/`
+  (`DESIGN.rasch-explorer.md`) and both contracts share one palette and one dial on purpose.
 - **Process skills, always on: `design-tokens`, `a11y-audit`, `output-enforcement`.**
 - **antislop mode: DURING**, closed by the Hallmark audit gate before anything is reported as done.
 - Human-facing copy: Indonesian (casual-professional). Code, identifiers, comments: English.
@@ -81,13 +86,15 @@ Notes that bind the writer:
 
 ## Typography
 
-**Plus Jakarta Sans** for UI text, **IBM Plex Mono** for numerals, item IDs, dataset IDs and code.
+**Archivo Black** for the wordmark, page and section titles and the tab strip; **Archivo** for UI text
+and controls; **IBM Plex Mono** for numerals, item IDs, dataset IDs and code.
 
-Reason: Plus Jakarta Sans was commissioned as the identity face of Jakarta; this product's whole
-audience and every dataset in it is Indonesian, so the face ties the interface to its context instead of
-borrowing the AI-default look (Inter / Geist / Space Grotesk say nothing about measurement). Plex Mono
-keeps the instrument role: unambiguous `0/O` and `1/l` for item codes, and `tabular-nums` so columns of
-measures line up.
+Reason: this is the pair the owner picked out of the published artifact ("yang di artifact udah bagus
+banget", 25 Sep 2026). Archivo Black is the instrument's own voice — a black-weight grotesque that
+carries a title without decoration, so hierarchy comes from weight rather than from colour or rules.
+Archivo keeps the body neutral so dense numbers stay legible next to it, and Plex Mono keeps the
+instrument role: unambiguous `0/O` and `1/l` for item codes, and `tabular-nums` so columns of measures
+line up. The earlier Plus Jakarta Sans rationale is superseded by that direction, not by taste drift.
 
 - Load from Google Fonts with `preconnect` + `display=swap`, and declare a fallback stack that still
   looks deliberate (`Georgia, serif` for display, `system-ui` for body) when the CDN is unreachable.

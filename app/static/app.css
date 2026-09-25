@@ -383,8 +383,16 @@ h3 {
   margin: 0 0 var(--space-2);
 }
 
-h1, h2, h3, .page-title, .display {
-  font-family: "Plus Jakarta Sans", Georgia, serif;
+/* Instrument voice (owner's direction, 25 Sep 2026): the product reads like the published
+   artifact — Archivo Black carries the wordmark, the page and section titles and the tab strip,
+   Archivo carries body text and controls, Plex Mono keeps the numerals. */
+.wordmark,
+h1,
+h2,
+.page-title,
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
 }
 
 .lead {
@@ -1357,9 +1365,9 @@ line.miss-marker {
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--ink);
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: var(--step-14);
-  font-weight: 500;
+  font-weight: 400;
   text-decoration: none;
   cursor: pointer;
   transition: background-color var(--dur-1) ease-out, border-color var(--dur-1) ease-out, color var(--dur-1) ease-out;
