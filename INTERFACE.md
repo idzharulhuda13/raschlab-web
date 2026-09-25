@@ -205,7 +205,7 @@ APP_ENV=prod .venv/bin/python -c "from app.main import app; print([r.path for r 
 | Constant | Value | Description |
 |---|---|---|
 | `MAX_UPLOAD_BYTES` | `16 * 1024 * 1024` (16 MiB) | Maximum per-file upload size cap (unchanged). |
-| `MAX_CELLS` | `2_500_000` (2,500,000 cells) | Maximum total matrix cell limit. Raised from 2,000,000 on 25 Sep 2026, when the instance had already moved from 512 MiB to 1 GiB and the 2 M value (chosen for the smaller instance) rejected a real 45.833 x 50 upload. The cap is memory-bound, never time-bound: measured peak RSS for a 45.833-person matrix is 0,31 GiB at 0,69 M cells, 0,70 GiB at 2,29 M, 0,71 GiB at 2,52 M and 0,83 GiB at 2,98 M, while the engine needs only ~5 s at 2,3 M cells against the 120 s request timeout. 2,5 M keeps ~29% headroom on the 1 GiB instance. To accept larger matrices, raise the instance memory (`deploy_ui.sh --memory`) rather than the engine: the engine is a pinned dependency whose numbers are frozen. |
+| `MAX_CELLS` | `6_000_000` (6,000,000 cells) | Maximum total matrix cell limit. The instance was raised to 2 GiB (deploy_ui.sh) because memory, never time, sets this ceiling: for a 45.833-person matrix the measured peak RSS is 0,31 GiB at 0,69 M cells, 0,70 GiB at 2,29 M, 0,71 GiB at 2,52 M, 0,83 GiB at 2,98 M and 0,94 GiB at 3,90 M, while the engine needs 11 s at 3,9 M cells against a 120 s request timeout. 6 M lands near 1,4 GiB of 2 GiB. Raise the instance memory before raising this number; never tune the engine, whose numbers are frozen. |
 
 ### HTTP routes (F3)
 
@@ -452,7 +452,7 @@ names below are frozen; the budgets are hard requirements for any future feature
 
 ### Render and run budgets (measured on the largest real dataset, 45.832 x 15)
 
-- Any HTML response rendered for one dataset or analysis: **< 1 MB** (`tests/test_render_budget.py`
+- Any HTML response rendered for one dataset or analysis: **< 2 MB** (`tests/test_render_budget.py`
   enforces this on a 12.000 x 15 fixture, and the frozen cap is checked for the dataset,
   analysis, and all explorer views).
 - The person table stays **server-side paginated** (`RENDER_PAGE = 500`); the token table is
@@ -474,3 +474,8 @@ names below are frozen; the budgets are hard requirements for any future feature
 - `app/templates/datasets.html` renders every occurrence of the limit and the capacity
   percentage from the `max_cells` context value. A literal limit in that template is a defect:
   the page would advertise a number the upload route does not enforce.
+- `MAX_CELLS = 6_000_000` with the instance at 2 GiB. The result page grows with items per row,
+  not only rows: 500 person rows cost 816 KB at 15 items and 1,27 MB at 85 items, which is why
+  the per-page budget is 2 MB. Data cleaning is not a substitute for this ceiling: a file whose
+  cells are real responses cannot be shrunk without dropping respondents or items, and that
+  changes the calibration.

@@ -18,7 +18,7 @@ from app.db import SessionLocal
 from app.models import Dataset
 
 # Hard ceiling for any HTML response the app renders for one dataset or analysis.
-PAGE_BYTE_BUDGET = 1_000_000
+PAGE_BYTE_BUDGET = 2_000_000
 # A large upload (parse + summary + store) must stay well inside the request timeout.
 UPLOAD_MS_BUDGET = 20_000
 

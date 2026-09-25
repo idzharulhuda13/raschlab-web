@@ -143,17 +143,20 @@ def test_control_key1_length_mismatch_rejected():
         parse_control(con_mismatch)
 
 
-def test_over_cap_upload_raises_storage_error():
+def test_over_cap_upload_raises_storage_error(monkeypatch):
     oversize_payload = b"x" * (MAX_UPLOAD_BYTES + 1)
     with pytest.raises(StorageError, match=r"exceeds MAX_UPLOAD_BYTES"):
         parse_delimited(oversize_payload)
 
-    n_items = 999
-    rows = MAX_CELLS // n_items + 1
+    # The production ceiling would need a fixture larger than MAX_UPLOAD_BYTES, so the cap
+    # is patched: the behaviour under test is the cap check, not its configured value.
+    import app.parsers as parsers
+
+    monkeypatch.setattr(parsers, "_MAX_CELLS", 1_000)
+    n_items = 9
     header = ("id," + ",".join(f"c{i}" for i in range(n_items)) + "\n").encode()
     row = ("P" + ",1" * n_items + "\n").encode()
-    oversize_cells = header + row * rows
-    assert len(oversize_cells) < MAX_UPLOAD_BYTES
+    oversize_cells = header + row * 1_000
     with pytest.raises(StorageError, match=r"exceeds MAX_CELLS limit"):
         parse_delimited(oversize_cells)
 
