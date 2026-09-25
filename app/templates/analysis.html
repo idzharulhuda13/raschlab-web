@@ -7,13 +7,16 @@
 <section class="band band--header">
   <a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke Berkas Pengukuran</a>
   <h1 class="detail-title mono">{{ dataset.filename }}</h1>
-  <div>
+  <div class="header-actions">
     {% if status == 'done' %}
     <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
     {% elif status in ('running', 'queued') %}
     <span class="chip chip--accent"><span class="chip-glyph">...</span> Memproses</span>
     {% elif status == 'failed' %}
     <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
+    {% endif %}
+    {% if status == 'done' %}
+    <a href="/analyses/{{ analysis.id }}/explore" class="btn btn--primary">Jelajahi hasil</a>
     {% endif %}
   </div>
   <p class="field-hint">Hasil analisis disimpan selama 180 hari.</p>

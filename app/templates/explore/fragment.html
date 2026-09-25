@@ -1,0 +1,305 @@
+{% if render_view == 'butir' %}
+<form class="search-bar" method="get" action="/analyses/{{ analysis.id }}/explore">
+  <input type="hidden" name="view" value="butir">
+  <input type="hidden" name="page_item" value="1">
+  <label class="field-label" for="butir-search">Cari butir</label>
+  <input class="field-input" type="search" id="butir-search" name="q_item" value="{{ q_item }}" autocomplete="off">
+  <button type="submit" class="btn btn--secondary">Cari</button>
+</form>
+
+{% if item_ctx.count == 0 %}
+<div class="empty" id="butir-empty">
+  <p class="empty-text">Tidak ada baris yang cocok dengan pencarian.</p>
+  <a href="/analyses/{{ analysis.id }}/explore?view=butir" class="btn btn--secondary">Hapus pencarian</a>
+</div>
+{% else %}
+<div class="table-scroll">
+  <table class="data-table" data-explorer-table="1">
+    <caption class="table-caption">Memuat estimasi measure, S.E., dan statistik kecocokan untuk {{ item_ctx.count | id_num }} butir sesuai urutan bawaan mesin.</caption>
+    <thead>
+      {% if item_ctx.headers | length >= 2 %}
+      <tr>
+        {% for col in item_ctx.headers[0] %}
+          {% if col %}
+            <th scope="col" class="mono">{{ col }}</th>
+          {% else %}
+            <th></th>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      <tr>
+        {% for col in item_ctx.headers[1] %}
+          {% if loop.index0 in (0, 3, 4, 5, 7, 9, 11, 13) %}
+            {% set h0 = item_ctx.headers[0][loop.index0] | trim if item_ctx.headers[0] | length > loop.index0 else '' %}
+            {% set h1 = col | trim %}
+            <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if loop.index0 == 13 else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ col }}</button></th>
+          {% else %}
+            {% if col %}
+              <th scope="col" class="mono">{{ col }}</th>
+            {% else %}
+              <th></th>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% endif %}
+    </thead>
+    <tbody>
+      {% for row in item_ctx.rows %}
+      <tr data-order="{{ loop.index0 }}">
+        {% for cell in row %}
+          {% if loop.index0 == 13 %}
+            <td class="mono">{{ cell }}</td>
+          {% else %}
+            <td class="num-col mono">{{ cell | id_num }}</td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="field-hint" id="butir-count">Menampilkan {{ item_ctx.rows | length | id_num }} dari {{ item_ctx.count | id_num }} butir.</p>
+<nav class="pager" aria-label="Navigasi halaman butir">
+  <span class="mono">Halaman {{ item_ctx.paged.page }} dari {{ item_ctx.paged.total_pages }} ({{ item_ctx.paged.total_rows | id_num }} baris)</span>
+  {% if item_ctx.paged.has_prev %}
+  <a href="?view=butir&q_item={{ q_item }}&page_item={{ item_ctx.paged.prev_page }}" class="btn btn--secondary">Sebelumnya</a>
+  {% else %}
+  <button type="button" class="btn btn--secondary" disabled>Sebelumnya</button>
+  {% endif %}
+  {% if item_ctx.paged.has_next %}
+  <a href="?view=butir&q_item={{ q_item }}&page_item={{ item_ctx.paged.next_page }}" class="btn btn--secondary">Selanjutnya</a>
+  {% else %}
+  <button type="button" class="btn btn--secondary" disabled>Selanjutnya</button>
+  {% endif %}
+</nav>
+{% endif %}
+
+{% elif render_view == 'partisipan' %}
+<form class="search-bar" method="get" action="/analyses/{{ analysis.id }}/explore">
+  <input type="hidden" name="view" value="partisipan">
+  <input type="hidden" name="page_person" value="1">
+  <label class="field-label" for="partisipan-search">Cari partisipan</label>
+  <input class="field-input" type="search" id="partisipan-search" name="q_person" value="{{ q_person }}" autocomplete="off">
+  <button type="submit" class="btn btn--secondary">Cari</button>
+</form>
+
+{% if person_ctx.count == 0 %}
+<div class="empty" id="partisipan-empty">
+  <p class="empty-text">Tidak ada baris yang cocok dengan pencarian.</p>
+  <a href="/analyses/{{ analysis.id }}/explore?view=partisipan" class="btn btn--secondary">Hapus pencarian</a>
+</div>
+{% else %}
+<div class="table-scroll">
+  <table class="data-table" data-explorer-table="1">
+    <caption class="table-caption">Memuat estimasi ability measure, S.E., dan statistik kecocokan untuk {{ person_ctx.count | id_num }} responden sesuai urutan misfit.</caption>
+    <thead>
+      {% if person_ctx.headers | length >= 2 %}
+      <tr>
+        {% for col in person_ctx.headers[0] %}
+          {% if col %}
+            <th scope="col" class="mono">{{ col }}</th>
+          {% else %}
+            <th></th>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      <tr>
+        {% for col in person_ctx.headers[1] %}
+          {% if loop.index0 in (0, 3, 4, 5, 7, 13) %}
+            {% set h0 = person_ctx.headers[0][loop.index0] | trim if person_ctx.headers[0] | length > loop.index0 else '' %}
+            {% set h1 = col | trim %}
+            <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if loop.index0 == 13 else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ col }}</button></th>
+          {% else %}
+            {% if col %}
+              <th scope="col" class="mono">{{ col }}</th>
+            {% else %}
+              <th></th>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% endif %}
+    </thead>
+    <tbody>
+      {% for row in person_ctx.rows %}
+      <tr data-order="{{ loop.index0 }}">
+        {% for cell in row %}
+          {% if loop.index0 in (13, 14) %}
+            <td class="mono">{{ cell }}</td>
+          {% else %}
+            <td class="num-col mono">{{ cell | id_num }}</td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="field-hint" id="partisipan-count">Menampilkan {{ person_ctx.rows | length | id_num }} dari {{ person_ctx.count | id_num }} responden.</p>
+<nav class="pager" aria-label="Navigasi halaman responden">
+  <span class="mono">Halaman {{ person_ctx.paged.page }} dari {{ person_ctx.paged.total_pages }} ({{ person_ctx.paged.total_rows | id_num }} baris)</span>
+  {% if person_ctx.paged.has_prev %}
+  <a href="?view=partisipan&q_person={{ q_person }}&page_person={{ person_ctx.paged.prev_page }}" class="btn btn--secondary">Sebelumnya</a>
+  {% else %}
+  <button type="button" class="btn btn--secondary" disabled>Sebelumnya</button>
+  {% endif %}
+  {% if person_ctx.paged.has_next %}
+  <a href="?view=partisipan&q_person={{ q_person }}&page_person={{ person_ctx.paged.next_page }}" class="btn btn--secondary">Selanjutnya</a>
+  {% else %}
+  <button type="button" class="btn btn--secondary" disabled>Selanjutnya</button>
+  {% endif %}
+</nav>
+{% endif %}
+
+{% elif render_view == 'ringkasan' %}
+<div class="summary-grid" id="summary-counts">
+  <figure class="summary-figure">
+    <figcaption class="def-label">ITEM MEASURE MEAN</figcaption>
+    <p class="def-value mono">{{ (rekap.get('ITEM MEASURE MEAN') if rekap.get('ITEM MEASURE MEAN') is not none and rekap.get('ITEM MEASURE MEAN') != '' else '-') | id_num }}</p>
+  </figure>
+  <figure class="summary-figure">
+    <figcaption class="def-label">PERSON MEASURE MEAN</figcaption>
+    <p class="def-value mono">{{ (rekap.get('PERSON MEASURE MEAN') if rekap.get('PERSON MEASURE MEAN') is not none and rekap.get('PERSON MEASURE MEAN') != '' else '-') | id_num }}</p>
+  </figure>
+  <figure class="summary-figure">
+    <figcaption class="def-label">ITEM COUNT</figcaption>
+    <p class="def-value mono">{{ (rekap.get('ITEM COUNT') if rekap.get('ITEM COUNT') is not none and rekap.get('ITEM COUNT') != '' else '-') | id_num }}</p>
+  </figure>
+  <figure class="summary-figure">
+    <figcaption class="def-label">PERSON COUNT</figcaption>
+    <p class="def-value mono">{{ (rekap.get('PERSON COUNT') if rekap.get('PERSON COUNT') is not none and rekap.get('PERSON COUNT') != '' else '-') | id_num }}</p>
+  </figure>
+  <figure class="summary-figure">
+    <figcaption class="def-label">PERSON EXTREME INCL COUNT</figcaption>
+    <p class="def-value mono">{{ (rekap.get('PERSON EXTREME INCL COUNT') if rekap.get('PERSON EXTREME INCL COUNT') is not none and rekap.get('PERSON EXTREME INCL COUNT') != '' else '-') | id_num }}</p>
+  </figure>
+</div>
+
+<p class="field-hint" id="summary-note">Angka partisipan di tabel ini mencakup skor sempurna dan nol; peta Wright hanya memakai partisipan non-ekstrem.</p>
+
+<div class="table-scroll">
+  <table class="data-table">
+    <caption class="table-caption">Memuat statistik agregat dari mesin untuk keseluruhan proses analisis.</caption>
+    <thead>
+      {% if sum_headers | length >= 2 %}
+      <tr>
+        {% for col in sum_headers[0] %}
+          {% if col %}
+            <th scope="col" class="mono">{{ col }}</th>
+          {% else %}
+            <th></th>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      <tr>
+        {% for col in sum_headers[1] %}
+          {% if col %}
+            <th scope="col" class="mono">{{ col }}</th>
+          {% else %}
+            <th></th>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% elif sum_headers | length == 1 %}
+      <tr>
+        {% for col in sum_headers[0] %}
+          {% if col %}
+            <th scope="col" class="mono">{{ col }}</th>
+          {% else %}
+            <th></th>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% endif %}
+    </thead>
+    <tbody>
+      {% for row in sum_data %}
+      <tr>
+        {% for cell in row %}
+          {% if loop.index0 in (0, 1) %}
+            <td class="mono">{{ cell }}</td>
+          {% else %}
+            <td class="num-col mono">{{ cell | id_num }}</td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% elif render_view == 'bandingkan' %}
+{% if compare_ctx.options | length < 2 %}
+<div class="empty">
+  <p class="empty-text">{{ compare_ctx.empty_reason }}</p>
+</div>
+{% else %}
+<form class="compare-strip" method="get" action="/analyses/{{ analysis.id }}/explore">
+  <input type="hidden" name="view" value="bandingkan">
+  <label class="field-label" for="cmp-from">Analisis pertama</label>
+  <select id="cmp-from" name="from" class="select-input">
+    {% for o in compare_ctx.options %}
+    <option value="{{ o.id }}"{% if o.id == compare_ctx.from_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}</option>
+    {% endfor %}
+  </select>
+  <label class="field-label" for="cmp-to">Analisis kedua</label>
+  <select id="cmp-to" name="to" class="select-input">
+    {% for o in compare_ctx.options %}
+    <option value="{{ o.id }}"{% if o.id == compare_ctx.to_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn--primary">Bandingkan</button>
+</form>
+
+<p id="cmp-statement">{% if compare_ctx.statement %}{{ compare_ctx.statement }}{% else %}Pilih dua analisis untuk dibandingkan.{% endif %}</p>
+
+<p class="field-hint" id="cmp-caveat">{{ compare_ctx.caveat }}</p>
+
+<p id="cmp-counts">Cocok: {{ compare_ctx.matched | id_num }} butir. Hanya di analisis pertama: {{ compare_ctx.unmatched_from | id_num }}. Hanya di analisis kedua: {{ compare_ctx.unmatched_to | id_num }}.{% if compare_ctx.key_used == 'label' %} Dipasangkan berdasarkan label butir.{% elif compare_ctx.key_used == 'entry' %} Dipasangkan berdasarkan nomor butir (kedua berkas tidak memuat label butir).{% endif %}</p>
+
+<p id="cmp-means">{% if compare_ctx.means %}Rata-rata measure butir: {{ compare_ctx.means.from | id_num }} (analisis pertama) vs {{ compare_ctx.means.to | id_num }} (analisis kedua).{% endif %}</p>
+
+<div class="field">
+  <input type="checkbox" id="cmp-delta-only">
+  <label class="field-label" for="cmp-delta-only">Tampilkan hanya perubahan ≥ 0,30 (ambang tampilan, bukan uji statistik).</label>
+</div>
+
+<div id="cmp-chart" class="chart-scroll"></div>
+
+<div class="table-scroll">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th scope="col" class="mono" colspan="2">Butir</th>
+        <th scope="col" class="mono">Measure analisis pertama</th>
+        <th scope="col" class="mono">Measure analisis kedua</th>
+        <th scope="col" class="mono">Selisih</th>
+      </tr>
+    </thead>
+    <tbody id="cmp-tbody">
+      {% for pair in compare_ctx.pairs %}
+      <tr class="delta-row" data-abs-delta="{{ "%.2f" | format((pair[4] | float) | abs) }}">
+        <td class="num-col mono">{{ pair[0] | id_num }}</td>
+        <td class="mono">{{ pair[1] }}</td>
+        <td class="num-col mono">{{ pair[2] | id_num }}</td>
+        <td class="num-col mono">{{ pair[3] | id_num }}</td>
+        <td class="num-col mono">{{ pair[4] | id_num }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not compare_ctx.pairs %}
+<div class="empty" id="cmp-empty">
+  <p class="empty-text">{{ compare_ctx.empty_reason if compare_ctx.empty_reason else 'Pilih dua analisis untuk dibandingkan.' }}</p>
+</div>
+{% endif %}
+
+{% if compare_ctx.cmp_data_json %}
+<script type="application/json" id="cmp-data">{{ compare_ctx.cmp_data_json | safe }}</script>
+{% endif %}
+{% endif %}
+
+{% endif %}

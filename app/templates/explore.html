@@ -1,0 +1,117 @@
+<!-- RaschLab F4 | design-system: DESIGN.md | macrostructure: analysis-dashboard -->
+{% extends "base.html" %}
+
+{% block title %}{{ dataset.filename }}: Jelajahi Hasil: RaschLab{% endblock %}
+
+{% block head %}
+<script src="/static/explorer-charts.js" defer></script>
+<script src="/static/explorer.js" defer></script>
+{% endblock %}
+
+{% block content %}
+<section class="band band--header">
+  <a href="/analyses/{{ analysis.id }}" class="back-link">Kembali ke Hasil Analisis</a>
+  <h1 class="detail-title mono">{{ dataset.filename }}</h1>
+  <div class="header-actions">
+    <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
+  </div>
+  <p class="field-hint">Hasil analisis disimpan selama {{ retention_days }} hari.</p>
+  <div class="header-pairs">
+    <div class="def-row">
+      <span class="def-label">Versi Mesin: </span>
+      <span class="def-value mono">{{ engine_ref }}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Waktu Eksekusi: </span>
+      <span class="def-value mono">{% if elapsed_ms is not none %}{{ elapsed_ms | id_num }} ms{% else %}-{% endif %}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Mode: </span>
+      <span class="def-value mono">{{ params.get('mode', 'compat') if params else 'compat' }}</span>
+    </div>
+    <div class="def-row">
+      <span class="def-label">Desimal: </span>
+      <span class="def-value mono">{{ params.get('digits', 2) if params else '2' }}</span>
+    </div>
+  </div>
+</section>
+
+<noscript>
+  <div class="alert alert--warn" role="alert">
+    Halaman penjelajah ini membutuhkan JavaScript. Buka halaman hasil analisis untuk melihat tabel lengkap. <a href="/analyses/{{ analysis.id }}">Buka halaman hasil analisis.</a>
+  </div>
+</noscript>
+
+<div id="tablist" class="tabs" role="tablist">
+  <a id="tab-wright" href="?view=wright" class="tab{% if active_view == 'wright' %} is-active{% endif %}" role="tab" aria-controls="panel-wright" aria-selected="{{ 'true' if active_view == 'wright' else 'false' }}">Peta Wright</a>
+  <a id="tab-butir" href="?view=butir" class="tab{% if active_view == 'butir' %} is-active{% endif %}" role="tab" aria-controls="panel-butir" aria-selected="{{ 'true' if active_view == 'butir' else 'false' }}">Butir</a>
+  <a id="tab-partisipan" href="?view=partisipan" class="tab{% if active_view == 'partisipan' %} is-active{% endif %}" role="tab" aria-controls="panel-partisipan" aria-selected="{{ 'true' if active_view == 'partisipan' else 'false' }}">Partisipan</a>
+  <a id="tab-ringkasan" href="?view=ringkasan" class="tab{% if active_view == 'ringkasan' %} is-active{% endif %}" role="tab" aria-controls="panel-ringkasan" aria-selected="{{ 'true' if active_view == 'ringkasan' else 'false' }}">Ringkasan</a>
+  <a id="tab-bandingkan" href="?view=bandingkan" class="tab{% if active_view == 'bandingkan' %} is-active{% endif %}" role="tab" aria-controls="panel-bandingkan" aria-selected="{{ 'true' if active_view == 'bandingkan' else 'false' }}">Bandingkan</a>
+</div>
+
+<div id="panel-wright" class="explorer-panel{% if active_view == 'wright' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-wright">
+  {% set person_incl = rekap.get('PERSON EXTREME INCL COUNT') | int if ('PERSON EXTREME INCL COUNT' in rekap and rekap.get('PERSON EXTREME INCL COUNT') is not none) else none %}
+  {% set person_count = rekap.get('PERSON COUNT') | int if ('PERSON COUNT' in rekap and rekap.get('PERSON COUNT') is not none) else none %}
+  <p id="wright-meta">Partisipan: {{ rekap.get('PERSON COUNT', '-') | id_num }} · Butir: {{ rekap.get('ITEM COUNT', '-') | id_num }} · Dikecualikan (skor sempurna/nol): {% if person_incl is not none and person_count is not none %}{{ (person_incl - person_count) | id_num }}{% else %}-{% endif %}</p>
+  <div id="wright-scale" class="chart-scroll"></div>
+  <p id="wright-readout" class="readout">Fokus pada butir di peta untuk melihat rincian.</p>
+  <div class="field">
+    <label class="field-label" for="wright-misfit-toggle">Sorot butir misfit (INFIT MNSQ ≥ 1,50)</label>
+    <input type="checkbox" id="wright-misfit-toggle">
+  </div>
+</div>
+
+<div id="panel-butir" class="explorer-panel{% if active_view == 'butir' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-butir">
+  {% if active_view == 'butir' %}
+    {% set render_view = active_view %}
+    {% include 'explore/fragment.html' %}
+  {% else %}
+    <div class="empty">
+      <p class="empty-text">Memuat data...</p>
+    </div>
+  {% endif %}
+</div>
+
+<div id="panel-partisipan" class="explorer-panel{% if active_view == 'partisipan' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-partisipan">
+  {% if active_view == 'partisipan' %}
+    {% set render_view = active_view %}
+    {% include 'explore/fragment.html' %}
+  {% else %}
+    <div class="empty">
+      <p class="empty-text">Memuat data...</p>
+    </div>
+  {% endif %}
+</div>
+
+<div id="panel-ringkasan" class="explorer-panel{% if active_view == 'ringkasan' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-ringkasan">
+  {% if active_view == 'ringkasan' %}
+    {% set render_view = active_view %}
+    {% include 'explore/fragment.html' %}
+  {% else %}
+    <div class="empty">
+      <p class="empty-text">Memuat data...</p>
+    </div>
+  {% endif %}
+</div>
+
+<div id="panel-bandingkan" class="explorer-panel{% if active_view == 'bandingkan' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-bandingkan">
+  {% if active_view == 'bandingkan' %}
+    {% set render_view = active_view %}
+    {% include 'explore/fragment.html' %}
+  {% else %}
+    <div class="empty">
+      <p class="empty-text">Memuat data...</p>
+    </div>
+  {% endif %}
+</div>
+
+{% if payload_json %}<script type="application/json" id="explorer-data">{{ payload_json | safe }}</script>{% endif %}
+
+{% if wright_error %}
+<div class="alert alert--misfit" id="explorer-error" role="alert">
+  <strong>Peta Wright tidak tersedia</strong>
+  <p id="explorer-error-reason">{{ wright_error }}</p>
+</div>
+{% endif %}
+{% endblock %}

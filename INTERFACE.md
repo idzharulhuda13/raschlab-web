@@ -290,5 +290,116 @@ OUTPUT_FILES = (
 - `STALE_RUN_S = 900`: Active runs exceeding 900 seconds (15 minutes) are marked failed upon inspection or prevent redundant duplicate execution within the window.
 - Background retention worker runs 30 seconds after application startup and sweeps every 6 hours: purges expired analyses and dispatches pending notice emails.
 
+## F4: Explorer (2026-09-25)
+
+Interactive explorer for ONE finished analysis (one analysis = one explorer page), plus a comparison panel that may span two analyses. Read-only: no route in this section writes anything.
+
+### Design read and dials (FROZEN)
+
+Reading this as: an analysis explorer for a psychometrician reviewing one finished run, in a warm instrument language with one measured accent, dial **ENERGY 3 / RHYTHM 3 / MOTION 2** (DESIGN.md).
+
+- Each panel has exactly one focal point: the Wright chart with its readout (Peta Wright), the item table (Butir), the person table (Partisipan), the statistic grid (Ringkasan), the delta chart (Bandingkan). The active tab is the page's single primary-styled element and nothing else may compete with it.
+- Composition varies by panel on purpose (RHYTHM 3): a full-width chart beside a readout rail, a search row above a paginated table, a figure grid above the verbatim summary table, and a two-select control strip above the delta chart. No two panels repeat the same internal layout.
+- Motion (MOTION 2): hover, focus and state changes use the 120ms duration token, and every transition and animation is paired inside the `prefers-reduced-motion: reduce` block in `app.css`.
+- The person histogram carries a count scale: three numeric labels (maximum, half of the maximum, and zero) drawn in the muted token left of the plot area, right-aligned, with no gridlines and no new class or id. Bar heights are readable without hovering; hovering still exposes the exact count through the SVG title.
+- The tab strip shares the `.band` container geometry (`width: 100%`, `max-width: var(--shell-max)`, centred, `padding-inline: var(--space-6)`), so the first tab lines up with the page heading rather than with the viewport edge.
+- The misfit toggle is a 20x20 control coloured with `accent-color: var(--accent)` inside a row at least 44px tall, with its label linked by `for` and a 2px accent focus ring. The misfit item ticks always carry `.is-misfit`; the toggle adds and removes `.is-misfit-highlight`.
+
+### HTTP routes (F4)
+
+| Route | Method | Behaviour |
+|---|---|---|
+| `/analyses/{id}/explore` | GET | Closed gate → 404; unauthenticated → 404; non-owner of the analysis or of its dataset → 404; unknown analysis id → 404; analysis status `queued`, `running`, or `failed` → 303 to `/analyses/{id}`; status `done` → 200 rendering `explore.html`. When the `fragment` query parameter is present, the same guards apply but the response body is `explore/fragment.html` alone (panel HTML: no `<html>`, no `<head>`, no tablist). |
+
+### Query parameters (column names and values are FROZEN)
+
+| Parameter | Values | Behaviour |
+|---|---|---|
+| `view` | `wright`, `butir`, `partisipan`, `ringkasan`, `bandingkan` | Selects the active panel. Absent → `wright`. Unknown → `wright`. |
+| `fragment` | `butir`, `partisipan`, `ringkasan`, `bandingkan` | Absent → full page. Present → panel fragment only. `wright` or any unknown value → 404 (the Wright panel is always server-rendered with its payload). |
+| `q_item` | free text | Case-insensitive substring over the item table's ENTRY and ITEM label. Absent/empty → no filter. |
+| `q_person` | free text | Case-insensitive substring over the person table's identifier and entry columns. Absent/empty → no filter. |
+| `page_item` | positive integer | Item table page, default 1, via the existing `paginate()` / `RENDER_PAGE` contract. |
+| `page_person` | positive integer | Person table page, default 1, same helper. |
+| `from`, `to` | analysis ids | If EITHER is present BOTH are required; must be distinct; both `status = done`; both owned by the caller. **Datasets MAY differ** (owner decision, 25 Sep 2026: cross-dataset comparison is allowed). Any violation (missing, nonexistent, foreign, not-done, equal) → 404. Absent → the compare panel renders its selection prompt. |
+
+### Comparison semantics (FROZEN)
+
+- Pairing keys, in this order: (1) the item table's **LABEL** column (index 13) when BOTH sides carry at least one non-empty label; (2) otherwise the **ENTRY** position, but only when both sides have the same number of items (the revision case: the same instrument re-analysed, labels absent from the export); (3) otherwise nothing is paired: `pairs` is empty, `matched` is 0, and `empty_reason` explains that the two files carry neither labels nor equal item counts.
+- ENTRY is a per-dataset row number, so it is never used as a key while labels exist on both sides, and never used when the item counts differ. The panel always discloses the key actually used (`key_used` is `label` or `entry`); no pair is ever created silently.
+- Delta = `Decimal(to_measure) - Decimal(from_measure)`, quantized to 2 decimals with `ROUND_HALF_UP`, rendered as a signed string (`+0.25`, `-0.10`, `0.00`). It is the only derived number in the feature; every other number is CSV-verbatim.
+- The panel reports `matched`, `unmatched_from`, and `unmatched_to` counts of the key actually used (labels, or ENTRY positions). Partial overlap is normal and is never an error.
+- The panel always carries the disclosure sentence (see copy below): a delta between two different datasets is only interpretable when both calibrations share linking items (anchors); otherwise the difference mixes two scales.
+
+### Source columns (FROZEN: the payload mirrors the stored files)
+
+`wright_map_measure.csv`: row 0 header, row 1 second header, data from row 2. Columns: 0 `MEASURE`, 1 `NR_PERSON`, 2 `PERSON_HIST`, 3 `NR_ITEM`, 4 `ITEMS`, 5 `ITEM_HIST`, 6 `PERSON_ENTRIES`, 7 `ITEM_ENTRIES`. A bin is projected as `[col0, col1, col3, col7]`.
+
+`item_table_15.1.csv`: rows 0-1 headers, data from row 2, ENTRY 1..N. Columns: 0 `ENTRY`, 1 `SCORE`, 2 `COUNT`, 3 `MEASURE`, 4 `S.E.`, 5 `INFIT MNSQ`, 6 `INFIT ZSTD`, 7 `OUTFIT MNSQ`, 8 `OUTFIT ZSTD`, 9 `PTMEASUR-AL CORR.`, 10 `EXP.`, 11 `EXACT OBS%`, 12 `EXACT EXPECTED%`, 13 `ITEM` label. An item row is projected as `[0, 13, 3, 4, 5, 6, 7, 8, 9, 11]`.
+
+### View context keys built by `app/explore.py` (FROZEN)
+
+`active_view`, `render_view`, `views`, `payload_json` (JSON string; omitted when the Wright data cannot be read), `wright_error` (`str | None`), `rekap`, `item_ctx`, `person_ctx`, `summary_headers`, `summary_rows`, `sum_headers`, `sum_data`, `compare_ctx` (`options`, `from_id`, `to_id`, `statement`, `means`, `matched`, `unmatched_from`, `unmatched_to`, `key_used`, `caveat`, `empty_reason`), `params`.
+
+### JSON payloads (FROZEN)
+
+`#explorer-data`, embedded as `<script type="application/json" id="explorer-data">{{ payload_json | safe }}</script>` with `</` escaped to `<\/`:
+
+```
+{"schema":1,
+ "bins":[["MEASURE","NR_PERSON","NR_ITEM","ITEM_ENTRIES"], ...],
+ "items":[[ENTRY,"LABEL","MEASURE","S.E.","INFIT MNSQ","INFIT ZSTD","OUTFIT MNSQ","OUTFIT ZSTD","PTMEA CORR.","EXACT OBS%"], ...]}
+```
+
+All values are strings exactly as stored in the CSVs; `ENTRY` is the only integer. `ITEM_ENTRIES` is a space-separated list of ENTRY numbers; the client resolves each to its item row.
+
+`#cmp-data`, embedded inside the compare panel as `<script type="application/json" id="cmp-data">`:
+
+```
+{"schema":1,"from_id":[int],"to_id":[int],"from_label":"...","to_label":"...",
+ "pairs":[[ENTRY,"LABEL","mFrom","mTo","deltaStr"], ...]}
+```
+
+### Frozen element ids (FROZEN)
+
+`tablist`, `tab-wright`, `tab-butir`, `tab-partisipan`, `tab-ringkasan`, `tab-bandingkan`, `panel-wright`, `panel-butir`, `panel-partisipan`, `panel-ringkasan`, `panel-bandingkan`, `explorer-data`, `explorer-error`, `explorer-error-reason`, `explorer-fetch-error`, `wright-scale`, `wright-readout`, `wright-meta`, `wright-misfit-toggle`, `butir-search`, `butir-count`, `butir-empty`, `partisipan-search`, `partisipan-count`, `partisipan-empty`, `summary-counts`, `summary-note`, `cmp-from`, `cmp-to`, `cmp-statement`, `cmp-caveat`, `cmp-counts`, `cmp-means`, `cmp-chart`, `cmp-tbody`, `cmp-delta-only`, `cmp-empty`, `cmp-data`.
+
+`explorer-fetch-error` is injected by JavaScript at runtime and therefore does not appear in any template source.
+
+### Frozen class names (FROZEN)
+
+- Templates: `tabs`, `tab`, `explorer-panel`, `chart-scroll`, `readout`, `search-bar`, `compare-strip`, `header-actions`.
+- JavaScript/CSS only (never in a template): `wright-item-tick`, `tick-mark`, `focus-ring`, `delta-row`.
+- State classes: `is-active`, `is-loaded`, `is-misfit`, `is-misfit-highlight`, `is-prominent`, `is-muted`.
+
+Rule: a class used in a template must be in this list or already defined in `app/static/app.css`; the exhaustive class and template counts are pinned by `tests/test_ui_contract.py`.
+
+### JavaScript contracts (FROZEN)
+
+- `window.RaschExplorerCharts.drawWright(container, payload)`, `.drawDelta(container, cmpData)`, `.writeReadout(container, itemRow)`.
+- `window.RaschExplorer.boot()`: idempotent, runs on `DOMContentLoaded`, no-op when `#explorer-data` is absent. It appends the misfit count segment (frozen copy, counted from the embedded payload's items) to the server-rendered `#wright-meta` line; the server-rendered part alone stays meaningful without JavaScript.
+- `window.RaschExplorer.formatIdNum(s)`: JavaScript mirror of the Jinja `id_num` filter. The Python rule is: a value whose text fully matches `[+-]?\d+(\.\d+)?` gets its integer part grouped with `.` and its decimal separator turned into `,`, with the stored decimal digits preserved exactly (so `73.5` renders `73,5` and `9.90` renders `9,90`); every other string passes through untouched, and `None` renders empty. Note the one boundary the mirror cannot cross: a JavaScript `Number` that had trailing zeros in its source text loses them (`0.0` becomes `0`), because JS numbers carry no scale. Every number this explorer renders comes from a stored CSV string or from an integer count, so no rendered value is affected; do not "fix" this by padding decimals, that would break the verbatim rule. Every client-rendered number passes through it.
+- Fetch rule: `explorer.js` may fetch ONLY same-origin `/analyses/<id>/explore?fragment=...&view=...` HTML. Never JSON, never another path.
+- Sort contract: `data-explorer-table` on `<table>`, `.th-sort` buttons, `data-sort="number|text"`, `aria-sort` starting at `none`, `<tr data-order="N">` holding the engine order used to restore it.
+- Bands rewritten from a fragment must preserve: `view`, `q_item` / `q_person`, `page_item` / `page_person`.
+
+### Copy strings (FROZEN, exact)
+
+`Jelajahi hasil` · tab labels `Peta Wright`, `Butir`, `Partisipan`, `Ringkasan`, `Bandingkan` · `Fokus pada butir di peta untuk melihat rincian.` · `Sorot butir misfit (INFIT MNSQ ≥ 1,50)` · `Memuat data...` · `Tidak ada baris yang cocok dengan pencarian.` · `Hapus pencarian` · `Belum ada analisis lain yang sudah selesai untuk dibandingkan. Jalankan analisis pada berkas ini atau berkas lain untuk membandingkan.` · `Pilih dua analisis untuk dibandingkan.` · `Selisih lintas berkas hanya bermakna bila kedua analisis memakai butir penghubung (anchor) yang sama.` · `Cocok: <n> butir. Hanya di analisis pertama: <n>. Hanya di analisis kedua: <n>.` · `Dipasangkan berdasarkan label butir.` · `Dipasangkan berdasarkan nomor butir (kedua berkas tidak memuat label butir).` · `Butir tidak dapat dipasangkan: berkas tanpa label butir hanya dapat dibandingkan bila jumlah butirnya sama.` · `Membandingkan Analisis #<id> (<YYYY-MM-DD HH:MM>) dengan Analisis #<id> (<YYYY-MM-DD HH:MM>).` · `Tampilkan hanya perubahan ≥ 0,30 (ambang tampilan, bukan uji statistik).` · `Data peta Wright tidak dapat dibaca untuk analisis ini.` · meta line `Partisipan: <n> · Butir: <n> · Dikecualikan (skor sempurna/nol): <n>` · `Butir misfit (INFIT MNSQ ≥ 1,50): <n>.` · `Gagal memuat data. Muat ulang halaman dan coba lagi.` · noscript: `Halaman penjelajah ini membutuhkan JavaScript. Buka halaman hasil analisis untuk melihat tabel lengkap.` plus a link back to `/analyses/{id}`.
+
+Fragment-only copy (also frozen, exact): `Cari butir` · `Cari partisipan` · `Cari` · `Menampilkan <n> dari <n> butir.` · `Menampilkan <n> dari <n> responden.` · `Memuat estimasi measure, S.E., dan statistik kecocokan untuk <n> butir sesuai urutan bawaan mesin.` · `Memuat estimasi ability measure, S.E., dan statistik kecocokan untuk <n> responden sesuai urutan misfit.` · `Sortir hanya berlaku pada halaman yang terlihat.` · `Memuat statistik agregat dari mesin untuk keseluruhan proses analisis.` · `Angka partisipan di tabel ini mencakup skor sempurna dan nol; peta Wright hanya memakai partisipan non-ekstrem.` · `Analisis pertama` · `Analisis kedua` · compare table headers `Butir`, `Measure analisis pertama`, `Measure analisis kedua`, `Selisih` · compare option format `Analisis #<id> · <dataset filename> · <YYYY-MM-DD HH:MM>` · `Rata-rata measure butir: <a> (analisis pertama) vs <b> (analisis kedua).` · pager labels `Sebelumnya` / `Selanjutnya` · the compare trigger reuses the tab label `Bandingkan`.
+
+Chart copy (also frozen, exact): `skala logit` · `Partisipan` · `Butir soal (tingkat kesulitan)` · `Histogram sebaran partisipan` · `Batas misfit 1,50` · `Grafik selisih butir` · readout labels `Measure`, `S.E.`, `INFIT MNSQ`, `INFIT ZSTD`, `OUTFIT MNSQ`, `OUTFIT ZSTD`, `Korelasi butir-total`, `Kesesuaian jawaban`, `Infit tinggi (MNSQ ≥ 1,50)` · item title format `Butir <entry> <label>` (the label part omitted when the stored label is empty). `Partisipan` is the axis label of the count scale (it sits above the three count labels and names what they count), not a second title for the chart.
+
+### Rendering rules (FROZEN)
+
+No `<style>` block and no `style="..."` attribute in any explorer template; all styling lives in `app.css`. No raw hex colour outside `tokens.css`. No external URL beyond `base.html`'s pre-existing font links. No em dash in copy. The active tab is the page's single primary-styled element. No information carried by colour alone: misfit also changes weight and appears in counts, prominence also changes weight. Empty, error, and loading states are rendered text, never a hidden placeholder.
+
+### Verification (F4)
+
+- `python3 -c` key grep over this file → `INTERFACE OK` (keys: `/analyses/{id}/explore`, `fragment=`, `explorer-data`, `cmp-data`, `explorer-charts.js`, `RaschExplorer`, `q_item`, `q_person`, `explore/fragment.html`, `render_view`, `data-explorer-table`, `Jelajahi hasil`, `184`).
+- `tests/test_explorer_routes.py` (21 tests) plus the pre-existing suite → `149 passed`.
+- `python3 scripts/verify_explorer.py` → 184 browser checks in 11 groups, `184/184 PASS`, `rc=0`; budgets: `loadEventEnd ≤ 400 ms`, first `butir` activation ≤ 150 ms, cached re-activation ≤ 50 ms, 147-row sort ≤ 100 ms, search round-trip ≤ 250 ms, zero long tasks > 100 ms, initial HTML ≤ 120,000 B, embedded payload ≤ 60,000 B.
+
 
 

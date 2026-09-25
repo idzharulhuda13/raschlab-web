@@ -71,7 +71,7 @@ def test_no_style_blocks_in_any_template():
         assert "<style" not in content, f"<style tag found in {html_file}"
 
     page_templates = list(templates_dir.glob("*.html"))
-    assert len(page_templates) == 10, f"Expected 10 page templates directly under app/templates, found {len(page_templates)}"
+    assert len(page_templates) == 11, f"Expected 11 page templates directly under app/templates, found {len(page_templates)}"
     for html_file in page_templates:
         content = html_file.read_text()
         assert 'style="' not in content, f'style=" attribute found in page template {html_file}'
@@ -313,11 +313,12 @@ def test_all_template_classes_defined_in_app_css():
     undefined = used_classes - defined_classes
     assert not undefined, f"Used classes not defined in app.css: {sorted(undefined)}"
 
-    # Measured with the exact logic above: 125 distinct classes are used across
-    # app/templates/**/*.html and 132 classes are defined in app/static/app.css.
+    # Measured with the exact logic above: 134 distinct classes are used across
+    # app/templates/**/*.html (now including the explorer templates) and 148 classes
+    # are defined in app/static/app.css (now including the F4 explorer section).
     # Pinning both numbers makes adding or dropping a class a deliberate act.
-    assert len(used_classes) == 125, f"Used template class count changed to {len(used_classes)}"
-    assert len(defined_classes) == 132, f"Defined app.css class count changed to {len(defined_classes)}"
+    assert len(used_classes) == 134, f"Used template class count changed to {len(used_classes)}"
+    assert len(defined_classes) == 148, f"Defined app.css class count changed to {len(defined_classes)}"
 
 
 def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_ujian.csv") -> tuple[int, int]:
