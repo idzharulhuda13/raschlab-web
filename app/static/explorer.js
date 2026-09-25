@@ -619,14 +619,32 @@
     handleTableSort(table, sortBtn);
   });
 
+  /**
+   * The participant histogram has its own boot: the Wright payload the main boot waits for does not
+   * exist on this view, and the earlier build returned before ever reaching the chart.
+   */
+  function bootPersonHistogram() {
+    var histEl = document.getElementById('partisipan-chart');
+    var histDataEl = document.getElementById('partisipan-hist-data');
+    if (!histEl || !histDataEl) return;
+    if (!window.RaschExplorerCharts || typeof window.RaschExplorerCharts.drawPersonHistogram !== 'function') return;
+    try {
+      window.RaschExplorerCharts.drawPersonHistogram(histEl, JSON.parse(histDataEl.textContent));
+    } catch (err) {
+      /* the server already rendered the caption and the table behind it */
+    }
+  }
+
   window.RaschExplorer = {
     boot: boot,
     formatIdNum: formatIdNum
   };
 
   if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootPersonHistogram);
     document.addEventListener('DOMContentLoaded', boot);
   } else {
+    bootPersonHistogram();
     boot();
   }
 })();

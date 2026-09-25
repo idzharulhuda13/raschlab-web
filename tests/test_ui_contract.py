@@ -317,8 +317,11 @@ def test_all_template_classes_defined_in_app_css():
     # app/templates/**/*.html (now including the explorer templates) and 148 classes
     # are defined in app/static/app.css (now including the F4 explorer section).
     # Pinning both numbers makes adding or dropping a class a deliberate act.
-    assert len(used_classes) == 134, f"Used template class count changed to {len(used_classes)}"
-    assert len(defined_classes) == 148, f"Defined app.css class count changed to {len(defined_classes)}"
+    # 136: the partisipan histogram added .chart-block and .chart-caption, both defined in app.css and
+    # both carrying contract meaning, so the count moves with them on purpose.
+    assert len(used_classes) == 136, f"Used template class count changed to {len(used_classes)}"
+    # 150: .chart-block and .chart-caption came in with the partisipan histogram.
+    assert len(defined_classes) == 150, f"Defined app.css class count changed to {len(defined_classes)}"
 
 
 def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_ujian.csv") -> tuple[int, int]:

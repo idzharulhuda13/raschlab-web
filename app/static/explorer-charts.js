@@ -11,16 +11,31 @@
   // Colours are resolved from CSS tokens at draw time, so a theme switch has to redraw the charts.
   // Without this the dark theme kept the light-theme fills: measured 1,22:1 contrast for item
   // labels on the dark panel, against a 4,5:1 requirement. One listener repaints the last draw.
-  var lastDraw = null;
+  var draws = [];
 
   function rememberDraw(kind, container, data) {
-    lastDraw = { kind: kind, container: container, data: data };
+    for (var i = 0; i < draws.length; i++) {
+      if (draws[i].container === container) {
+        draws[i] = { kind: kind, container: container, data: data };
+        return;
+      }
+    }
+    draws.push({ kind: kind, container: container, data: data });
   }
 
+  /**
+   * Repaint every chart on the page, not just the most recent one: a page can carry the map and the
+   * participant histogram at once, and repainting only the last draw left the other one in the old
+   * palette while the rest of the page switched themes.
+   */
   function repaintForTheme() {
-    if (!lastDraw || !lastDraw.container) return;
-    if (lastDraw.kind === 'wright') drawWright(lastDraw.container, lastDraw.data);
-    else if (lastDraw.kind === 'delta') drawDelta(lastDraw.container, lastDraw.data);
+    for (var i = 0; i < draws.length; i++) {
+      var d = draws[i];
+      if (!d.container) continue;
+      if (d.kind === 'wright') drawWright(d.container, d.data);
+      else if (d.kind === 'delta') drawDelta(d.container, d.data);
+      else if (d.kind === 'person-hist') drawPersonHistogram(d.container, d.data);
+    }
   }
 
   function attachThemeRepaint() {
@@ -791,7 +806,117 @@
     return svg;
   }
 
+  /**
+   * Participant distribution: one bar per measure bin, on the same logit axis as the map.
+   * Payload layout: { bins: [[measure, persons], ...], total, filled, step, min, max }.
+   * Chart rules follow the block above: text never below the pinned 12px, colours read from the tokens
+   * at draw time so the theme swap repaints it, and the SVG keeps a 1:1 minimum width so the bars stay
+   * legible on a phone instead of shrinking with the viewport.
+   */
+  function drawPersonHistogram(container, payload) {
+    if (!container || !container.appendChild) return null;
+    if (!payload || !Array.isArray(payload.bins) || payload.bins.length === 0) {
+      clearElement(container);
+      return null;
+    }
+    clearElement(container);
+
+    var bins = payload.bins.slice().sort(function (a, b) {
+      return parseFloat(a[0]) - parseFloat(b[0]);
+    });
+    var minM = parseFloat(bins[0][0]);
+    var maxM = parseFloat(bins[bins.length - 1][0]);
+    var maxPersons = 1, totalPersons = 0;
+    for (var i = 0; i < bins.length; i++) {
+      var count = parseInt(bins[i][1], 10) || 0;
+      totalPersons += count;
+      if (count > maxPersons) maxPersons = count;
+    }
+    var stepStr = payload.step || '0.25';
+
+    var svgWidth = 860, svgHeight = 210, marginL = 68, marginR = 25;
+    var topMargin = 34, bottomMargin = 48, baselineY = svgHeight - bottomMargin;
+    var plotWidth = svgWidth - marginL - marginR, plotHeight = baselineY - topMargin;
+    var fontUi = getToken('--font-ui') || 'system-ui, sans-serif';
+    var fontMono = getToken('--font-mono') || 'ui-monospace, monospace';
+    var ink = getToken('--ink'), muted = getToken('--muted'), line = getToken('--line');
+    var control = getToken('--control'), accent = getToken('--accent');
+
+    var svg = svgEl('svg', {
+      role: 'img',
+      'aria-label': 'Histogram sebaran partisipan: rentang ' + minM.toFixed(2) + ' hingga ' + maxM.toFixed(2) +
+        ' logit, ' + totalPersons + ' partisipan non-ekstrem, lebar bin ' + stepStr + ' logit',
+      viewBox: '0 0 ' + svgWidth + ' ' + svgHeight, width: '100%', height: svgHeight,
+      style: 'min-width: ' + svgWidth + 'px; height: auto; display: block;'
+    });
+    svg.appendChild(svgEl('title', null,
+      'Histogram sebaran partisipan (rentang ' + minM.toFixed(2) + ' sampai ' + maxM.toFixed(2) + ' logit)'));
+    svg.appendChild(svgEl('text', {
+      x: marginL, y: 18, 'font-family': fontUi, 'font-size': '12', fill: muted
+    }, 'Populasi: partisipan non-ekstrem | Lebar bin: ' + stepStr + ' logit'));
+
+    var curBinW = plotWidth / bins.length;
+    var barGroup = svgEl('g'), barFrag = document.createDocumentFragment();
+    for (var b = 0; b < bins.length; b++) {
+      var barCount = parseInt(bins[b][1], 10) || 0;
+      if (barCount === 0) continue;
+      var barW = Math.max(3, curBinW - 2);
+      var barH = (barCount / maxPersons) * plotHeight;
+      var rect = svgEl('rect', {
+        x: marginL + b * curBinW + (curBinW - barW) / 2, y: baselineY - barH,
+        width: barW, height: barH, fill: accent, rx: 1, 'data-hist-bar': bins[b][0]
+      });
+      rect.appendChild(svgEl('title', null, bins[b][0] + ' logit: ' + barCount + ' partisipan'));
+      barFrag.appendChild(rect);
+    }
+    barGroup.appendChild(barFrag);
+    svg.appendChild(barGroup);
+
+    var axisGroup = svgEl('g'), axisFrag = document.createDocumentFragment();
+    axisFrag.appendChild(svgEl('line', {
+      x1: marginL, y1: baselineY, x2: marginL + plotWidth, y2: baselineY,
+      stroke: control, 'stroke-width': '1.5', 'vector-effect': 'non-scaling-stroke'
+    }));
+    var yTicks = [0, Math.round(maxPersons / 2), maxPersons];
+    for (var yIdx = 0; yIdx < yTicks.length; yIdx++) {
+      var yVal = yTicks[yIdx], yPos = baselineY - (yVal / maxPersons) * plotHeight;
+      if (yVal > 0) {
+        axisFrag.appendChild(svgEl('line', {
+          x1: marginL, y1: yPos, x2: marginL + plotWidth, y2: yPos,
+          stroke: line, 'stroke-width': '1', 'stroke-dasharray': '2 4', 'vector-effect': 'non-scaling-stroke'
+        }));
+      }
+      axisFrag.appendChild(svgEl('text', {
+        x: marginL - 10, y: yPos + 4, 'text-anchor': 'end',
+        'font-family': fontMono, 'font-size': '12', fill: muted
+      }, String(yVal)));
+    }
+    for (var t = 0; t < bins.length; t++) {
+      var m = parseFloat(bins[t][0]), tickX = marginL + t * curBinW + curBinW / 2;
+      var isMajor = Math.abs(m - Math.round(m)) < 0.01;
+      if (isMajor || t === 0 || t === bins.length - 1) {
+        axisFrag.appendChild(svgEl('text', {
+          x: tickX, y: baselineY + 20, 'text-anchor': 'middle',
+          'font-family': fontMono, 'font-size': '12', fill: ink
+        }, bins[t][0]));
+      }
+    }
+    axisFrag.appendChild(svgEl('text', {
+      x: marginL + plotWidth, y: baselineY + 38, 'text-anchor': 'end',
+      'font-family': fontUi, 'font-size': '12', fill: muted
+    }, 'skala logit'));
+    axisGroup.appendChild(axisFrag);
+    svg.appendChild(axisGroup);
+
+    container.appendChild(svg);
+    rememberDraw('person-hist', container, payload);
+    /* this view has no Wright chart, so the observer is not attached anywhere else on the page */
+    attachThemeRepaint();
+    return svg;
+  }
+
   window.RaschExplorerCharts = {
+    drawPersonHistogram: drawPersonHistogram,
     drawWright: drawWright,
     drawDelta: drawDelta,
     writeReadout: writeReadout

@@ -695,6 +695,18 @@ h2,
   font-family: var(--font-mono);
 }
 
+.chart-block {
+  display: block;
+  margin-bottom: var(--space-4);
+}
+
+.chart-caption {
+  display: block;
+  font-size: var(--step-14);
+  color: var(--muted);
+  margin-top: var(--space-2);
+}
+
 .table-caption {
   display: block;
   font-size: var(--step-14);
@@ -1663,6 +1675,7 @@ figure.summary-figure .def-value {
    the design system's micro label, and it never shrinks with the viewport (the chart keeps a 1:1
    minimum width and scrolls inside .chart-scroll instead). */
 #wright-scale svg text,
+#partisipan-chart svg text,
 #cmp-chart svg text {
   font-size: var(--step-12);
 }

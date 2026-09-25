@@ -1281,6 +1281,56 @@ def group_e_interactive(page: Any, base_url: str,
         and geom["overlaps"] == 0 and geom["outside"] == 0
         and geom["uncovered"] == geom["tethered"]
     )
+    # E30: the participant distribution renders, never drops its text below the pinned floor, and
+    # repaints on a theme swap. The view carried no figure at all before this pass, on a page whose
+    # other chart did (a single-draw repaint left this one in the old palette).
+    partisipan_url = f"{base_url}/analyses/{analysis1_id}/explore?view=partisipan"
+    goto(page, partisipan_url)
+    hist = page.evaluate(
+        """() => {
+        const box = document.getElementById('partisipan-chart');
+        const svg = box ? box.querySelector('svg') : null;
+        if (!svg) return null;
+        const wrap = box.closest('.chart-scroll');
+        const texts = [...svg.querySelectorAll('text')];
+        const bars = svg.querySelectorAll('rect[data-hist-bar]');
+        const view = svg.viewBox.baseVal;
+        const drawn = svg.getBoundingClientRect();
+        return {bars: bars.length, texts: texts.length,
+                minText: texts.length ? Math.min(...texts.map(t => parseFloat(getComputedStyle(t).fontSize))) : 0,
+                scale: view && view.width ? drawn.width / view.width : 0,
+                aria: svg.getAttribute('aria-label') || '',
+                fill: bars.length ? getComputedStyle(bars[0]).fill : '',
+                scrollable: wrap ? wrap.scrollWidth >= wrap.clientWidth : false};
+        }"""
+    )
+    theme_fill = ""
+    if hist and page.locator("#theme-toggle").count():
+        page.click("#theme-toggle")
+        page.wait_for_timeout(500)
+        theme_fill = page.evaluate(
+            """() => {
+            const bar = document.querySelector('#partisipan-chart svg rect[data-hist-bar]');
+            return bar ? getComputedStyle(bar).fill : '';
+            }"""
+        )
+        page.click("#theme-toggle")
+        page.wait_for_timeout(400)
+    e30_ok = bool(
+        hist and hist["bars"] > 1 and hist["texts"] > 0
+        and hist["minText"] >= 12 and hist["scale"] >= 1
+        and hist["aria"] and hist["scrollable"]
+        and (theme_fill == "" or theme_fill != hist["fill"])
+    )
+    res.record(
+        "partisipan: distribution renders, text at or above the pinned floor, repaints on theme swap",
+        (f"bars={hist['bars']} texts={hist['texts']} minText={hist['minText']} "
+         f"scale={hist['scale']:.3f} scrollable={hist['scrollable']} "
+         f"fill={hist['fill']} afterTheme={theme_fill or 'n/a'}") if hist else "no svg found",
+        e30_ok,
+    )
+
+
     res.record(
         "wright: labels never overlap, stay in the canvas, and cover the item's own position",
         (f"ticks={geom['ticks']} labels={geom['labels']} overlaps={geom['overlaps']} "
@@ -1843,7 +1893,7 @@ def main() -> int:
         print(f"TOTAL: {total} checks  |  {passed} PASS  |  {failed} FAIL")
         print(f"{'=' * 72}")
 
-        EXPECTED_TOTAL = 185
+        EXPECTED_TOTAL = 186
         if total != EXPECTED_TOTAL:
             print(
                 f"\nERROR: Expected {EXPECTED_TOTAL} checks, got {total}. "

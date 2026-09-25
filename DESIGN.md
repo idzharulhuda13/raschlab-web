@@ -237,7 +237,7 @@ by the *shape* of its composition, measured after render:
 |---|---|---|
 | Peta Wright | full-bleed scale, no card chrome, a compact readout strip above it | the map |
 | Butir | search strip, then a dense table that scrolls with a pinned header | the table |
-| Partisipan | search strip and paged table inside one scroll region | the count |
+| Partisipan | score histogram over a search strip and a paged table, all inside one scroll region | the count |
 | Ringkasan | labelled figure grid, 2-4 columns at `≥720px`, each figure on a top rule | the figures |
 | Bandingkan | control strip of two paired selects first, then the delta chart, then the paired table | the delta |
 

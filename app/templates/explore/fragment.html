@@ -76,6 +76,17 @@
 {% endif %}
 
 {% elif render_view == 'partisipan' %}
+{% if hist_json %}
+<div class="chart-block">
+  <div class="chart-scroll">
+    <div id="partisipan-chart" role="img" aria-label="Histogram sebaran partisipan pada skala logit"></div>
+  </div>
+  <p class="chart-caption">Sebaran ability measure partisipan: {{ hist_ctx.total | id_num }} partisipan dalam {{ hist_ctx.bins | id_num }} bin selebar {{ hist_ctx.step }} logit.</p>
+  <script type="application/json" id="partisipan-hist-data">{{ hist_json | safe }}</script>
+</div>
+{% elif hist_error %}
+<p class="field-hint" id="partisipan-chart-error">{{ hist_error }}</p>
+{% endif %}
 <form class="search-bar" method="get" action="/analyses/{{ analysis.id }}/explore">
   <input type="hidden" name="view" value="partisipan">
   <input type="hidden" name="page_person" value="1">

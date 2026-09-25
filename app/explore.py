@@ -29,6 +29,7 @@ ANALYSIS_NOT_FOUND_MSG = "Analisis tidak ditemukan."
 DATASET_NOT_FOUND_MSG = "Dataset tidak ditemukan."
 STALE_RUN_ERROR_MSG = "Analisis terhenti saat berjalan. Jalankan ulang."
 WRIGHT_ERROR_MSG = "Data peta Wright tidak dapat dibaca untuk analisis ini."
+HIST_ERROR_MSG = "Sebaran partisipan tidak dapat digambar dari berkas analisis ini."
 COMPARE_CAVEAT_MSG = (
     "Selisih lintas berkas hanya bermakna bila kedua analisis memakai butir penghubung (anchor) yang sama."
 )
@@ -47,6 +48,39 @@ TWO_DECIMALS = Decimal("0.01")
 
 class ExplorerDataError(Exception):
     """Raised when Wright map or item data is malformed or empty."""
+
+
+def build_person_histogram(payload: dict[str, Any]) -> dict[str, Any]:
+    """Bars for the participant distribution, taken from the Wright binning.
+
+    Reuses the map's own bins on purpose: one edge and one count per bin, so the histogram and the
+    person bars on the map can never disagree about either. Returns
+    ``{bins: [[measure, persons], ...], total, filled, step, min, max}``.
+    """
+    bins: list[list[Any]] = []
+    for entry in payload.get("bins", []):
+        try:
+            measure = float(entry[0])
+            persons = int(entry[1])
+        except (IndexError, TypeError, ValueError):
+            continue
+        bins.append([f"{measure:.2f}", persons])
+    bins.sort(key=lambda item: float(item[0]))
+    total = sum(item[1] for item in bins)
+    step = "0.25"
+    if len(bins) > 1:
+        delta = abs(float(bins[1][0]) - float(bins[0][0]))
+        if delta > 0:
+            step = f"{delta:.2f}"
+    return {
+        "schema": 1,
+        "bins": bins,
+        "total": total,
+        "filled": sum(1 for item in bins if item[1] > 0),
+        "step": step,
+        "min": bins[0][0] if bins else None,
+        "max": bins[-1][0] if bins else None,
+    }
 
 
 def build_wright_payload(
@@ -370,6 +404,9 @@ def get_explore(
         "from": from_id,
         "to": to_id,
         "wright_error": None,
+        "hist_json": None,
+        "hist_ctx": None,
+        "hist_error": None,
         "item_ctx": None,
         "person_ctx": None,
         "summary_headers": [],
@@ -411,6 +448,16 @@ def get_explore(
             "paged": person_paged,
         }
         context["page_person"] = person_paged.page
+        try:
+            histogram = build_person_histogram(build_wright_payload(wright_rows, item_rows))
+            context["hist_json"] = json.dumps(histogram, separators=(",", ":")).replace("</", "<\\/")
+            context["hist_ctx"] = {
+                "total": histogram["total"],
+                "bins": len(histogram["bins"]),
+                "step": histogram["step"],
+            }
+        except (ExplorerDataError, ValueError, IndexError, KeyError, TypeError):
+            context["hist_error"] = HIST_ERROR_MSG
 
     elif render_view == "ringkasan":
         summary_headers = summary_rows[:1] if summary_rows else []

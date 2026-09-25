@@ -501,4 +501,32 @@ names below are frozen; the budgets are hard requirements for any future feature
   not only rows: 500 person rows cost 816 KB at 15 items and 1,27 MB at 85 items, which is why
   the per-page budget is 2 MB. Data cleaning is not a substitute for this ceiling: a file whose
   cells are real responses cannot be shrunk without dropping respondents or items, and that
+  not only rows: 500 person rows cost 816 KB at 15 items and 1,27 MB at 85 items, which is why
+  the per-page budget is 2 MB. Data cleaning is not a substitute for this ceiling: a file whose
+  cells are real responses cannot be shrunk without dropping respondents or items, and that
   changes the calibration.
+
+## F8 — Participant distribution in the partisipan view (25 Sep 2026, frozen)
+
+The artifact pairs its participant table with a score histogram; this product showed only the table. The
+chart is ported, and these names are part of the interface: change them only with the tests and the
+harness updated in the same commit.
+
+| name | kind | contract |
+|---|---|---|
+| `#partisipan-chart` | element (div) | container the renderer fills. A **div**, not an `svg`: the renderer creates its own root, and an `svg` nested inside an `svg` silently drops its `viewBox` and renders at 300x150 |
+| `#partisipan-hist-data` | `script[type=application/json]` | histogram payload, `schema` 1: `bins` `[[measure, persons], ...]` sorted ascending, plus `total`, `filled`, `step`, `min`, `max` |
+| `#partisipan-chart-error` | element | rendered instead of the chart when the analysis files cannot be binned, carrying `HIST_ERROR_MSG` |
+| `.chart-block`, `.chart-caption` | class | the chart plus its caption, above the search strip |
+| `rect[data-hist-bar]` | attribute | one bar per non-empty bin, carrying that bin's measure |
+| `RaschExplorerCharts.drawPersonHistogram(container, payload)` | function | draws the distribution; registers itself with `rememberDraw('person-hist', container, payload)` |
+| `build_person_histogram(payload)` | backend helper | projects the Wright payload's bins onto person counts, so map and histogram share one binning and cannot disagree about an edge or a count |
+| `HIST_ERROR_MSG` | constant | `Sebaran partisipan tidak dapat digambar dari berkas analisis ini.` |
+
+**Repaint contract, changed in the same commit.** `explorer-charts.js` now keeps a list of every chart drawn
+on the page and repaints all of them on a theme swap. It previously kept only the most recent draw, so on a
+page that also draws the map the histogram stayed in the light palette while the rest of the page switched
+(the measured symptom: bar `rgb(14,90,71)` under `data-theme="dark"` with `--accent` already `#63D8A8`).
+
+**Invariant the tests enforce.** The histogram is the map's `NR_PERSON` column verbatim, bin for bin, so
+`build_person_histogram` must never re-bin.

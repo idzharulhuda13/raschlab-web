@@ -610,6 +610,39 @@ def test_explore_person_search_filters(client: TestClient):
 
 
 # ---------------------------------------------------------------------------
+# (16b) Partisipan histogram payload
+# ---------------------------------------------------------------------------
+
+def test_explore_partisipan_histogram_agrees_with_the_map(client: TestClient):
+    """The distribution the artifact pairs with the table, on the map's own binning."""
+    user_id = _create_authenticated_user(client)
+    files = _build_standard_files()
+    analysis_id = _seed_done(user_id, "sample.csv", files)
+
+    html = client.get(f"/analyses/{analysis_id}/explore?view=partisipan").text
+
+    assert 'id="partisipan-chart"' in html
+    assert 'id="partisipan-hist-data"' in html
+    assert "chart-caption" in html
+
+    payload = json.loads(html.split('id="partisipan-hist-data">')[1].split("</script>")[0])
+    map_payload = json.loads(html.split('id="explorer-data">')[1].split("</script>")[0])
+
+    assert payload["schema"] == 1
+    assert len(payload["bins"]) == len(map_payload["bins"])
+    assert payload["total"] == sum(int(b[1]) for b in map_payload["bins"])
+    assert payload["total"] > 0
+    assert payload["step"]
+
+    # Sorted by measure, counts integral, and the histogram is the map's person column verbatim.
+    measures = [float(b[0]) for b in payload["bins"]]
+    assert measures == sorted(measures)
+    for entry, source in zip(payload["bins"], map_payload["bins"]):
+        assert entry[1] == int(source[1])
+    assert payload["filled"] == sum(1 for b in payload["bins"] if b[1] > 0)
+
+
+# ---------------------------------------------------------------------------
 # (15) Pager preserves view and query
 # ---------------------------------------------------------------------------
 
