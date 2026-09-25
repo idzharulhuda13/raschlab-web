@@ -228,6 +228,27 @@ redirect into a profile page is a design bug even when that page is flawless.
 invisible for `I`, `l`, `J`, which is what `idzharul.huda@gmail.com` rendered (a thin stroke on a 28px
 tinted disc reads as a broken image). Minimum 44px on mobile, no border, no glow.
 
+### The five explorer views (each its own shape, RHYTHM 3)
+
+One route, five views, and they must not read as the same page with different words. Each view is defined
+by the *shape* of its composition, measured after render:
+
+| view | shape | focal point |
+|---|---|---|
+| Peta Wright | full-bleed scale, no card chrome, a compact readout strip above it | the map |
+| Butir | search strip, then a dense table that scrolls with a pinned header | the table |
+| Partisipan | search strip and paged table inside one scroll region | the count |
+| Ringkasan | labelled figure grid, 2-4 columns at `≥720px`, each figure on a top rule | the figures |
+| Bandingkan | control strip of two paired selects first, then the delta chart, then the paired table | the delta |
+
+**Ringkasan is the view most at risk of the banned card wall.** Its figures are one grid, each a label
+above a mono value on a `--line` rule, and only the first figure may carry the accent rule. A figure grid,
+never four equal stat cards; the grid must stay multi-column at desktop width, because a single column is
+how the earlier build read as a stacked list.
+
+**Long tables.** Tables with more than about 40 rows scroll inside `.table-scroll` with a sticky header, so
+the column names never leave the screen while the console is being read. The cap is `70vh`.
+
 ## Components and their states
 
 - **Button**: primary (accent fill, ground-coloured label, 44px tall, radius 10px), secondary (`--control`

@@ -297,7 +297,7 @@ a:hover {
 }
 
 .band + .band {
-  margin-top: var(--space-16);
+  margin-top: var(--space-12);
 }
 
 .band--narrow {
@@ -705,8 +705,15 @@ h2,
 
 .table-scroll {
   width: 100%;
-  overflow-x: auto;
+  max-height: 70vh;
+  overflow: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 @media (max-width: 719px) {
@@ -1174,7 +1181,7 @@ line.miss-marker {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  padding: var(--space-8);
+  padding: var(--space-6);
 }
 
 .auth-title {
@@ -1309,10 +1316,17 @@ line.miss-marker {
   letter-spacing: 0.02em;
 }
 
+/* Ringkasan: a labelled figure grid, not a stacked list of equal rows (RHYTHM 3) */
 .summary-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-6);
+  gap: var(--space-4) var(--space-6);
+}
+
+@media (min-width: 720px) {
+  .summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
 }
 
 .summary-col {
@@ -1324,9 +1338,17 @@ line.miss-marker {
 
 .summary-figure {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
   font-variant-numeric: tabular-nums;
+}
+
+.summary-figure:first-child {
+  border-top: 2px solid var(--accent);
 }
 
 
