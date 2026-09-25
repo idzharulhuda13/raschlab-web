@@ -369,7 +369,18 @@ All values are strings exactly as stored in the CSVs; `ENTRY` is the only intege
 ### Frozen class names (FROZEN)
 
 - Templates: `tabs`, `tab`, `explorer-panel`, `chart-scroll`, `readout`, `search-bar`, `compare-strip`, `header-actions`.
-- JavaScript/CSS only (never in a template): `wright-item-tick`, `tick-mark`, `focus-ring`, `delta-row`.
+- JavaScript/CSS only (never in a template): `wright-item-tick`, `tick-mark`, `focus-ring`, `label-leader`, `delta-row`.
+- Wright item label layout (frozen; a change here is a contract change, not a style tweak):
+  - `LABEL_BOX_W = 38`, `LABEL_PITCH = 46`, `ITEM_TOP = 54`, `LABEL_ROWS_MAX = 12` (viewBox units).
+    The pitch is wider than a box, so two label boxes can never overlap however tightly the item
+    measures cluster. A full column spills to the nearest column with room instead of running down.
+  - The canvas height derives from the tallest column after placement, so the strip never clips.
+  - A label may sit off the item's own x only while its box still covers that x (offset <= half a
+    box). Past that the group carries a `label-leader` line from the box edge to `data-bin-x` on the
+    group. `data-bin-x` is the item's own bin centre in viewBox units; the invariant is checked by
+    `scripts/verify_explorer.py` (E29).
+  - The `Batas misfit 1,50` legend sits at the top-right of the plot (y 32/36), never inside the
+    item strip. Gridlines sit at the count levels behind the bars.
 - State classes: `is-active`, `is-loaded`, `is-misfit`, `is-misfit-highlight`, `is-prominent`, `is-muted`.
 
 Rule: a class used in a template must be in this list or already defined in `app/static/app.css`; the exhaustive class and template counts are pinned by `tests/test_ui_contract.py`.

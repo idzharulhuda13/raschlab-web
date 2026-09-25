@@ -127,7 +127,6 @@
     var totalPersons = 0;
     var totalItems = 0;
     var maxPersons = 1;
-    var maxItemsInBin = 1;
 
     for (var i = 0; i < bins.length; i++) {
       var pCount = parseInt(bins[i][1], 10) || 0;
@@ -135,8 +134,6 @@
       totalPersons += pCount;
       totalItems += itCount;
       if (pCount > maxPersons) maxPersons = pCount;
-      var entries = String(bins[i][3] || '').trim().split(/\s+/).filter(Boolean);
-      if (entries.length > maxItemsInBin) maxItemsInBin = entries.length;
     }
 
     var itemsByEntry = new Map();
@@ -157,9 +154,58 @@
     var axisY = 190;
     var personAreaHeight = 145;
     var itemRowHeight = 18;
-    var itemAreaHeight = Math.max(250, maxItemsInBin * itemRowHeight + 65);
-    var svgHeight = axisY + itemAreaHeight;
     var curBinW = plotWidth / bins.length;
+
+    // Item label layout, computed before the canvas is built so the canvas can size itself to
+    // the tallest column. Labels sit in columns on a grid whose pitch is wider than a label box
+    // (38 + 8), so two boxes can never overlap however tightly the items cluster; a column that
+    // is full spills to the nearest column with room instead of running off the bottom.
+    var LABEL_BOX_W = 38;
+    var LABEL_PITCH = 46;
+    var ITEM_TOP = 54;
+    var LABEL_ROWS_MAX = 12;
+    var itemRows = [];
+    for (var rIdx = 0; rIdx < bins.length; rIdx++) {
+      var binEntries = String(bins[rIdx][3] || '').trim().split(/\s+/).filter(Boolean);
+      for (var bEntry = 0; bEntry < binEntries.length; bEntry++) {
+        var parsedEntry = parseInt(binEntries[bEntry], 10);
+        if (isNaN(parsedEntry)) continue;
+        itemRows.push({
+          entry: parsedEntry,
+          binX: marginL + rIdx * curBinW + curBinW / 2,
+          measure: parseFloat(String(bins[rIdx][0]).replace(',', '.'))
+        });
+      }
+    }
+    var gridX = [];
+    for (var gx = marginL + curBinW / 2; gx <= marginL + plotWidth - LABEL_BOX_W / 2 + 1; gx += LABEL_PITCH) {
+      gridX.push(Math.round(gx));
+    }
+    if (gridX.length === 0) gridX.push(Math.round(marginL + plotWidth / 2));
+    var columnOf = [];
+    for (var cInit = 0; cInit < gridX.length; cInit++) columnOf.push([]);
+    var tallestColumn = 1;
+    var placedItems = 0;
+    for (var iIdx = 0; iIdx < itemRows.length; iIdx++) {
+      var preferred = Math.round((itemRows[iIdx].binX - gridX[0]) / LABEL_PITCH);
+      if (preferred < 0) preferred = 0;
+      if (preferred > gridX.length - 1) preferred = gridX.length - 1;
+      var target = -1;
+      for (var step = 0; step < gridX.length && target < 0; step++) {
+        if (step === 0) {
+          if (columnOf[preferred].length < LABEL_ROWS_MAX) target = preferred;
+        } else {
+          if (preferred + step < gridX.length && columnOf[preferred + step].length < LABEL_ROWS_MAX) target = preferred + step;
+          else if (preferred - step >= 0 && columnOf[preferred - step].length < LABEL_ROWS_MAX) target = preferred - step;
+        }
+      }
+      if (target < 0) continue;
+      columnOf[target].push(itemRows[iIdx]);
+      placedItems++;
+      if (columnOf[target].length > tallestColumn) tallestColumn = columnOf[target].length;
+    }
+    var itemAreaHeight = Math.max(250, tallestColumn * itemRowHeight + 65);
+    var svgHeight = axisY + itemAreaHeight;
 
     var fontUi = getToken('--font-ui') || 'system-ui, sans-serif';
     var fontMono = getToken('--font-mono') || 'ui-monospace, monospace';
@@ -197,6 +243,27 @@
       'font-weight': '600',
       fill: colorMuted
     }, 'Partisipan'));
+
+    // Gridlines at the count levels, behind the bars, so heights are readable without the scale.
+    if (maxPersons > 0) {
+      var gridGroup = svgEl('g');
+      var gridFrag = document.createDocumentFragment();
+      var gridLevels = [maxPersons, Math.round(maxPersons / 2)];
+      for (var gIdx = 0; gIdx < gridLevels.length; gIdx++) {
+        var gridY = axisY - (gridLevels[gIdx] / maxPersons) * personAreaHeight;
+        gridFrag.appendChild(svgEl('line', {
+          x1: marginL,
+          y1: gridY,
+          x2: marginL + plotWidth,
+          y2: gridY,
+          stroke: colorLine,
+          'stroke-width': '1',
+          'vector-effect': 'non-scaling-stroke'
+        }));
+      }
+      gridGroup.appendChild(gridFrag);
+      svg.appendChild(gridGroup);
+    }
 
     var histGroup = svgEl('g');
     var histFrag = document.createDocumentFragment();
@@ -290,21 +357,21 @@
       fill: colorMuted
     }, 'skala logit'));
 
-    var midX = marginL + plotWidth / 2;
+    var legendX = marginL + plotWidth - 132;
     var bandGroup = svgEl('g', { 'aria-label': 'Batas misfit 1,50' });
     bandGroup.appendChild(svgEl('line', {
-      x1: midX - 70,
-      y1: axisY + 32,
-      x2: midX - 55,
-      y2: axisY + 32,
+      x1: legendX,
+      y1: 32,
+      x2: legendX + 15,
+      y2: 32,
       stroke: colorMisfit,
       'stroke-width': '2',
       'stroke-dasharray': '4 2',
       'vector-effect': 'non-scaling-stroke'
     }));
     bandGroup.appendChild(svgEl('text', {
-      x: midX - 48,
-      y: axisY + 36,
+      x: legendX + 22,
+      y: 36,
       'font-family': fontUi,
       'font-size': '11',
       fill: colorMuted
@@ -341,19 +408,20 @@
       }
     }
 
-    for (var kIdx = 0; kIdx < bins.length; kIdx++) {
-      var itemEntries = String(bins[kIdx][3] || '').trim().split(/\s+/).filter(Boolean);
-      var binCenterX = marginL + kIdx * curBinW + curBinW / 2;
+    for (var colIdx = 0; colIdx < gridX.length; colIdx++) {
+      var colRows = columnOf[colIdx];
+      var colX = gridX[colIdx];
+      var boxL = colX - LABEL_BOX_W / 2;
+      var boxR = colX + LABEL_BOX_W / 2;
 
-      for (var eIdx = 0; eIdx < itemEntries.length; eIdx++) {
-        var entryNum = parseInt(itemEntries[eIdx], 10);
-        if (isNaN(entryNum)) continue;
-
+      for (var rowIdx = 0; rowIdx < colRows.length; rowIdx++) {
+        var rowItem = colRows[rowIdx];
+        var entryNum = rowItem.entry;
         var alias = formatEntryAlias(entryNum);
         var itemRow = itemsByEntry.get(entryNum);
         var infitVal = itemRow ? parseFloat(String(itemRow[4]).replace(',', '.')) : NaN;
         var isMisfit = !isNaN(infitVal) && infitVal >= 1.5;
-        var itemY = axisY + 54 + eIdx * itemRowHeight;
+        var itemY = axisY + ITEM_TOP + rowIdx * itemRowHeight;
 
         var gClass = 'wright-item-tick' + (isMisfit ? ' is-misfit' : '') + (isMisfit && isMisfitChecked ? ' is-misfit-highlight' : '');
         var g = svgEl('g', {
@@ -362,13 +430,41 @@
           role: 'button',
           'data-entry': entryNum,
           'data-item': entryNum,
-          'aria-label': 'Butir ' + alias + ', ukuran ' + (itemRow ? formatNum(itemRow[2]) : formatNum(bins[kIdx][0])) + ' logit'
+          'data-bin-x': rowItem.binX,
+          'aria-label': 'Butir ' + alias + ', ukuran ' + (itemRow ? formatNum(itemRow[2]) : formatNum(rowItem.measure)) + ' logit'
         });
 
+        // The item's real position on the logit scale. A label may sit off that position only
+        // while its own box still covers it (offset <= half a box); past that the box would
+        // claim a position the item does not have, so a leader line tethers it to the exact x.
+        var halfBox = (colX - boxL) - 0.5;
+        var leaderFrom = 0;
+        var leaderTo = 0;
+        if (rowItem.binX < colX - halfBox) {
+          leaderFrom = rowItem.binX;
+          leaderTo = boxL;
+        } else if (rowItem.binX > colX + halfBox) {
+          leaderFrom = boxR;
+          leaderTo = rowItem.binX;
+        }
+        if (leaderTo - leaderFrom > 0) {
+          g.appendChild(svgEl('line', {
+            x1: leaderFrom,
+            y1: itemY - 4,
+            x2: leaderTo,
+            y2: itemY - 4,
+            class: 'label-leader',
+            stroke: colorLine,
+            'stroke-width': '1',
+            'stroke-dasharray': 'none',
+            'vector-effect': 'non-scaling-stroke'
+          }));
+        }
+
         g.appendChild(svgEl('line', {
-          x1: binCenterX - 14,
+          x1: boxL - 4,
           y1: itemY,
-          x2: binCenterX - 10,
+          x2: boxL,
           y2: itemY,
           class: 'tick-mark',
           'stroke-width': '1',
@@ -376,22 +472,22 @@
         }));
         g.appendChild(svgEl('rect', {
           class: 'focus-ring',
-          x: binCenterX - 16,
+          x: boxL,
           y: itemY - 11,
-          width: 38,
+          width: LABEL_BOX_W,
           height: 15,
           rx: 2
         }));
         g.appendChild(svgEl('rect', {
-          x: binCenterX - 16,
+          x: boxL,
           y: itemY - 11,
-          width: 38,
+          width: LABEL_BOX_W,
           height: 15,
           'pointer-events': 'all',
           opacity: '0'
         }));
         g.appendChild(svgEl('text', {
-          x: binCenterX + 2,
+          x: colX,
           y: itemY,
           'text-anchor': 'middle',
           'font-family': fontMono,

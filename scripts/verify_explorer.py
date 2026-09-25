@@ -1226,6 +1226,69 @@ def group_e_interactive(page: Any, base_url: str,
     res.record("interactive: all 8 sort columns clickable",
                f"{sort_ok}/{total_btns} changed", e28_ok)
 
+    # E29: Wright item labels never overlap and never leave the canvas. The label grid has a
+    # pitch wider than a box; this check is what keeps that true (the earlier layout put 38-unit
+    # boxes on a 34-unit pitch and overlapped 34 pairs on a clustered 59-item fixture).
+    goto(page, wright_url)
+    geom = page.evaluate(
+        """() => {
+        const svg = document.querySelector('#wright-scale svg');
+        if (!svg) return null;
+        const boxes = [...svg.querySelectorAll('.wright-item-tick rect')]
+            .filter(r => !r.classList.contains('focus-ring'))
+            .map(r => r.getBoundingClientRect());
+        const labels = [...svg.querySelectorAll('.wright-item-tick text')]
+            .map(t => t.getBoundingClientRect());
+        const canvas = svg.getBoundingClientRect();
+        let overlaps = 0;
+        for (let i = 0; i < boxes.length; i++) {
+            for (let j = i + 1; j < boxes.length; j++) {
+                const a = boxes[i], b = boxes[j];
+                const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+                const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+                if (ox > 0.5 && oy > 0.5) overlaps++;
+            }
+        }
+        let outside = 0;
+        for (const b of boxes) {
+            if (b.left < canvas.left - 0.5 || b.right > canvas.right + 0.5 ||
+                b.top < canvas.top - 0.5 || b.bottom > canvas.bottom + 0.5) outside++;
+        }
+        const view = svg.viewBox.baseVal;
+        const scale = view && view.width ? canvas.width / view.width : 1;
+        const groups = [...svg.querySelectorAll('.wright-item-tick')];
+        let uncovered = 0;
+        let tethered = 0;
+        for (const g of groups) {
+            const box = g.querySelector('rect:not(.focus-ring)');
+            const binX = parseFloat(g.getAttribute('data-bin-x'));
+            if (!box || isNaN(binX)) continue;
+            const b = box.getBoundingClientRect();
+            const trueX = canvas.left + binX * scale;
+            const half = (b.right - b.left) / 2 + 0.5;
+            if (Math.abs(trueX - (b.left + b.right) / 2) > half) {
+                uncovered++;
+                if (g.querySelector('.label-leader')) tethered++;
+            }
+        }
+        return {ticks: groups.length, boxes: boxes.length, labels: labels.length,
+                overlaps: overlaps, outside: outside,
+                uncovered: uncovered, tethered: tethered};
+        }"""
+    )
+    e29_ok = bool(
+        geom and geom["ticks"] > 0 and geom["labels"] == geom["ticks"]
+        and geom["overlaps"] == 0 and geom["outside"] == 0
+        and geom["uncovered"] == geom["tethered"]
+    )
+    res.record(
+        "wright: labels never overlap, stay in the canvas, and cover the item's own position",
+        (f"ticks={geom['ticks']} labels={geom['labels']} overlaps={geom['overlaps']} "
+         f"outside={geom['outside']} uncovered={geom['uncovered']} "
+         f"tethered={geom['tethered']}") if geom else "no svg found",
+        e29_ok,
+    )
+
 
 # ---------------------------------------------------------------------------
 # Group F: States as rendered text (5 checks)
@@ -1780,7 +1843,7 @@ def main() -> int:
         print(f"TOTAL: {total} checks  |  {passed} PASS  |  {failed} FAIL")
         print(f"{'=' * 72}")
 
-        EXPECTED_TOTAL = 184
+        EXPECTED_TOTAL = 185
         if total != EXPECTED_TOTAL:
             print(
                 f"\nERROR: Expected {EXPECTED_TOTAL} checks, got {total}. "
