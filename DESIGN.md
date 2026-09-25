@@ -106,6 +106,14 @@ line up. The earlier Plus Jakarta Sans rationale is superseded by that direction
 - Line height: 1.2 headings, 1.5 body, 1.45 table body. Measure (line length) under 72 characters for
   prose; the hero line under 46.
 - Every numeral in a table, metric tile or scale band uses `font-variant-numeric: tabular-nums`.
+- **Density (owner's reference: the artifact, 25 Sep 2026).** Table body `14px`, header `12px` on
+  `--surface-2`, cell padding `--space-2` block / `--space-3` inline, which measures a **37px** row
+  instead of 47,7px. Why: the artifact's own 147-row table reads at 37,3px per row and stays legible at
+  1,45 line height, while a 47,7px row on a 59-row table spends about 630px of extra height, close to a
+  full screen. Density here is rhythm, not small type: table body stays at 14px or above, never the
+  10-11px rows this file rejects elsewhere.
+- Explorer blocks (caption, table, pager, figure grid) separate at `--space-4`; the tab strip carries
+  `--space-4` above and below; the summary figure grid uses `--space-6`.
 
 ## Identity motif: the measured band (pita ukur)
 

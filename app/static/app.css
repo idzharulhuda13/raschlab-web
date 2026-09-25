@@ -697,10 +697,10 @@ h2,
 
 .table-caption {
   display: block;
-  font-size: 14px;
+  font-size: var(--step-14);
   color: var(--muted);
   text-align: left;
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 .table-scroll {
@@ -731,7 +731,7 @@ h2,
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 16px;
+  font-size: var(--step-14);
 }
 
 .data-table tbody {
@@ -740,10 +740,10 @@ h2,
 
 .data-table th {
   text-align: left;
-  font-size: 14px;
+  font-size: var(--step-12);
   font-weight: 600;
   color: var(--muted);
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line);
   background: var(--surface-2);
 }
@@ -757,7 +757,7 @@ h2,
 }
 
 .data-table td {
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line);
   vertical-align: top;
 }
@@ -1312,7 +1312,7 @@ line.miss-marker {
 .summary-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-8);
+  gap: var(--space-6);
 }
 
 .summary-col {
@@ -1346,8 +1346,8 @@ line.miss-marker {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  margin-top: var(--space-6);
-  margin-bottom: var(--space-6);
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-4);
   width: 100%;
   max-width: var(--shell-max);
   margin-inline: auto;
