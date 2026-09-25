@@ -58,7 +58,25 @@
 </div>
 {% endif %}
 
-{% if status == 'staged' and unassigned_tokens %}
+{% if status == 'staged' and tokens_truncated %}
+<div class="band">
+  <div class="alert alert--misfit" role="alert">
+    <strong>Kolom Butir Tidak Terbaca Sebagai Kode Jawaban</strong>
+    <p>Berkas ini memuat {{ '{:,}'.format(tokens_total).replace(',', '.') }} nilai berbeda di kolom butir, jadi kolom identitas peserta kemungkinan besar terbaca sebagai kolom butir. Halaman pemetaan hanya menampilkan {{ distinct_tokens | length }} nilai pertama. Unggah ulang berkas dengan nama kolom identitas yang dikenali (mis. id, username, peserta), atau hapus kolom identitas itu.</p>
+  </div>
+</div>
+{% endif %}
+
+{% if status == 'staged' and summary.get('key_row_detected') %}
+<div class="band">
+  <div class="alert alert--accent" role="status">
+    <strong>Kunci Jawaban Terdeteksi</strong>
+    <p>Baris kunci jawaban pada berkas dikenali sebagai {{ dataset.n_items }} butir. Kunci sudah terisi pada kolom di bawah; periksa sebelum konfirmasi.</p>
+  </div>
+</div>
+{% endif %}
+
+{% if status == 'staged' and unassigned_tokens and not key %}
 <div class="band">
   <div class="alert alert--warn" role="status">
     <strong>Konfirmasi Diblokir: Pemetaan Belum Lengkap</strong>
@@ -131,6 +149,11 @@
 
   {% if status == 'staged' and dataset.kind == 'delimited' %}
   <form action="/datasets/{{ dataset.id }}/commit" method="post">
+    <div class="field">
+      <label for="input-delimited-key" class="field-label">Kunci Jawaban (opsional)</label>
+      <input type="text" id="input-delimited-key" name="key" value="{{ key }}" maxlength="{{ dataset.n_items }}" class="select-input mono">
+      <p class="field-hint">Isi kunci jawaban sepanjang tepat {{ dataset.n_items }} karakter (mis. ADBCA) bila berkas memuat huruf jawaban mentah; setiap butir diskor terhadap kunci ini. Kosongkan bila klasifikasi pada tabel di bawah sudah menentukan benar dan salah. Panjang saat ini: {{ key | length }}.</p>
+    </div>
     <div class="table-scroll">
       <table class="data-table">
         <caption class="table-caption">Token unik, kemunculan, dan klasifikasinya</caption>
@@ -151,7 +174,7 @@
             <td class="num-col mono">{{ '{:,}'.format(count).replace(',', '.') }}</td>
             <td>
               <label for="token-map-{{ loop.index0 }}" class="sr-only">Klasifikasi token {{ token if token != '' else 'kosong' }}</label>
-              <select name="m{{ loop.index0 }}" id="token-map-{{ loop.index0 }}" class="select-input" required>
+              <select name="m{{ loop.index0 }}" id="token-map-{{ loop.index0 }}" class="select-input"{% if not key %} required{% endif %}>
                 <option value="" {% if token not in mapping %}selected{% endif %}>Pilih status...</option>
                 <option value="correct" {% if mapping.get(token) == 'correct' %}selected{% endif %}>Benar (1)</option>
                 <option value="incorrect" {% if mapping.get(token) == 'incorrect' %}selected{% endif %}>Salah (0)</option>

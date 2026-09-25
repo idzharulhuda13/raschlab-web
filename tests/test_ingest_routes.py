@@ -337,3 +337,132 @@ def test_winsteps_commit_with_extra_missing_updates_summary(client: TestClient):
         assert summary["total_missing"] == 52 + 574
         assert sum(summary["missing_per_item"]) == 52 + 574
 
+
+def _upload_csv(client: TestClient, filename: str, payload: bytes) -> int:
+    resp = client.post(
+        "/datasets", files={"data": (filename, payload, "text/csv")}, follow_redirects=False
+    )
+    assert resp.status_code == 303, resp.text[:400]
+    return int(resp.headers["location"].split("/")[-1])
+
+
+def test_username_column_and_key_row_upload_keeps_page_small(client: TestClient):
+    _create_authenticated_user(client)
+    lines = ["username,I01,I02,I03", "kunci,A,D,B"]
+    lines += [f"P{idx:013d},A,B,D" for idx in range(20)]
+    dataset_id = _upload_csv(client, "bakat.csv", ("\n".join(lines) + "\n").encode())
+
+    with SessionLocal() as db:
+        row = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one()
+        assert row.n_items == 3
+        assert row.n_persons == 20
+        assert json.loads(row.item_labels_json) == ["I01", "I02", "I03"]
+        assert json.loads(row.mapping_json)["key"] == "ADB"
+
+    page = client.get(f"/datasets/{dataset_id}")
+    assert page.status_code == 200
+    assert len(page.content) < 200_000
+    assert 'name="key" value="ADB"' in page.text
+    assert "Kunci Jawaban Terdeteksi" in page.text
+
+
+def test_unrecognised_identity_column_is_rejected_with_guidance_not_oversize_page(
+    client: TestClient,
+):
+    _create_authenticated_user(client)
+    header = "kolom_rahasia," + ",".join(f"I{i:02d}" for i in range(10))
+    body = "\n".join(
+        f"USER{idx:06d}," + ",".join("ABCD"[i % 4] for i in range(10)) for idx in range(2000)
+    )
+    resp = client.post(
+        "/datasets",
+        files={"data": ("rahasia.csv", (header + "\n" + body + "\n").encode(), "text/csv")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert len(resp.content) < 400_000
+    assert "bukan kolom butir" in resp.text
+    assert "username" in resp.text
+    with SessionLocal() as db:
+        assert db.execute(select(func.count(Dataset.id))).scalar_one() == 0
+
+
+def test_commit_scores_each_item_against_the_key(client: TestClient):
+    _create_authenticated_user(client)
+    body = "\n".join(
+        [
+            "username,I01,I02,I03",
+            "kunci,A,D,B",
+            "P1,A,D,C",
+            "P2,B,D,B",
+            "P3,A,X,B",
+        ]
+    )
+    dataset_id = _upload_csv(client, "bakat.csv", (body + "\n").encode())
+
+    commit = client.post(f"/datasets/{dataset_id}/commit", data={"key": "ADB"}, follow_redirects=False)
+    assert commit.status_code == 303
+
+    with SessionLocal() as db:
+        row = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one()
+        assert row.status == "ready"
+        assert json.loads(row.mapping_json)["key"] == "ADB"
+        container = json.loads(decompress(row.matrix_gzip).decode("utf-8"))
+        assert container["key"] == "ADB"
+        assert set(container["codes"]) == {"A", "B", "C", "D"}
+        rows = container["prn"].split("\n")
+        assert rows[0].endswith("ADC")
+        assert rows[1].endswith("BDB")
+        assert rows[2].endswith("A B")
+
+
+def test_commit_rejects_key_with_wrong_length(client: TestClient):
+    _create_authenticated_user(client)
+    body = "username,I01,I02,I03\nkunci,A,D,B\nP1,A,D,C\n"
+    dataset_id = _upload_csv(client, "bakat.csv", body.encode())
+
+    commit = client.post(f"/datasets/{dataset_id}/commit", data={"key": "AB"}, follow_redirects=False)
+    assert commit.status_code == 422
+    assert "Panjang kunci jawaban (2)" in commit.text
+    with SessionLocal() as db:
+        row = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one()
+        assert row.status == "staged"
+
+
+def test_mapping_without_key_still_requires_every_token(client: TestClient):
+    """The token-mapping route is unchanged when no key is supplied."""
+    _create_authenticated_user(client)
+    body = "username,I01,I02\nP1,A,B\n"
+    dataset_id = _upload_csv(client, "polytomous.csv", body.encode())
+
+    commit = client.post(
+        f"/datasets/{dataset_id}/commit",
+        data={"t0": "A", "m0": "correct"},
+        follow_redirects=False,
+    )
+    assert commit.status_code == 422
+    assert "Ada token yang belum dipetakan" in commit.text
+
+
+def test_legacy_dataset_with_many_stored_tokens_renders_and_blocks_confirmation(
+    client: TestClient,
+):
+    _create_authenticated_user(client)
+    dataset_id = _upload_csv(client, "small.csv", b"username,I01,I02\nP1,A,B\n")
+
+    with SessionLocal() as db:
+        row = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one()
+        summary = json.loads(row.summary_json)
+        summary["distinct_tokens"] = {f"ID{idx:06d}": 1 for idx in range(5000)}
+        row.summary_json = json.dumps(summary)
+        db.commit()
+
+    page = client.get(f"/datasets/{dataset_id}")
+    assert page.status_code == 200
+    assert len(page.content) < 400_000
+    assert "5.000 nilai berbeda" in page.text
+
+    commit = client.post(f"/datasets/{dataset_id}/commit", data={"key": "AB"}, follow_redirects=False)
+    assert commit.status_code == 422
+    assert len(commit.content) < 400_000
+    assert "Unggah ulang berkas" in commit.text

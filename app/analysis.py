@@ -90,6 +90,20 @@ def id_num(value: object) -> str:
     return f"{sign}{grouped}"
 
 
+def _is_missing_token(token: str, mapping: dict[str, str] | None) -> bool:
+    """True when a cell carries no response: blank, declared missing, or a default marker."""
+    if not token:
+        return True
+    if mapping:
+        cls = mapping.get(token) or mapping.get(token.strip().lower())
+        if cls == "missing":
+            return True
+    try:
+        return classify(token, mapping=None) == "missing"
+    except ValueError:
+        return False
+
+
 def build_matrix_gzip(
     kind: str,
     person_labels: list[str],
@@ -97,6 +111,7 @@ def build_matrix_gzip(
     rows: list[Any],
     mapping: dict[str, str] | None = None,
     control: dict[str, Any] | None = None,
+    key: str | None = None,
 ) -> bytes:
     """Encode tabular or Winsteps response matrix into a deterministic gzip container."""
     if kind == "delimited":
@@ -110,51 +125,80 @@ def build_matrix_gzip(
         cell_tokens: set[str] = set()
         for row in rows:
             for cell in row:
-                token = str(cell).strip() if cell is not None else ""
-                cell_tokens.add(token)
+                cell_tokens.add(str(cell).strip() if cell is not None else "")
+
+        answer_key = (key or "").strip()
+        if answer_key and len(answer_key) != n_items:
+            raise AnalysisError(
+                f"Panjang kunci jawaban ({len(answer_key)}) tidak sama dengan jumlah butir ({n_items})."
+            )
+
+        if answer_key:
+            # An answer key scores every item on its own terms: the response letters travel
+            # through unchanged and KEY1 carries the key, so the same letter can be right for
+            # one item and wrong for another. Cells outside the response codes stay missing.
+            missing_tokens = {t for t in cell_tokens if _is_missing_token(t, mapping)}
+            response_tokens = {t for t in cell_tokens if t and t not in missing_tokens}
+            invalid = sorted(t for t in response_tokens if t not in "ABCDE")
+            if invalid:
+                raise AnalysisError(
+                    f"Kode respon '{', '.join(invalid)}' di luar huruf A-E; mesin hanya menerima A-E."
+                )
+            codes = "".join(sorted(response_tokens)) or "A"
+            byte_space = ord(" ")
+            mat = np.full((len(rows), n_items), byte_space, dtype=np.uint8)
+            for r_idx, row in enumerate(rows):
+                row_arr = mat[r_idx]
+                for c_idx, cell in enumerate(row[:n_items]):
+                    tok = str(cell).strip() if cell is not None else ""
+                    if tok in response_tokens:
+                        row_arr[c_idx] = ord(tok)
+            key = answer_key
+        else:
+            for token in cell_tokens:
                 try:
                     classify(token, mapping=mapping)
                 except ValueError:
                     if token not in unassigned:
                         unassigned.append(token)
 
-        if unassigned:
-            raise AnalysisError(f"Ada token yang belum dipetakan: {', '.join(unassigned)}.")
+            if unassigned:
+                raise AnalysisError(f"Ada token yang belum dipetakan: {', '.join(unassigned)}.")
 
-        cell_incorrect = {t for t in cell_tokens if classify(t, mapping=mapping) == "incorrect"}
-        mapped_incorrect = {
-            str(k).strip() for k, v in (mapping or {}).items() if v == "incorrect"
-        }
-        all_incorrect = cell_incorrect | mapped_incorrect
-        if len(all_incorrect) > 4:
-            incorrect_sorted = sorted(all_incorrect)
-            raise AnalysisError(
-                f"Jumlah token salah ({len(incorrect_sorted)}) melebihi batas maksimal 4 (huruf B-E): {', '.join(incorrect_sorted)}."
-            )
+            cell_incorrect = {t for t in cell_tokens if classify(t, mapping=mapping) == "incorrect"}
+            mapped_incorrect = {
+                str(k).strip() for k, v in (mapping or {}).items() if v == "incorrect"
+            }
+            all_incorrect = cell_incorrect | mapped_incorrect
+            if len(all_incorrect) > 4:
+                incorrect_sorted = sorted(all_incorrect)
+                raise AnalysisError(
+                    f"Jumlah token salah ({len(incorrect_sorted)}) melebihi batas maksimal 4 (huruf B-E): {', '.join(incorrect_sorted)}."
+                )
 
-        incorrect_tokens = sorted(all_incorrect)
-        letters_pool = ["B", "C", "D", "E"]
-        letter_map = {tok: letters_pool[i] for i, tok in enumerate(incorrect_tokens)}
-        letters = "".join(letters_pool[i] for i in range(len(incorrect_tokens)))
-        key = "A" * n_items
-        codes = "A" + letters
+            incorrect_tokens = sorted(all_incorrect)
+            letters_pool = ["B", "C", "D", "E"]
+            letter_map = {tok: letters_pool[i] for i, tok in enumerate(incorrect_tokens)}
+            letters = "".join(letters_pool[i] for i in range(len(incorrect_tokens)))
+            key = "A" * n_items
+            codes = "A" + letters
 
-        byte_map = {tok: ord(letter_map[tok]) for tok in incorrect_tokens}
-        byte_a = ord("A")
-        byte_space = ord(" ")
+            byte_map = {tok: ord(letter_map[tok]) for tok in incorrect_tokens}
+            byte_a = ord("A")
+            byte_space = ord(" ")
 
-        mat = np.full((len(rows), n_items), byte_space, dtype=np.uint8)
-        for r_idx, row in enumerate(rows):
-            row_arr = mat[r_idx]
-            for c_idx, cell in enumerate(row[:n_items]):
-                tok = str(cell).strip() if cell is not None else ""
-                cls = classify(tok, mapping=mapping)
-                if cls == "correct":
-                    row_arr[c_idx] = byte_a
-                elif cls == "incorrect":
-                    row_arr[c_idx] = byte_map[tok]
-                else:
-                    row_arr[c_idx] = byte_space
+            mat = np.full((len(rows), n_items), byte_space, dtype=np.uint8)
+            for r_idx, row in enumerate(rows):
+                row_arr = mat[r_idx]
+                for c_idx, cell in enumerate(row[:n_items]):
+                    tok = str(cell).strip() if cell is not None else ""
+                    cls = classify(tok, mapping=mapping)
+                    if cls == "correct":
+                        row_arr[c_idx] = byte_a
+                    elif cls == "incorrect":
+                        row_arr[c_idx] = byte_map[tok]
+                    else:
+                        row_arr[c_idx] = byte_space
 
         if not np.any(mat != byte_space):
             raise AnalysisError("Tidak ada data respon yang valid (semua sel kosong).")

@@ -401,5 +401,66 @@ No `<style>` block and no `style="..."` attribute in any explorer template; all 
 - `tests/test_explorer_routes.py` (21 tests) plus the pre-existing suite → `149 passed`.
 - `python3 scripts/verify_explorer.py` → 184 browser checks in 11 groups, `184/184 PASS`, `rc=0`; budgets: `loadEventEnd ≤ 400 ms`, first `butir` activation ≤ 150 ms, cached re-activation ≤ 50 ms, 147-row sort ≤ 100 ms, search round-trip ≤ 250 ms, zero long tasks > 100 ms, initial HTML ≤ 120,000 B, embedded payload ≤ 60,000 B.
 
+## F5 — Identity columns, answer keys, and render budgets (25 Sep 2026, frozen)
 
+Why: a 45.832 x 15 upload (identity column named `username`, an answer-key row named
+`kunci`) rendered the mapping page as a 33 MiB response because every distinct cell value
+became a token. The platform rejected it as "Response size was too large" (HTTP 500). The
+names below are frozen; the budgets are hard requirements for any future feature.
 
+### Parser contract (`app/parsers.py`)
+
+- `PERSON_LABEL_HEADERS` is the frozen set of column-0 headers that name the person column.
+  It includes `username`, `user`, `user_id`, `uname`, `login`, `akun`, `peserta_id`,
+  `id_peserta`, `nomor`, `nomor_peserta`, `no_peserta`, `nopes`, `kode_peserta`, `nis`,
+  `nisn`, `nip`, `kandidat`, `testee`, `uid`, `subject`, `subject_id`, `respondent_id`,
+  `person_id`, `sample`, `sampel`. A column-0 header outside this set is read as an item
+  column (and then the guard below rejects it when it cannot hold answer codes).
+- `KEY_ROW_LABELS` = `{kunci, kunci_jawaban, kunci_jawaban_benar, jawaban, key, answer_key,
+  answerkey}`. A row whose first cell normalises into this set, with **every** item cell
+  filled, is the answer key: `ParsedDataset.key` holds those cells and the row is **not**
+  added to `person_labels`. A person genuinely named `kunci` with a blank cell stays a person.
+- `DEFAULT_MISSING_TOKENS` = `{"", "na", "n/a", "x", ".", "-"}`. The engine accepts only
+  A-E, so `X` can never be a response letter and is missing by default.
+- `MAX_DISTINCT_TOKENS_PER_ITEM = 64` and `UNIQUE_COLUMN_RATIO = 0.5`.
+  `implausible_item_columns(parsed)` returns `(label, distinct, rows)` for item columns whose
+  distinct values exceed the cap and are at least half of the row count: those are identity
+  columns that were not recognised. The upload refuses such a file with a written reason
+  instead of building an unrenderable page.
+- `ParsedDataset` gained the optional field `key: list[str] | None`.
+
+### Scoring (`app/analysis.py`)
+
+- `build_matrix_gzip(..., key: str | None = None)`. With a key of length `n_items`, the
+  response letters travel through unchanged and `KEY1` carries the key, so the same letter
+  can be correct for one item and wrong for another. Without a key the existing token-mapping
+  path is byte-identical to before (that path emits `KEY1 = "A" * n_items`).
+- `_is_missing_token(token, mapping)` is the single definition of "no response": blank,
+  declared `missing` in the mapping, or a default missing token.
+
+### Form field and pages (`app/ingest.py`, `app/templates/dataset_detail.html`)
+
+- The delimited commit form has an optional `key` field (frozen name `key`, same name as the
+  Winsteps form). It is prefilled from a detected key row. Length must equal `dataset.n_items`;
+  when it is present the per-token classification selects are not `required`.
+- `TOKEN_RENDER_CAP = 64`: the mapping page renders at most this many token rows. A stored
+  summary with more tokens renders a notice and **blocks** confirmation with a re-upload
+  instruction; it never renders an unbounded list.
+- Frozen copy: `Kunci Jawaban Terdeteksi`, `Kolom Butir Tidak Terbaca Sebagai Kode Jawaban`,
+  `Isi kunci jawaban sepanjang tepat N karakter`, `Unggah ulang berkas dengan nama kolom
+  identitas yang dikenali (mis. id, username, peserta), atau hapus kolom identitas itu.`
+
+### Render and run budgets (measured on the largest real dataset, 45.832 x 15)
+
+- Any HTML response rendered for one dataset or analysis: **< 1 MB** (`tests/test_render_budget.py`
+  enforces this on a 12.000 x 15 fixture, and the frozen cap is checked for the dataset,
+  analysis, and all explorer views).
+- The person table stays **server-side paginated** (`RENDER_PAGE = 500`); the token table is
+  capped by `TOKEN_RENDER_CAP`.
+- Upload (parse + summary + store) of a 1,7 MB / 45.833-row CSV: **1,1 s** (budget 20 s).
+- Engine run for 45.832 x 15 in-process: **8,4 s**, peak RSS **0,3 GiB** of the 1 GiB instance;
+  Cloud Run request timeout is 120 s, so the engine keeps a 14x time margin. Do not move the
+  engine run off the request path without also revisiting the UI polling contract.
+- Measured pages at 45.832 persons: dataset page 64 ms / 20 KB, analysis page 199 ms / 816 KB,
+  explorer wright 90 ms / 8 KB, butir 102 ms / 30 KB, partisipan 105 ms / 619 KB, ringkasan
+  71 ms / 44 KB.

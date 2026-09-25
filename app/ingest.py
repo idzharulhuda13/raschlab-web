@@ -50,6 +50,7 @@ from app.parsers import (
     count_all_missing_persons,
     default_mapping,
     distinct_tokens,
+    implausible_item_columns,
     missing_per_item,
     parse_control,
     parse_delimited,
@@ -68,6 +69,11 @@ from app.storage import (
 )
 
 router = APIRouter()
+
+# Upper bound on the token rows the dataset page renders. A response matrix holds a
+# handful of codes; anything beyond this is an unrecognised identity column, and the
+# page must stay small rather than enumerate thousands of identifiers.
+TOKEN_RENDER_CAP: int = 64
 
 CHUNK_SIZE: int = 1024 * 1024  # 1 MiB
 
@@ -131,6 +137,15 @@ def _build_dataset_context(
         else:
             unassigned_tokens = []
 
+    # A stored summary may predate the identity-column guard; never hand the template
+    # more tokens than it can render, or the response blows past the platform limit.
+    distinct_items = list(distinct_dict.items())
+    tokens_total = len(distinct_items)
+    tokens_truncated = tokens_total > TOKEN_RENDER_CAP
+    if tokens_truncated:
+        distinct_items = distinct_items[:TOKEN_RENDER_CAP]
+        unassigned_tokens = unassigned_tokens[:TOKEN_RENDER_CAP]
+
     missing_counts = summary.get("missing_per_item", [])
     total_missing = summary.get("total_missing", sum(missing_counts))
     all_missing_items = [
@@ -150,7 +165,9 @@ def _build_dataset_context(
         "summary": summary,
         "mapping": mapping,
         "item_labels": item_labels,
-        "distinct_tokens": list(distinct_dict.items()),
+        "distinct_tokens": distinct_items,
+        "tokens_total": tokens_total,
+        "tokens_truncated": tokens_truncated,
         "unassigned_tokens": unassigned_tokens,
         "missing_per_item": missing_counts,
         "total_missing": total_missing,
@@ -239,9 +256,25 @@ async def post_datasets(
             n_items = len(parsed.item_labels)
             if n_persons == 0 or n_items == 0:
                 raise ValueError("Tabel data tidak memuat baris data atau kolom butir yang valid.")
+
+            offenders = implausible_item_columns(parsed)
+            if offenders:
+                detail = ", ".join(
+                    f"'{label}' ({distinct} nilai berbeda)" for label, distinct, _ in offenders[:3]
+                )
+                raise ValueError(
+                    f"Kolom {detail} berisi nilai yang hampir semuanya berbeda, jadi kolom itu "
+                    "bukan kolom butir. Kolom butir harus berisi kode jawaban (mis. A-E). "
+                    "Beri nama kolom identitas peserta dengan id/username/peserta, atau hapus kolom tersebut."
+                )
+
             item_labels = parsed.item_labels
+            key_from_row = list(parsed.key) if parsed.key else None
+            key_row_detected = bool(key_from_row)
             tokens_dict = distinct_tokens(parsed)
             mapping = default_mapping(tokens_dict.keys())
+            if key_from_row:
+                mapping["key"] = "".join(key_from_row)
             missing_counts = missing_per_item(parsed, mapping=mapping)
             all_missing_persons = count_all_missing_persons(parsed, mapping=mapping)
             preview_rows = [row[:12] for row in parsed.rows[:10]]
@@ -271,6 +304,7 @@ async def post_datasets(
                 "key": str(control.get("KEY1", "")),
                 "codes": str(control.get("CODES", "ABCDE")),
             }
+            key_row_detected = bool(mapping["key"].strip())
             missing_counts = missing_per_item(parsed, codes=control.get("CODES"))
             all_missing_persons = count_all_missing_persons(parsed, codes=control.get("CODES"))
             preview_rows = [list(row[:12]) for row in parsed.rows[:10]]
@@ -287,6 +321,7 @@ async def post_datasets(
             "all_missing_persons_count": all_missing_persons,
             "preview_rows": preview_rows,
             "preview_person_labels": preview_persons,
+            "key_row_detected": key_row_detected,
         }
         if summary_control is not None:
             summary["control"] = summary_control
@@ -375,6 +410,21 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
                 submitted_mapping[t_val] = m_val
             i += 1
 
+        answer_key = str(form.get("key", "")).strip()
+        if answer_key and len(answer_key) != dataset.n_items:
+            error_msg = (
+                f"Panjang kunci jawaban ({len(answer_key)}) tidak sama dengan jumlah butir "
+                f"({dataset.n_items})."
+            )
+            context = _build_dataset_context(request, user, dataset, error=error_msg)
+            context["mapping"] = submitted_mapping
+            return templates.TemplateResponse(
+                request=request,
+                name="dataset_detail.html",
+                context=context,
+                status_code=422,
+            )
+
         distinct_dict = summary.get("distinct_tokens", {})
         if not submitted_mapping:
             for token in distinct_dict.keys():
@@ -387,9 +437,27 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
                     if val:
                         submitted_mapping[token] = val
 
-        unassigned = validate_mapping(distinct_dict.keys(), submitted_mapping)
+        if len(distinct_dict) > TOKEN_RENDER_CAP:
+            error_msg = (
+                f"Berkas ini memuat {len(distinct_dict)} nilai berbeda di kolom butir, jadi kolom "
+                "identitas peserta kemungkinan besar terbaca sebagai kolom butir. Unggah ulang berkas "
+                "dengan nama kolom identitas yang dikenali (mis. id, username, peserta), atau hapus kolom itu."
+            )
+            context = _build_dataset_context(request, user, dataset, error=error_msg)
+            context["mapping"] = submitted_mapping
+            return templates.TemplateResponse(
+                request=request,
+                name="dataset_detail.html",
+                context=context,
+                status_code=422,
+            )
+
+        unassigned = validate_mapping(distinct_dict.keys(), submitted_mapping) if not answer_key else []
         if unassigned:
-            error_msg = f"Ada token yang belum dipetakan: {', '.join(unassigned)}."
+            shown = ", ".join(unassigned[:20])
+            if len(unassigned) > 20:
+                shown = f"{shown}, ... dan {len(unassigned) - 20} token lainnya"
+            error_msg = f"Ada token yang belum dipetakan: {shown}."
             context = _build_dataset_context(
                 request, user, dataset, error=error_msg, unassigned_tokens=unassigned
             )
@@ -422,6 +490,7 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
                 item_labels=item_labels,
                 rows=parsed.rows,
                 mapping=submitted_mapping,
+                key=answer_key or None,
             )
         except AnalysisError as exc:
             context = _build_dataset_context(
@@ -435,6 +504,8 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
                 status_code=422,
             )
 
+        if answer_key:
+            submitted_mapping["key"] = answer_key
         dataset.mapping_json = json.dumps(submitted_mapping)
         dataset.summary_json = json.dumps(summary)
         dataset.status = "ready"

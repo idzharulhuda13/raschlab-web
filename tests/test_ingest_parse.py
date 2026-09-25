@@ -12,8 +12,10 @@ import pandas as pd
 import pytest
 
 from app.parsers import (
+    classify,
     count_all_missing_persons,
     distinct_tokens,
+    implausible_item_columns,
     missing_per_item,
     parse_control,
     parse_delimited,
@@ -252,3 +254,46 @@ def test_indonesian_person_label_headers_and_normalization():
             assert pid not in tokens
         assert set(tokens.keys()) == {"0", "1"}
 
+
+def test_username_column_is_recognised_as_person_labels():
+    """An assessment export identifies people in a column named 'username'."""
+    raw = b"username,I01,I02\nP0401000100018,A,B\nP0401000100027,C,D\n"
+    parsed = parse_delimited(raw)
+    assert parsed.item_labels == ["I01", "I02"]
+    assert parsed.person_labels == ["P0401000100018", "P0401000100027"]
+    assert parsed.rows == [["A", "B"], ["C", "D"]]
+
+
+def test_key_row_is_extracted_and_never_counted_as_respondent():
+    raw = b"username,I01,I02,I03\nkunci,A,D,B\nP01,A,D,C\nP02,B,D,B\n"
+    parsed = parse_delimited(raw)
+    assert parsed.key == ["A", "D", "B"]
+    assert parsed.person_labels == ["P01", "P02"]
+    assert parsed.rows == [["A", "D", "C"], ["B", "D", "B"]]
+
+
+def test_row_named_kunci_with_missing_answers_stays_a_respondent():
+    """Only a fully answered key row is a key; a person actually named 'kunci' is not."""
+    parsed = parse_delimited(b"username,I01,I02\nkunci,A,\n")
+    assert parsed.key is None
+    assert parsed.person_labels == ["kunci"]
+
+
+def test_x_is_treated_as_missing_response():
+    assert classify("X") == "missing"
+    assert classify("x") == "missing"
+
+
+def test_implausible_item_columns_flags_identity_column_read_as_item():
+    header = "kolom_rahasia,I01"
+    body = "\n".join(f"USER{idx:06d},A" for idx in range(200))
+    parsed = parse_delimited((header + "\n" + body + "\n").encode())
+    offenders = implausible_item_columns(parsed)
+    assert offenders == [("kolom_rahasia", 200, 200)]
+
+
+def test_implausible_item_columns_accepts_normal_response_columns():
+    header = "username,I01,I02"
+    body = "\n".join(f"USER{idx:06d},A,B" for idx in range(200))
+    parsed = parse_delimited((header + "\n" + body + "\n").encode())
+    assert implausible_item_columns(parsed) == []

@@ -22,6 +22,8 @@ from app.storage import (
 __all__ = [
     "CANONICAL_CLASSES",
     "DEFAULT_MISSING_TOKENS",
+    "KEY_ROW_LABELS",
+    "MAX_DISTINCT_TOKENS_PER_ITEM",
     "PERSON_LABEL_HEADERS",
     "ParsedDataset",
     "PrnDataset",
@@ -29,6 +31,7 @@ __all__ = [
     "count_all_missing_persons",
     "default_mapping",
     "distinct_tokens",
+    "implausible_item_columns",
     "missing_per_item",
     "parse_control",
     "parse_delimited",
@@ -41,7 +44,7 @@ __all__ = [
 CANONICAL_CLASSES: frozenset[str] = frozenset({"correct", "incorrect", "missing"})
 
 # Standard missing tokens for delimited/spreadsheet tables (matches pandas default NA).
-DEFAULT_MISSING_TOKENS: frozenset[str] = frozenset({"", "na", "n/a"})
+DEFAULT_MISSING_TOKENS: frozenset[str] = frozenset({"", "na", "n/a", "x", ".", "-"})
 
 # Column 0 headers that signal an explicit person identifier rather than an item response.
 PERSON_LABEL_HEADERS: frozenset[str] = frozenset(
@@ -62,8 +65,55 @@ PERSON_LABEL_HEADERS: frozenset[str] = frozenset(
         "kode",
         "kode_responden",
         "no_responden",
+        # Identity columns as exported by the assessment platforms in use.
+        # Without these, the identity column is read as an item column, which both
+        # loses the real person identifiers and turns every identifier into a
+        # response token that the mapping page would have to enumerate.
+        "username",
+        "user",
+        "user_id",
+        "uname",
+        "login",
+        "akun",
+        "peserta_id",
+        "id_peserta",
+        "nomor",
+        "nomor_peserta",
+        "no_peserta",
+        "nopes",
+        "kode_peserta",
+        "nis",
+        "nisn",
+        "nip",
+        "kandidat",
+        "testee",
+        "uid",
+        "subject",
+        "subject_id",
+        "respondent_id",
+        "person_id",
+        "sample",
+        "sampel",
     }
 )
+
+# A first cell naming the answer-key row of a wide matrix export.
+KEY_ROW_LABELS: frozenset[str] = frozenset(
+    {
+        "kunci",
+        "kunci_jawaban",
+        "kunci_jawaban_benar",
+        "jawaban",
+        "key",
+        "answer_key",
+        "answerkey",
+    }
+)
+
+# An item column whose values are this many distinct tokens, and mostly unique per
+# row, is an identity column that was not recognised by PERSON_LABEL_HEADERS.
+MAX_DISTINCT_TOKENS_PER_ITEM: int = 64
+UNIQUE_COLUMN_RATIO: float = 0.5
 
 
 def _normalize_header(header: str) -> str:
@@ -77,6 +127,7 @@ class ParsedDataset(NamedTuple):
     person_labels: list[str]
     item_labels: list[str]
     rows: list[list[str]]
+    key: list[str] | None = None
 
     @property
     def matrix(self) -> list[list[str]]:
@@ -148,6 +199,7 @@ def parse_delimited(raw: bytes) -> ParsedDataset:
     header: list[str] | None = None
     has_person_col, item_labels = False, []
     person_labels, rows = [], []
+    answer_key: list[str] | None = None
     total_cells, row_idx = 0, 0
 
     for raw_row in reader:
@@ -165,17 +217,33 @@ def parse_delimited(raw: bytes) -> ParsedDataset:
             item_labels = header[1:] if has_person_col else header
             continue
 
-        row_idx += 1
         n_items = len(item_labels)
         if has_person_col:
-            p_label = (raw_row[0].strip() or f"P{row_idx:04d}") if raw_row else f"P{row_idx:04d}"
+            marker = _normalize_header(raw_row[0]) if raw_row else ""
             item_cells = [c.strip() for c in raw_row[1 : 1 + n_items]]
         else:
-            p_label = f"P{row_idx:04d}"
+            marker = ""
             item_cells = [c.strip() for c in raw_row[:n_items]]
 
         if len(item_cells) < n_items:
             item_cells.extend([""] * (n_items - len(item_cells)))
+
+        # A row whose first cell names the answer key, with every item filled, is the
+        # key row of the export: it is the key, never a respondent.
+        if (
+            answer_key is None
+            and marker in KEY_ROW_LABELS
+            and item_cells
+            and all(cell for cell in item_cells)
+        ):
+            answer_key = item_cells
+            continue
+
+        row_idx += 1
+        if not has_person_col:
+            p_label = f"P{row_idx:04d}"
+        else:
+            p_label = (raw_row[0].strip() or f"P{row_idx:04d}") if raw_row else f"P{row_idx:04d}"
 
         total_cells += n_items
         if total_cells > _MAX_CELLS:
@@ -184,7 +252,7 @@ def parse_delimited(raw: bytes) -> ParsedDataset:
         person_labels.append(p_label)
         rows.append(item_cells)
 
-    return ParsedDataset(person_labels=person_labels, item_labels=item_labels, rows=rows)
+    return ParsedDataset(person_labels=person_labels, item_labels=item_labels, rows=rows, key=answer_key)
 
 
 def parse_xlsx(raw: bytes) -> ParsedDataset:
@@ -353,6 +421,39 @@ def classify(
     if val_str == "0":
         return "incorrect"
     raise ValueError(f"Unassigned token: '{value}'")
+
+
+def implausible_item_columns(
+    data: ParsedDataset | PrnDataset | list[list[str]],
+) -> list[tuple[str, int, int]]:
+    """Return ``(label, distinct, rows)`` for item columns that cannot be answer codes.
+
+    A response column holds a small set of codes (A-E, 0/1, missing markers). A column
+    whose values are almost all unique is an identity column that ``PERSON_LABEL_HEADERS``
+    did not recognise: reading it as an item column loses the real identifiers and turns
+    every identifier into a token the mapping page would have to enumerate.
+    """
+    if isinstance(data, ParsedDataset):
+        rows = data.rows
+        labels = list(data.item_labels)
+    elif isinstance(data, PrnDataset):
+        rows = data.rows
+        labels = [f"I{i + 1:02d}" for i in range(len(rows[0]) if rows else 0)]
+    else:
+        rows = data
+        labels = [f"I{i + 1:02d}" for i in range(len(rows[0]) if rows else 0)]
+
+    n_rows = len(rows)
+    if n_rows == 0 or not labels:
+        return []
+
+    offenders: list[tuple[str, int, int]] = []
+    for idx, label in enumerate(labels):
+        values = {row[idx].strip() for row in rows if idx < len(row) and row[idx].strip()}
+        distinct = len(values)
+        if distinct > MAX_DISTINCT_TOKENS_PER_ITEM and distinct >= UNIQUE_COLUMN_RATIO * n_rows:
+            offenders.append((str(label), distinct, n_rows))
+    return offenders
 
 
 def distinct_tokens(
