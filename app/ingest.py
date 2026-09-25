@@ -62,6 +62,7 @@ from app.ratelimit import check_limit, client_ip
 from app.analysis import AnalysisError, build_matrix_gzip, latest_done_analysis
 from app.security import now_epoch
 from app.storage import (
+    MAX_CELLS,
     MAX_UPLOAD_BYTES,
     StorageError,
     compress,
@@ -104,7 +105,12 @@ def _format_error(exc: Exception) -> str:
     if "MAX_UPLOAD_BYTES" in msg or "melebihi batas" in msg:
         return "Ukuran berkas melebihi batas maksimal 16 MB."
     if "MAX_CELLS" in msg:
-        return "Jumlah sel berkas melebihi batas maksimal 2.000.000 sel."
+        limit = f"{MAX_CELLS:,}".replace(",", ".")
+        observed = msg.rpartition("found ")[2].split(" ")[0]
+        if observed.isdigit():
+            found = f"{int(observed):,}".replace(",", ".")
+            return f"Berkas memuat {found} sel, melebihi batas maksimal {limit} sel."
+        return f"Jumlah sel berkas melebihi batas maksimal {limit} sel."
     if isinstance(exc, (ValueError, StorageError)):
         return f"Berkas tidak valid: {msg}"
     return "Terjadi kesalahan saat memproses berkas. Pastikan format berkas sesuai."
@@ -197,7 +203,7 @@ def get_datasets(request: Request, db: Session = Depends(get_session)):
     return templates.TemplateResponse(
         request=request,
         name="datasets.html",
-        context={"user": user, "datasets": _user_datasets(db, user.id), "error": None},
+        context={"user": user, "datasets": _user_datasets(db, user.id), "max_cells": MAX_CELLS, "error": None},
         status_code=200,
     )
 
@@ -225,6 +231,7 @@ async def post_datasets(
             context={
                 "user": user,
                 "datasets": _user_datasets(db, user.id),
+                "max_cells": MAX_CELLS,
                 "error": "Batas unggah tercapai (maksimal 20 berkas per jam). Silakan coba lagi nanti.",
             },
             status_code=429,
@@ -354,6 +361,7 @@ async def post_datasets(
             context={
                 "user": user,
                 "datasets": _user_datasets(db, user.id),
+                "max_cells": MAX_CELLS,
                 "error": _format_error(exc),
             },
             status_code=200,

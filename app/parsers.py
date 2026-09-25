@@ -116,6 +116,14 @@ MAX_DISTINCT_TOKENS_PER_ITEM: int = 64
 UNIQUE_COLUMN_RATIO: float = 0.5
 
 
+def _cells_over_limit(total_cells: int) -> str:
+    """Message for a matrix larger than MAX_CELLS, carrying the observed size."""
+    return (
+        f"Dataset cell count exceeds MAX_CELLS limit ({_MAX_CELLS}) "
+        f"(found {total_cells} cells)"
+    )
+
+
 def _normalize_header(header: str) -> str:
     s = header.strip().rstrip("*").strip().lower()
     return re.sub(r"[\s\-_]+", "_", s)
@@ -247,7 +255,9 @@ def parse_delimited(raw: bytes) -> ParsedDataset:
 
         total_cells += n_items
         if total_cells > _MAX_CELLS:
-            raise _StorageError(f"Dataset cell count exceeds MAX_CELLS limit ({_MAX_CELLS})")
+            # Report the whole file, not the partial count at the moment the cap tripped.
+            projected = max(total_cells, (len(non_empty) - 1) * n_items)
+            raise _StorageError(_cells_over_limit(projected))
 
         person_labels.append(p_label)
         rows.append(item_cells)
@@ -308,7 +318,7 @@ def parse_xlsx(raw: bytes) -> ParsedDataset:
 
             total_cells += n_items
             if total_cells > _MAX_CELLS:
-                raise _StorageError(f"Dataset cell count exceeds MAX_CELLS limit ({_MAX_CELLS})")
+                raise _StorageError(_cells_over_limit(total_cells))
 
             person_labels.append(p_label)
             rows.append(item_cells)
@@ -376,7 +386,7 @@ def parse_prn(raw: bytes, control: dict[str, Any]) -> PrnDataset:
             continue
         total_cells += ni
         if total_cells > _MAX_CELLS:
-            raise _StorageError(f"Dataset cell count exceeds MAX_CELLS limit ({_MAX_CELLS})")
+            raise _StorageError(_cells_over_limit(total_cells))
         labels.append(line[0:namlen].strip())
         raw_row = line[item1 - 1 : item1 - 1 + ni]
         rows.append(raw_row.ljust(ni, " "))
@@ -626,4 +636,3 @@ def count_all_missing_persons(
                 count += 1
 
     return count
-

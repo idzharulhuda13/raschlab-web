@@ -205,7 +205,7 @@ APP_ENV=prod .venv/bin/python -c "from app.main import app; print([r.path for r 
 | Constant | Value | Description |
 |---|---|---|
 | `MAX_UPLOAD_BYTES` | `16 * 1024 * 1024` (16 MiB) | Maximum per-file upload size cap (unchanged). |
-| `MAX_CELLS` | `2_000_000` (2,000,000 cells) | Maximum total matrix cell limit (was 8,000,000; lowered so 214 MB engine peak fits 512 MiB instance at concurrency 1). |
+| `MAX_CELLS` | `2_500_000` (2,500,000 cells) | Maximum total matrix cell limit. Raised from 2,000,000 on 25 Sep 2026, when the instance had already moved from 512 MiB to 1 GiB and the 2 M value (chosen for the smaller instance) rejected a real 45.833 x 50 upload. The cap is memory-bound, never time-bound: measured peak RSS for a 45.833-person matrix is 0,31 GiB at 0,69 M cells, 0,70 GiB at 2,29 M, 0,71 GiB at 2,52 M and 0,83 GiB at 2,98 M, while the engine needs only ~5 s at 2,3 M cells against the 120 s request timeout. 2,5 M keeps ~29% headroom on the 1 GiB instance. To accept larger matrices, raise the instance memory (`deploy_ui.sh --memory`) rather than the engine: the engine is a pinned dependency whose numbers are frozen. |
 
 ### HTTP routes (F3)
 
@@ -464,3 +464,13 @@ names below are frozen; the budgets are hard requirements for any future feature
 - Measured pages at 45.832 persons: dataset page 64 ms / 20 KB, analysis page 199 ms / 816 KB,
   explorer wright 90 ms / 8 KB, butir 102 ms / 30 KB, partisipan 105 ms / 619 KB, ringkasan
   71 ms / 44 KB.
+
+### F5 caps follow-up (25 Sep 2026)
+
+- `MAX_CELLS = 2_500_000`. A matrix over the cap is refused with a message that carries the
+  file's own size: `Berkas memuat <N> sel, melebihi batas maksimal <cap> sel.` The parser
+  projects the whole file (`rows * n_items` from the raw line count) rather than reporting the
+  partial count at the moment the cap tripped.
+- `app/templates/datasets.html` renders every occurrence of the limit and the capacity
+  percentage from the `max_cells` context value. A literal limit in that template is a defect:
+  the page would advertise a number the upload route does not enforce.

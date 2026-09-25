@@ -20,9 +20,12 @@ __all__ = [
 # 16 MiB per-file upload cap keeps Neon storage within bounds and prevents memory exhaustion.
 MAX_UPLOAD_BYTES: int = 16 * 1024 * 1024
 
-# 2,000,000 cells ceiling: measured engine peak 214 MB at 2 M cells fits a 512 MiB instance;
-# 16 MB/upload unchanged.
-MAX_CELLS: int = 2_000_000
+# 2,500,000 cells ceiling: the instance is 1 GiB at concurrency 1, and the measured peak
+# for a 45.833-person matrix is 0,31 GiB at 0,69 M cells, 0,70 GiB at 2,29 M, 0,71 GiB at
+# 2,52 M and 0,83 GiB at 2,98 M. 2,5 M keeps ~29% headroom; the engine time is never the
+# binding constraint (5 s at 2,3 M cells against a 120 s request timeout). 16 MB/upload
+# unchanged.
+MAX_CELLS: int = 2_500_000
 
 
 class StorageError(Exception):

@@ -466,3 +466,25 @@ def test_legacy_dataset_with_many_stored_tokens_renders_and_blocks_confirmation(
     assert commit.status_code == 422
     assert len(commit.content) < 400_000
     assert "Unggah ulang berkas" in commit.text
+
+
+def test_cell_cap_message_reports_the_observed_size(client: TestClient, monkeypatch):
+    """Going over the cap reports how big the file is, not just the limit."""
+    import app.ingest as ingest
+    import app.parsers as parsers
+    import app.storage as storage
+
+    for module in (storage, parsers, ingest):
+        monkeypatch.setattr(module, "MAX_CELLS" if module is not parsers else "_MAX_CELLS", 30)
+
+    _create_authenticated_user(client)
+    lines = ["username,I01,I02,I03"] + [f"P{i:03d},A,B,C" for i in range(12)]
+    resp = client.post(
+        "/datasets",
+        files={"data": ("big.csv", ("\n".join(lines) + "\n").encode(), "text/csv")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert "Berkas memuat 36 sel, melebihi batas maksimal 30 sel." in resp.text
+    with SessionLocal() as db:
+        assert db.execute(select(func.count(Dataset.id))).scalar_one() == 0
