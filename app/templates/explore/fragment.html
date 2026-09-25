@@ -32,7 +32,7 @@
           {% if loop.index0 in (0, 3, 4, 5, 7, 9, 11, 13) %}
             {% set h0 = item_ctx.headers[0][loop.index0] | trim if item_ctx.headers[0] | length > loop.index0 else '' %}
             {% set h1 = col | trim %}
-            <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if loop.index0 == 13 else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ col }}</button></th>
+            <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if loop.index0 == 13 else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ h0 if (item_ctx.headers[1] | select('equalto', col) | list | length) > 1 else col }}</button></th>
           {% else %}
             {% if col %}
               <th scope="col" class="mono">{{ col }}</th>

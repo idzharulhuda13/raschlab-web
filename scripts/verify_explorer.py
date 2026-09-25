@@ -3,7 +3,7 @@
 
 Boots the real app on a temporary SQLite database, seeds crafted data,
 drives a real Chromium via Playwright, and prints a per-group PASS/FAIL
-table. Exactly 193 checks in 11 groups. Exit 0 only when all 193 pass.
+table. Exactly 194 checks in 11 groups. Exit 0 only when all 194 pass.
 """
 
 from __future__ import annotations
@@ -472,7 +472,7 @@ def group_a_responsive(page: Any, base_url: str, analysis1_id: int,
 
 def group_b_shell(page: Any, base_url: str, analysis1_id: int,
                   analysis2_id: int, dataset1_id: int, res: Results) -> None:
-    """57 checks: 12 shell + 9 per panel x 5 panels."""
+    """58 checks: 13 shell + 9 per panel x 5 panels."""
     print("\n[B] Shell and panel structure")
 
     goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=wright")
@@ -748,6 +748,45 @@ def group_b_shell(page: Any, base_url: str, analysis1_id: int,
         f"viewport y={btn_rect['top']:.0f} bottom={btn_rect['bottom']:.0f} scrollY={scroll_y}" if btn_rect else "no commit bar found",
         b11_ok,
     )
+
+    # B.12 Sticky tab strip remains in viewport top band while scrolling item view
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=butir")
+    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    time.sleep(0.15)
+    scroll_y = page.evaluate("window.scrollY")
+    tab_rect = page.evaluate("""() => {
+        const tabs = document.querySelector('#tablist.tabs') || document.querySelector('#tablist');
+        const appbar = document.querySelector('.appbar');
+        if (!tabs) return null;
+        const r = tabs.getBoundingClientRect();
+        const bar = appbar ? appbar.getBoundingClientRect() : {bottom: 72};
+        const tab = tabs.querySelector('.tab');
+        let clickable = false;
+        if (tab) {
+            const tr = tab.getBoundingClientRect();
+            clickable = tr.width > 0 && tr.height > 0 && tr.top >= 0 && tr.bottom <= window.innerHeight;
+        }
+        return {
+            top: r.top,
+            bottom: r.bottom,
+            appbar_bottom: bar.bottom,
+            tab_clickable: clickable,
+            vh: window.innerHeight
+        };
+    }""")
+    b12_ok = bool(
+        tab_rect and
+        scroll_y >= 400 and
+        tab_rect["bottom"] <= 200 and
+        tab_rect["top"] < tab_rect["bottom"] and
+        tab_rect["tab_clickable"]
+    )
+    res.record(
+        "shell: sticky tab strip in top band while scrolling item view",
+        f"viewport y={tab_rect['top']:.0f} bottom={tab_rect['bottom']:.0f} scrollY={scroll_y}" if tab_rect else "no tab strip found",
+        b12_ok,
+    )
+
 
 
 # ---------------------------------------------------------------------------
@@ -2041,7 +2080,7 @@ def main() -> int:
         print(f"TOTAL: {total} checks  |  {passed} PASS  |  {failed} FAIL")
         print(f"{'=' * 72}")
 
-        EXPECTED_TOTAL = 193
+        EXPECTED_TOTAL = 194
         if total != EXPECTED_TOTAL:
             print(
                 f"\nERROR: Expected {EXPECTED_TOTAL} checks, got {total}. "
@@ -2053,7 +2092,7 @@ def main() -> int:
             print(f"\nFAIL: {failed} check(s) failed.")
             return 1
 
-        print("\n193/193 PASS")
+        print("\n194/194 PASS")
         return 0
 
     finally:

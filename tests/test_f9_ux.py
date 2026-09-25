@@ -20,6 +20,7 @@ Covers the 19 acceptance checks specified in PLAN-f9-ux.md:
 17. Misfit band number equals recomputation from item table (INFIT MNSQ >= 1.50).
 18. Exactly one nav link carries the active marker on each authenticated page.
 19. Analysis page section order: Butir Bermasalah < Rekap Responden < Tabel Butir (15.1) < Tabel Opsi dan Distraktor (15.3) < Tabel Responden, and Tabel Ringkasan absent.
+20. Item table sort buttons distinct visible text and distinct aria-labels.
 """
 
 from __future__ import annotations
@@ -452,3 +453,49 @@ def test_analysis_page_section_order(client: TestClient):
     assert idx_opsi < idx_responden, f"Expected 'Tabel Opsi dan Distraktor (15.3)' ({idx_opsi}) < 'Tabel Responden' ({idx_responden})"
 
     assert "Tabel Ringkasan" not in html, "'Tabel Ringkasan' must be absent from analysis page"
+
+
+# ---------------------------------------------------------------------------
+# 20. Item table sort buttons distinct visible text and aria-labels
+# ---------------------------------------------------------------------------
+
+def test_item_table_sort_buttons_distinct_visible_text_and_aria_labels(client: TestClient):
+    user_id = _create_authenticated_user(client, email="user_f9_distinct_headers@example.test")
+    aid = _seed_f9(user_id, "distinct_headers.csv", _build_test_files())
+
+    resp = client.get(f"/analyses/{aid}/explore?view=butir")
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
+    html = resp.text
+
+    button_matches = re.findall(
+        r'(<button[^>]*class="[^"]*\bth-sort\b[^"]*"[^>]*>(.*?)</button>)',
+        html,
+        re.DOTALL,
+    )
+    assert len(button_matches) > 0, "No button.th-sort elements found in item table"
+
+    visible_texts = []
+    aria_labels = []
+    for full_tag, inner_text in button_matches:
+        vis = inner_text.strip()
+        aria_m = re.search(r'aria-label="([^"]*)"', full_tag)
+        aria = aria_m.group(1).strip() if aria_m else ""
+        visible_texts.append(vis)
+        aria_labels.append(aria)
+
+    seen_vis: set[str] = set()
+    dup_vis: list[str] = []
+    for v in visible_texts:
+        if v in seen_vis:
+            dup_vis.append(v)
+        seen_vis.add(v)
+    assert not dup_vis, f"Duplicated visible text found in button.th-sort: {dup_vis}"
+
+    seen_aria: set[str] = set()
+    dup_aria: list[str] = []
+    for a in aria_labels:
+        if a in seen_aria:
+            dup_aria.append(a)
+        seen_aria.add(a)
+    assert not dup_aria, f"Duplicated aria-label found in button.th-sort: {dup_aria}"
+
