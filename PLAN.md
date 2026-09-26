@@ -430,6 +430,48 @@ suite and the explorer harness green. `_infit_mnsq_column()` now accepts both la
 7. Hallmark audit of the three touched pages: 0 critical; every new control keyboard reachable, ≥44 px, Indonesian, no em dash; both themes checked.
 8. Live check after deploy: the three pages render the controls, one real download opens in openpyxl with the right sheet and row count, and `/health` reports the new commit.
 
+## BACKLOG (recorded 27 Sep 2026 from the live e2e, not started)
+
+Order inside each group is the recommended order. Nothing here is a promise: each item needs its own
+clarify plus a frozen contract before a writer touches it.
+
+### Defects found by testing the `.CON` path live (these are bugs, not ideas)
+
+- **D1 (highest: blocks a legitimate file).** `app/parsers.py::parse_control` coerces **every** directive
+  except `KEY1` to `int` when the value is digit-only (`parsers.py:358-362`), so `CODES = 01` arrives as
+  `1` and the leading zero disappears. A binary answer alphabet, written the way Winsteps users always
+  write it, is then rejected with a message that blames the user's file:
+  `Kode respon pada berkas kontrol (1) tidak mencakup kode data (01).` The engine's own parser guards
+  exactly this case on purpose (`raschlab/control.py:42`, comment naming `CODES = 01`): only
+  `NUMERIC_DIRECTIVES` become numbers. Fix: mirror the engine (or call the engine's parser) instead of
+  re-implementing the coercion. Evidence: local probe of six spellings (`01`->int 1, `"01"`->string with
+  the quotes kept, `10`/`1234` survive by luck) plus the live rejection above.
+- **D2 (blocks numeric instruments).** With an answer key present, the matrix builder requires response
+  tokens to be letters A-E (`app/analysis.py:250`). The same 0/1 file that commits fine without a `.CON`
+  is refused once `KEY1` arrives, with `Kode respon '0, 1' di luar huruf A-E; mesin hanya menerima A-E.`
+  The engine accepts any `CODES` alphabet, so a binary or 1-4 rating instrument cannot use a `.CON` key
+  today. Either widen the builder to the engine's rule or say so in the copy.
+- **D3 (small, i18n).** When a control file contradicts itself, the engine's English sentence reaches an
+  Indonesian page: `Berkas tidak valid: KEY1 length (40) does not match NI (99).`
+- **D4 (test hygiene, and the reason D1/D2 hid).** Every fixture in `tests/` and in the explorer harness
+  uses letter responses, so no test ever pushed a numeric alphabet through the `.CON` path.
+
+### Enhancements (grounded in what the e2e actually required of a user)
+
+- **B1.** Prefill the token classification on the commit screen (`1`/`B` -> Benar, `0`/`A` -> Salah,
+  other and empty -> Data Hilang) behind a "Terapkan saran" button that stays editable. Today every
+  distinct token starts at "Pilih status..." and must be chosen by hand: four choices for a clean 0/1
+  file, more for a rating scale or a messy field file.
+- **B2.** One workbook with every sheet, matching the engine's own output shape (the CLI writes ONE
+  file carrying `15.1`, `person`, `15.3`, `summary`, `wright_measure`, `wright_frequency`; the web makes
+  the user click six times and hands back six files). This deliberately reverses part of F11's
+  OUT OF SCOPE line ("whole-workbook multi-sheet export"), so it is a new scope decision.
+- **B3.** Threshold shortcuts on the settings screen: 1,00 (ketat), 1,20 (teliti), 1,50 (bawaan), with
+  the existing `step=0.05` still available for anything else.
+- **B4.** Show which `.CON` directives were honoured, on the dataset page. The app already stores them
+  (`summary["control"]`, verified live: `{"KEY1": ..., "CODES": "10", "MISSCORE": "-1"}`) and no page
+  renders them, so a user cannot see whether a decoy like `NAMELEN` was ignored.
+
 ## OUT OF SCOPE (explicit)
 
 Whole-workbook multi-sheet export; CSV/ZIP download; "download every run"; e-mail or scheduled delivery;
