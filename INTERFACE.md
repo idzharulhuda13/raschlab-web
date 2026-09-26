@@ -543,3 +543,86 @@ Frozen here so a later writer does not re-add tab stops to a table nobody can ac
 | row selection, arrow-key row navigation | does not exist; do not add `tabindex`, `role="grid"` or a roving tabindex until a row has a real action |
 
 - reason | measured 26 Sep 2026 with the app booted on the Android fixture: **147 of 147** Butir rows carried `tabindex="0"`, and activating one (mouse click or `Enter`) changed nothing, identical URL and identical `#panel-butir` digest, `cursor: auto`. That is 147 dead tab stops (Hallmark R-26, a control that does nothing). The Partisipan table already had 0 tab stops over 500 rows, which is correct and stays. If a row ever gains a real action, that action decides the pattern; roving tabindex only comes back with a grid to navigate.
+
+## F11 — Excel export per table (26 Sep 2026, frozen)
+
+One XLSX per request, holding the FULL stored table behind the table on screen. Every name below is part of the
+interface: change it only with the tests and the harness in the same commit.
+
+### HTTP route
+
+| name | kind | contract |
+|---|---|---|
+| `GET /analyses/{id}/export` | route | query `table`, required |
+| `table` | value | one of `butir`, `opsi`, `responden`, `ringkasan`, `wright`, `bandingkan` |
+| `from`, `to` | value | analysis ids, read **only** for `table=bandingkan` |
+
+`q_item`, `q_person`, `page_item`, `page_person`, `page_option` are ignored on purpose: an export that narrowed
+itself to the current search or page would be a silent truncation, and the stored file is the unit of truth.
+
+### Table key -> stored file -> sheet
+
+| key | `analysis_files.filename` | sheet title | header rows |
+|---|---|---|---|
+| `butir` | `item_table_15.1.csv` | `butir` | 2 |
+| `opsi` | `option_table_15.3.csv` | `opsi` | 2 |
+| `responden` | `person_table.csv` | `responden` | 2 |
+| `ringkasan` | `summary_table.csv` | `ringkasan` | 1, then the blank spacer row |
+| `wright` | `wright_map_measure.csv` | `wright` | 2 |
+| `bandingkan` | derived from two `item_table_15.1.csv` | `bandingkan` | 1 |
+
+`wright_map_frequency.csv` gets no control: no page renders it.
+
+### Sheet rules
+
+- Rows are the engine's rows verbatim. Header rows and fully blank rows stay text exactly as stored.
+- The numeric decision is **delegated to the engine**, never re-derived: the column label is the cell's label in
+  the LAST header row (`raschlab.report.number_format_for_header`), then `raschlab.report.coerce_cell(value, fmt)`.
+  Non-numeric columns stay strings, which is what keeps `PERSON` and `ITEM` identifiers text even when they are
+  all digits. `ringkasan` uses `raschlab.report.summary_value_format` on the `VALUE` column.
+- `bandingkan` is the one derived sheet. Its header row is `Nomor`, `Butir`, `Measure analisis pertama`,
+  `Measure analisis kedua`, `Selisih (kedua − pertama)` — the labels the table renders — and its numeric columns
+  are 0, 2, 3, 4. Its rows come from the same server-side chain the view renders (`build_compare_pairs`,
+  `Decimal`, `ROUND_HALF_UP`, 2dp), so file and screen cannot disagree.
+
+### Guards (order is part of the contract)
+
+| # | condition | answer |
+|---|---|---|
+| 1 | `_gate_closed()` | 404 `PAGE_NOT_FOUND_MSG` |
+| 2 | no session user | 404 `PAGE_NOT_FOUND_MSG` |
+| 3 | analysis missing or not owned | 404 `ANALYSIS_NOT_FOUND_MSG` |
+| 4 | dataset missing or not owned | 404 `DATASET_NOT_FOUND_MSG` |
+| 5 | `status != "done"` | 303 `/analyses/{id}` |
+| 6 | unknown `table` key | 404 `EXPORT_TABLE_NOT_FOUND_MSG` |
+| 7 | rate limit exceeded (`30`/hour/user, key `export:<ip>:<user_id>`) | 429 + `Retry-After` |
+| 8 | table over `EXPORT_MAX_ROWS` / `EXPORT_MAX_CELLS` | 413, message names the numbers |
+| 9 | stored file absent or empty | 404 `EXPORT_TABLE_NOT_FOUND_MSG` |
+| 10 | otherwise | 200 `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` |
+
+The stale-run status flip in `get_explore` is NOT copied here: a download must not mutate state.
+
+### Response headers
+
+- `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+- `Content-Disposition: attachment; filename="raschlab-{id}-{table}.xlsx"; filename*=UTF-8''raschlab-{id}-{table}.xlsx`
+- `Cache-Control: no-store`
+
+### Export caps (measured)
+
+`EXPORT_MAX_ROWS = 1_048_000` (Excel's own sheet limit is 1.048.576) and `EXPORT_MAX_CELLS = 2_500_000`.
+Measured through this writer path: 687.540 cells -> 10,3 s / 76,5 MiB / 2,29 MB; 1.500.030 cells -> 28,4 s /
+122,7 MiB / 4,99 MB. Raising a cap is an instance/memory decision like `MAX_CELLS`, never a code-only change.
+
+### Controls (frozen inventory)
+
+| page | keys and anchors |
+|---|---|
+| `/analyses/{id}` | `ringkasan` under `Rekap Responden`, `butir` under `Tabel Butir (15.1)`, `opsi` under `Tabel Opsi dan Distraktor (15.3)`, `responden` under `Tabel Responden` |
+| `/analyses/{id}/explore` view `wright` | `wright`, inside `#panel-wright` after `#wright-meta` |
+| `/analyses/{id}/explore` views `butir`, `partisipan`, `ringkasan`, `bandingkan` | `butir`, `responden`, `ringkasan`, `bandingkan` (the last only when both ids are set), from one `render_view` chain at the top of `explore/fragment.html` |
+| `/analyses` | per row and per mobile card: `butir`, `opsi`, `responden`, `ringkasan` |
+
+Markup reuses existing classes only (`.action-bar`, `.btn .btn--secondary`, `.text-link`): F11 adds no class, so
+the class-count pins in `tests/test_ui_contract.py` stay 145 / 159. Visible text is `Unduh Excel` with an
+`aria-label` that names the table. No JS, no CSS, no pagination change.

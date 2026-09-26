@@ -1,450 +1,309 @@
-# PLAN.md — F3: run the engine, store the results, render them
+# PLAN.md — F11: Excel export per table
 
-**This file is the binding contract for the F3 build.** Phase 2 (writer) executes it literally; Arc verifies
-every claim with measurements. Where this file and any other description disagree, this file wins. Nothing in
-this plan may be substituted by "a better idea" mid-run: if the writer thinks a step is wrong, it stops and
-says so in its report instead of improvising.
+**This file is the binding contract for the F11 build.** Phase 2 (writer) executes it literally; Arc verifies
+every claim with measurements. Where this file and any other description disagree, this file wins. A writer that
+thinks a step is wrong STOPS and says so in its report instead of improvising.
 
-Executor key: **agy** = writer run (`--stdin`, 1–2 files per run, `--add-dir /root/projects/raschlab-web`).
-**Arc** = install, migrate, deploy, audit. A writer run never runs `alembic upgrade` and never deploys.
+Executor key: **agy** = writer run (one file per run, background, prompt from a file via `--stdin`,
+`--mode accept-edits --dangerously-skip-permissions --add-dir /root/projects/raschlab-web`). **Arc** = the frozen
+contract docs, verification, the browser harness, the audit, the deploy handoff. A writer run never deploys.
 
-## Non-negotiables (measured or decided, not preferences)
+Planner provenance: `planner/plans/2026-09-26-raschlab-export.md` (5/5 sections, session `20260926_140202_931bd4`),
+curated here. Three of its claims were wrong or unfalsifiable and are corrected below; the corrections are
+marked **[curated]**.
 
-1. **Cap is 2 000 000 cells** (was 8 000 000). Reason: 2 M is 5.8x the largest real dataset (342 216 cells),
-   enough for 5 000 respondents x 400 items. Every user-facing string that says 8.000.000 must say 2.000.000,
-   and `MAX_CELLS` must be `2_000_000`.
-2. **Cloud Run runs with 1 GiB and `--concurrency 1`.** Measured through the real path
-   (`run_for_dataset`, 4 000 x 500 = 2 M cells, 10 % missing): platform peak **568.9 MB**, of which the engine
-   alone is **520.5 MB** (`engine-cli` phase); ingest peak **121.7 MB**. The earlier 214 MB figure came from a
-   2 M-cell dataset with NO missing values, so engine memory is data-shape dependent (2.4x between those two
-   shapes). 512 MiB therefore cannot hold the 2 M-cell cap; 1 GiB does, with ~450 MB headroom. One engine run
-   per instance; two runs must never share an instance. If a dataset ever OOM-kills an instance the next lever
-   is 2 GiB, and the interrupted run is left as `failed` by the stale-run sweep, never as a wrong result.
-3. **Peak memory = max(parse, engine), never their sum.** The engine needs only a `.prn` + `.CON` on disk.
-   Decoded bytes, the response matrix and any parser structures must be released before `run_analyze` is
-   called. Keep the matrix as `numpy.uint8` while building; do not hold two Python copies of the matrix.
-4. **Byte-identity is structural, not aspirational.** The platform calls the engine in-process, with input
-   files written exactly as the CLI writes them, and stores the engine's own output bytes (read as `bytes`,
-   gzipped with `mtime=0`, never decoded and re-serialized). Localization happens only in the Jinja `id_num`
-   filter at render time.
-5. **Engine pinned** to `8e8ac678c792d9ecef20cb7efd5ee27cc841af4a` via a git dependency; never vendored,
-   never reimplemented.
-6. **Fail closed.** An incomplete or unmappable dataset produces an Indonesian error message and no analysis
-   row; there is never a silent default.
-7. **Scope fence.** F3 = run + store + render 4 tables + person account. F4 (list/rename/delete/download),
-   F5 (Wright map render + downloads), payments and auth work are OUT.
-8. **UI inherits the frozen design contract** (`DESIGN.md`, `INTERFACE.md`): existing tokens, existing classes,
-   no new fonts/colors/gradients, no `<style>` blocks, no inline `style=`, no em dash, Indonesian copy.
-9. **Every data view has empty, loading and error states.**
+## Owner decisions (Dada, 26 Sep 2026 — quoted, do not re-open)
 
-## Phase A — cap copy, dependency, schema
+1. Content: **"Hanya tabel yang sedang tampil di layar itu."**
+2. Placement: **"Halaman hasil + explorer + daftar Hasil Analisis (biar bisa unduh run lama tanpa buka)."**
+3. Sheet shape: **"Verbatim seperti output engine (2 baris header, angka mesin) tapi sel angka ditulis sebagai
+   number + number format rapi di Excel."**
 
-1. **[agy E0] Lower the cap, everywhere it is said.** Three files:
-   - `app/storage.py`: `MAX_CELLS: int = 2_000_000` and update the comment above it so it states the new ceiling
-     and why (measured engine peak 214 MB at 2 M cells fits a 512 MiB instance; 16 MB/upload unchanged).
-   - `app/ingest.py`: the `_format_error` message string that still says "1.000.000 sel" must say
-     "2.000.000 sel" (it is stale today: it disagrees with the constant it describes).
-   - `app/templates/datasets.html`: all four user-visible occurrences of "8.000.000" (the limit list item and
-     the two capacity bands, each with its `aria-label` and its `.band-scale-value`) must say "2.000.000".
-   Verify: `grep -rn '2_000_000' app/storage.py` = 1 hit; `grep -rn '8.000.000\|8_000_000' app/ templates/` =
-   zero hits; `grep -c '2.000.000' app/templates/datasets.html` = 4; `.venv/bin/python -m pytest -q
-   tests/test_ui_contract.py` stays green.
-2. **[agy E1] Engine pin.** `requirements.txt` gains exactly one line:
-   `raschlab @ git+https://github.com/idzharulhuda13/raschlab@8e8ac678c792d9ecef20cb7efd5ee27cc841af4a`.
-   `Dockerfile` gains a git install step (`python:3.12-slim` has no git, and the pip git-URL install needs it)
-   before the existing pip install line, as one `RUN apt-get update && apt-get install -y --no-install-recommends
-   git && rm -rf /var/lib/apt/lists/*`.
-   Verify: `grep -c 'raschlab @ git+' requirements.txt` = 1; `grep -n 'apt-get install' Dockerfile` prints one line.
-3. **[Arc] Install locally.** `uv pip install -r requirements.txt`, then
-   `.venv/bin/python -c "import raschlab, numpy; print('engine ok', numpy.__version__)"`. Must precede every
-   later verify that imports `app.main`.
-4. **[agy E2] Migration** `alembic/versions/0004_analysis.py`, revises `"0003"`, raw `op.execute` SQL in the
-   style of `0003_ingest.py`:
-   - `ALTER TABLE datasets ADD COLUMN matrix_gzip BYTEA;` (nullable, so existing rows stay valid)
-   - `CREATE TABLE analyses` with `id SERIAL PRIMARY KEY`, `user_id INTEGER NOT NULL REFERENCES users(id) ON
-     DELETE CASCADE`, `dataset_id INTEGER NOT NULL REFERENCES datasets(id) ON DELETE CASCADE`, `status TEXT NOT
-     NULL`, `params_json TEXT NOT NULL`, `engine_ref TEXT NOT NULL`, `error TEXT`, `elapsed_ms INTEGER`,
-     `created_at BIGINT NOT NULL`, `started_at BIGINT`, `finished_at BIGINT`, `expires_at BIGINT NOT NULL`,
-     `notice_sent_at BIGINT`; indexes `ix_analyses_user_id`, `ix_analyses_dataset_id`, `ix_analyses_expires_at`.
-   - `CREATE TABLE analysis_files` with `id SERIAL PRIMARY KEY`, `analysis_id INTEGER NOT NULL REFERENCES
-     analyses(id) ON DELETE CASCADE`, `filename TEXT NOT NULL`, `content_gzip BYTEA NOT NULL`, `sha256 TEXT NOT
-     NULL`, `bytes BIGINT NOT NULL`, `UNIQUE (analysis_id, filename)`; index `ix_analysis_files_analysis_id`.
-   - `UPDATE app_meta SET value='4' WHERE key='schema_version'`.
-   - Downgrade: drop both tables, drop `datasets.matrix_gzip`, set `schema_version` back to `'3'`. Users and
-     datasets rows are never touched.
-   Verify: `.venv/bin/python -m alembic heads` shows `0004 (head)`; offline SQL
-   (`.venv/bin/python -m alembic upgrade head --sql > /tmp/0004.sql`) contains exactly one `CREATE TABLE
-   analyses` and one `matrix_gzip`.
-5. **[agy E3] ORM** in `app/models.py`: import `UniqueConstraint`; add `Analysis` and `AnalysisFile` with exactly
-   the columns above (`Mapped`/`mapped_column`, `LargeBinary` for `content_gzip`, `UniqueConstraint("analysis_id",
-   "filename")` in `__table_args__`); add `Dataset.matrix_gzip: Mapped[Optional[bytes]] = mapped_column(LargeBinary,
-   nullable=True)`. Do not touch `app/db.py` (`pool_pre_ping=True`, `pool_recycle=300` must stay).
-   Verify: sqlite smoke — `rm -f /tmp/f3.db && DATABASE_URL=sqlite:////tmp/f3.db .venv/bin/python -c "from
-   app.db import get_engine; from app.models import Base; Base.metadata.create_all(get_engine());
-   print(sorted(Base.metadata.tables))"` lists `analyses` and `analysis_files`.
+## Non-negotiables (measured or decided, with the reason)
 
-## Phase B — the engine bridge
+1. **The content type is a literal, and the planner's value was wrong.** Use exactly
+   `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. (`…vnd.openpyxl-officedocument…` is not a
+   registered type and would make some browsers download with the wrong handler.) **[curated]**
+2. **One XLSX per request, built synchronously in memory** with openpyxl write-only cells, returned as bytes.
+   No queue, no worker, no background job, no stored artifact, no new table, no migration.
+   Measured on this box with the real writer path (own process, `openpyxl 3.1.5`, openpyxl `write_only`):
 
-6. **[agy E4] Create `app/analysis.py`** (the intricate file: alone in its run). Exact names:
-   - Constants: `ENGINE_REF = "8e8ac67"`, `RETENTION_DAYS = 180`, `NOTICE_DAYS = 14`, `STALE_RUN_S = 900`,
-     `RENDER_PAGE = 500`, `OUTPUT_FILES = ("item_table_15.1.csv", "option_table_15.3.csv", "person_table.csv",
-     "summary_table.csv", "wright_map_measure.csv", "wright_map_frequency.csv")`, and
-     `PARAMS_DEFAULT = {"mode": "compat", "digits": 2, "lconv": None, "person_order": "misfit", "anchors": None,
-     "pdfile": None}` (anchors/pdfile keys reserved for F4, always null in F3).
-   - `class AnalysisError(Exception)` whose `str()` is the Indonesian, user-facing message.
-   - `id_num(value) -> str`: string transform only, never parsing to float. Pass through anything that is not a
-     plain number; otherwise group the integer part with `.` and join decimals with `,`
-     (`0.65 -> 0,65`, `-1.23 -> -1,23`, `1234 -> 1.234`, `1000000.5 -> 1.000.000,5`, `P0001 -> P0001`).
-   - `build_matrix_gzip(kind, person_labels, item_labels, rows, mapping, control) -> bytes` — the single
-     validation+encoding site, used both at commit and at legacy backfill:
-     * delimited: classify every token with `app/parsers.py::classify`; raise `AnalysisError("Ada token yang
-       belum dipetakan: ...")` when unassigned; map the distinct incorrect tokens, sorted, to letters `B, C, D, E`
-       (raise if more than four); every cell becomes `A` (correct), its letter (incorrect) or a space (missing);
-       `key = "A" * n_items`; `codes = "A" + letters`; raise if there is no non-missing cell.
-     * winsteps: require `set(codes) <= set("ABCDE")` else raise `AnalysisError("Kode respon ... di luar huruf
-       A-E; mesin hanya menerima A-E.")`; require `len(key) == n_items` and every `key[j] in codes`; each cell
-       keeps its character when it is in `codes` and not in the extra-missing set, otherwise becomes a space
-       (this makes engine-valid identical to platform-valid, because the engine's `score()` accepts only A-E).
-     * both: empty person label -> `f"P{i+1:04d}"`; `namlen = max(1, max(len(l) for l in labels))`;
-       `item1 = namlen + 1`; each prn line is `label.ljust(namlen) + row`, no truncation. The stored container is
-       `gzip.compress(json.dumps({"v":1,"namlen":namlen,"key":key,"codes":codes,"prn":text}).encode(), mtime=0.0)`
-       so the bytes are deterministic.
-   - `write_inputs(tmp_dir, dataset, matrix_gzip) -> (con_path, prn_path)`: decode the container, write
-     `data.prn` (prn text + trailing newline), `items.lbl` (exactly `dataset.n_items` lines, newlines inside
-     labels replaced by spaces) and `analyze.CON` whose body is literally `&INST`, `NAME1 = 1`, `NAMLEN = ...`,
-     `ITEM1 = ...`, `NI = ...`, `KEY1 = ...`, `CODES = ...`, `DATA = data.prn`, `ILABEL = items.lbl`, `&END`.
-     Relative filenames only, so the CON bytes do not depend on the directory; return the absolute paths.
-   - `ensure_matrix(db, dataset) -> bytes`: return `dataset.matrix_gzip` when present, else the legacy backfill:
-     decompress `raw_gzip`, parse once with the existing parser, `build_matrix_gzip`, persist to
-     `datasets.matrix_gzip`, commit. This is the only path that re-parses a workbook, and only for datasets that
-     predate F3.
-   - `run_for_dataset(db, dataset) -> Analysis`: (1) `ensure_matrix`; (2) insert the row with `status="queued"`,
-     `params_json=json.dumps(PARAMS_DEFAULT)`, `engine_ref=ENGINE_REF`, `created_at`, `expires_at` = created +
-     180 days; commit; (3) flip to `status="running"` with `started_at`; commit; (4) inside one
-     `with tempfile.TemporaryDirectory(prefix="raschlab_") as td:` write the inputs, release the matrix
-     container reference, then call `run_analyze(con_path=..., data_path=..., out_dir=td, mode="compat",
-     out_format="csv", digits=2, lconv=None, person_order="misfit")` (module-level
-     `from raschlab.cli import run_analyze`), capturing stdout/stderr into a buffer; catch `SystemExit` and
-     `Exception` and raise `AnalysisError("Analisis gagal dijalankan mesin: " + <last stderr line, max 1000
-     chars>)`; (5) read all six output files as raw `bytes`, `gzip.compress(b, mtime=0)`, compute
-     `sha256` and `bytes`; (6) in ONE transaction insert the six `AnalysisFile` rows and set
-     `status="done"`, `finished_at`, `elapsed_ms`; on any failure after step 2 roll back the files, set
-     `status="failed"`, `error`, `finished_at`, commit, and return that row.
-   - `load_tables(analysis) -> dict[str, list[list[str]]]` (decompress + `csv.reader`, all six),
-     `latest_done_analysis(db, dataset_id)`, `paginate(rows, page)`,
-     `retention_sweep(db, now) -> dict`: delete rows with `expires_at <= now` (any status); for `status='done'`
-     rows with `notice_sent_at IS NULL` whose expiry is within 14 days, send the Indonesian notice through the
-     existing email helper (`from app import auth` then `auth.send_email(...)`, a module-attribute call so the
-     existing test capture patch applies) and set `notice_sent_at`; on send failure leave it NULL to retry.
-   Verify: `.venv/bin/python -c "import ast; ast.parse(open('app/analysis.py').read()); import app.analysis;
-   print('ok')"`.
-7. **[agy E5] Edit `app/ingest.py`**, four literal hunks in order (if the writer no-ops, split into two runs):
-   - H1: after the ratelimit import, add `from app.analysis import AnalysisError, build_matrix_gzip,
-     latest_done_analysis`.
-   - H2: in `get_dataset`, build the context into a local first, add
-     `context["latest_analysis"] = latest_done_analysis(db, dataset.id)`, then return with `context=context`.
-   - H3 (delimited commit branch): build the matrix in a `try/except AnalysisError` that renders the same 422
-     page the unassigned-token block already renders, then set `dataset.matrix_gzip = matrix_gzip` after the
-     mapping and `committed_at` are set.
-   - H4 (winsteps commit branch): the same pattern with `kind="winsteps"` and `control=control`, setting
-     `dataset.matrix_gzip` before that branch's commit.
-   Verify: `python -c "import ast; ast.parse(open('app/ingest.py').read()); print('ok')"` and
-   `.venv/bin/python -m pytest -q tests/test_ingest_routes.py` stays green.
+   | rows x cols | cells | write time | peak RSS | file |
+   |---|---|---|---|---|
+   | 45.834 x 15 (real worst production table) | 687.540 | 10,3 s | 76,5 MiB | 2,29 MB |
+   | 100.002 x 15 | 1.500.030 | 28,4 s | 122,7 MiB | 4,99 MB |
 
-## Phase C — routes
+   Script: `/root/raschlab-ops/measure_export_xlsx.py`. Instance is 2 GiB with a 120 s request timeout, so the
+   synchronous shape holds with ~2-4x headroom.
+3. **Export caps, derived from that measurement, not guessed:** `EXPORT_MAX_ROWS = 1_048_000` (Excel's own sheet
+   limit is 1.048.576, so a bigger file would be unopenable) and `EXPORT_MAX_CELLS = 2_500_000` (≈50 s and
+   ≈200 MiB on the curve above). Above either cap the route answers **413** with a message naming the actual
+   numbers, never a truncated file and never a 500. Raising a cap is an instance/memory decision (the same rule
+   as `MAX_CELLS`), never a code-only change. **[curated]** — the planner had no cap at all.
+4. **The numeric decision is delegated to the engine, never re-derived.** For the five engine tables: the column
+   label is the cell's label in the LAST header row of the stored CSV; call
+   `raschlab.report.number_format_for_header(label)` and then `raschlab.report.coerce_cell(value, fmt)`. A cell
+   becomes a number only when the engine's own rule says so, and it carries the format the engine returns. Every
+   other cell stays a string — that is what keeps `PERSON` and `ITEM` identifier columns text even when they are
+   all digits (16-digit ids would lose precision as floats). `ringkasan` uses
+   `raschlab.report.summary_value_format` per VALUE cell, exactly as the engine workbook does. `bandingkan` is
+   the one derived sheet and gets explicit numeric columns (below).
+   **Stop-and-report condition:** if any real identifier column resolves numeric under that rule, a writer stops
+   and reports instead of patching around the engine.
+5. **All rows, always. `q_item`, `q_person`, `page_item`, `page_person`, `page_option` and any explorer filter are
+   ignored.** A file narrowed to the current search or page would be a silent truncation of data.
+6. **`wright` exports `wright_map_measure.csv`** — the file the displayed map is built from
+   (`app/explore.py` L380). `wright_map_frequency.csv` is rendered on no page, so it gets no control.
+7. **`bandingkan` reuses the server-side call chain the view renders** (`build_compare_pairs`, `Decimal`,
+   `ROUND_HALF_UP`, 2dp), so the file and the screen cannot disagree. Sheet rows = `compare_ctx.pairs` in order;
+   exported columns are the five the table renders (nomor, butir, measure pertama, measure kedua, selisih) and the
+   header row repeats the rendered labels verbatim, including the minus sign in "Selisih (kedua − pertama)".
+8. **Rate limit** uses the existing `app/ratelimit.check_limit` helper: `30` per `3600` s per user with the key
+   `export:{client_ip}:{user_id}`. A worst-case export is ~10 s of one vCPU, so an unlimited loop is a real cost.
+   Refusal = **429** + `Retry-After` + a one-paragraph Indonesian page. **[curated]** — `app/ingest.py` already
+   renders a whole page on its upload limit, but this response is a download and has no page of its own, so the
+   body is a minimal inline HTML document built in `app/export.py`; **no new template file** (template names are
+   frozen in `INTERFACE.md`).
+9. **Route:** `GET /analyses/{id}/export?table=<key>` with keys `butir`, `opsi`, `responden`, `ringkasan`,
+   `wright`, `bandingkan`; `from` and `to` are read only for `bandingkan`. Registered in `app/main.py` in exactly
+   the pattern the other three routers use (`from app.export import router as export_router` +
+   `app.include_router(export_router)`; `app/main.py` L48-51). **[curated]** the planner wrote only "mirror how
+   `app.explore` is registered" without naming the import form, and the router object in `app/explore.py` is
+   module-level `router = APIRouter()`.
+10. **Zero new CSS or template classes; no JS change; no CSS change; no pagination change; no DB change.** Every
+    class a writer inserts already exists in `app/templates/**` today (`action-bar`, `btn`, `btn--secondary`,
+    `text-link`), so the class-count pins in `tests/test_ui_contract.py` (145 used / 159 defined) must NOT move.
+    If a control cannot be placed with existing classes, that run STOPS and reports; it never edits the pin.
+11. **Copy** is Indonesian: visible text `Unduh Excel` everywhere, plus a mandatory `aria-label` that names the
+    table, because five identical controls on one page are unusable with a screen reader. No em dash.
+12. **Docs are frozen before code, by Arc, in this session** (`INTERFACE.md` F11 + `DESIGN.md` F11). Doc edits are
+    not logic and do not consume a writer run; the planner's runs 1-2 are therefore dropped. **[curated]**
 
-8. **[agy E6] Create `app/analyze.py` + edit `app/main.py` (2 files).**
-   - `app/analyze.py`: an `APIRouter`; register `templates.env.filters["id_num"] = id_num` on the same
-     `templates` object the ingest routes use; a lifespan task that runs the retention sweep after 30 s and then
-     every 6 hours, entirely inside `try/except` + `logger.exception`.
-     * `POST /datasets/{id}/analyze` — closed gate -> 303 `/`; anonymous -> 303 `/login`; not owner -> 404; dataset
-       not `ready` -> 303 to the detail page; rate limit `analyze:{client_ip}:{user_id}` 12 per hour -> 429 with
-       `Retry-After`; an existing `running` row for the same dataset younger than `STALE_RUN_S` -> 303 to it
-       (double-submit guard); `AnalysisError` before the row exists -> 422 on `dataset_detail.html` with the
-       message; success -> 303 `/analyses/{analysis.id}`. This route is a sync `def` so the CPU-bound engine runs
-       in the threadpool and never blocks the event loop.
-     * `GET /analyses/{id}` — gate/owner 404; a `queued`/`running` row older than `STALE_RUN_S` is flipped to
-       `failed` with `"Analisis terhenti saat berjalan. Jalankan ulang."`; renders `analysis.html` in three
-       states: running (loading), failed (Indonesian error + retry form posting to the analyze route), done
-       (full render).
-   - `app/main.py`: import and `app.include_router(...)` after the ingest router.
-   Verify: `.venv/bin/python -c "from app.main import app; print(sorted(r.path for r in app.routes))"` lists
-   both new paths.
+## The route contract
 
-## Phase D — UI
+```
+GET /analyses/{id}/export?table=butir|opsi|responden|ringkasan|wright|bandingkan[&from=<id>&to=<id>]
+```
 
-9. **[agy E7] Append one block to `app/static/app.css`**: `.pager` (flex row, wrapping, right-aligned, top
-   margin from existing space tokens) and nothing else; no new animation. `.pager` is the only new class.
-   Verify: `grep -c '^\.pager{' app/static/app.css` = 1 and `pytest -q tests/test_ui_contract.py` green.
-10. **[agy E8] Create `app/templates/analysis.html` + edit `tests/test_ui_contract.py` (2 files).** Template
-    extends `base.html`, Indonesian copy, only existing classes, no `<style>`, no `style=`, no em dash. Structure:
-    header band (back link to `/datasets/{id}`, filename as `h1`, status chip, the retention line "Hasil analisis
-    disimpan selama 180 hari.", definition rows for engine ref, elapsed time, person-table order
-    "Urutan tabel responden: misfit (outfit MNSQ menurun)", mode and digits) -> a "Rekap Responden" band whose
-    values come only from the stored `summary_table.csv` (`PERSON COUNT`, `COUNTS EXTREME EXCLUDED`,
-    `COUNTS EXTREME_MIN`, `COUNTS EXTREME_MAX`, `COUNTS LACKING`, `COUNTS DELETED`) plus `dataset.n_persons` ->
-    four table bands: "Tabel Butir (15.1)", "Tabel Opsi dan Distraktor (15.3)", "Tabel Responden", "Tabel
-    Ringkasan". Each table: scroll wrapper + existing table classes + caption, two-row header rendered verbatim
-    (empty row-1 cells as `<th></th>`), every cell through `{{ cell | id_num }}` EXCEPT the raw columns (item col
-    13; person cols 13 and 14; option col 11; summary cols 0 and 1) which render untouched. No sorting controls:
-    the engine's order is authoritative. Item/person/option tables paginate 500 rows with
-    `?page_item=&page_person=&page_option=` links (each href carrying the other two current values) and a
-    `<nav class="pager">` with previous/next secondary buttons plus a mono line "Halaman x dari y (n baris)"; the
-    summary table is not paginated. States: running shows the empty-state text "Analisis sedang diproses...";
-    failed shows the existing misfit alert with the Indonesian error and a retry form
-    (`data-loading="Memproses analisis..."`, primary button "Jalankan Ulang"). In `tests/test_ui_contract.py`
-    change the template count assertion from `== 9` to `== 10`.
-    Verify: `.venv/bin/python -m pytest -q tests/test_ui_contract.py` green (this proves the class inventory, the
-    template count, the absence of style blocks and the retired names).
-11. **[agy E9] Edit `app/templates/dataset_detail.html`**: insert one new section immediately before the actions
-    band, rendered only when `status == 'ready'`: a form posting to `/datasets/{{ dataset.id }}/analyze` with
-    `data-loading="Memproses analisis..."` and a primary button "Jalankan Analisis Rasch"; below it, when
-    `latest_analysis` is present, a secondary link "Lihat hasil analisis terakhir" plus a status chip, otherwise
-    the empty-state line "Belum ada analisis untuk berkas ini.".
-    Verify: `.venv/bin/python -m pytest -q tests/test_ingest_routes.py tests/test_ui_contract.py` green.
+Guard order is part of the contract:
 
-## Phase E — the proofs (the acceptance test is the deliverable)
-
-12. **[agy E10] Create `tests/test_analysis_unit.py`**: delimited encoding cases (correct/incorrect/missing
-    mapping, deterministic letter assignment, `codes == "ABC"` for two incorrect tokens); fail-closed cases
-    (unassigned token, five distinct incorrect tokens, winsteps codes outside A-E, `key[j] not in codes`, empty
-    matrix); winsteps blanking; container roundtrip and gzip determinism (two calls produce identical bytes);
-    prn roundtrip through the engine's own `raschlab.reader.read_matrix`; `write_inputs` producing a CON that
-    `raschlab.control.parse_control` accepts with `NI == len(KEY1)` and an `items.lbl` line count equal to
-    `n_items`; `id_num` against the case list; `paginate` clamping; `retention_sweep` on a sqlite session
-    (expired row deleted, near-expiry row gets `notice_sent_at` through the captured email helper).
-    Verify: `.venv/bin/python -m pytest -q tests/test_analysis_unit.py`.
-13. **[agy E11] Create `tests/test_analysis_routes.py`**, reusing the authenticated-user helper pattern from
-    `tests/test_ingest_routes.py`: upload + commit `tests/fixtures/sample_300x40.csv` -> POST analyze -> 303 ->
-    GET the result page 200 containing "Tabel Butir (15.1)", the order label, an Indonesian decimal comma inside
-    a rendered measure cell and `id_num`-formatted thousands; DB assertions (`status == "done"`, `elapsed_ms > 0`,
-    six `analysis_files` rows, decompressed bytes start with the engine's header, `sha256` recomputes,
-    `expires_at - created_at == 180 days`); isolation (user B gets 404 for both the read and the run);
-    failure state (a monkeypatched `run_analyze` raising `SystemExit(2)` -> `status == "failed"`, zero files, page
-    shows the misfit alert and the Indonesian message); loading state (a manually inserted `running` row);
-    stale row older than 900 s flipped to `failed`; the `latest_analysis` link on the dataset detail page; and
-    the legacy backfill (set `matrix_gzip=None`, analyze, matrix repopulated).
-    Verify: `.venv/bin/python -m pytest -q tests/test_analysis_routes.py`.
-14. **[agy E12] Create `tests/test_byte_identity.py`** (the acceptance comparator as a test): drive the full HTTP
-    flow on `tests/fixtures/sample_300x40.csv`, then independently re-derive the inputs with
-    `build_matrix_gzip` + `write_inputs` into `tmp_path` and run the CLI
-    (`sys.executable -m raschlab analyze --con ... --data ... --out ... --format csv`, `check=True`); assert for
-    all six output files that `gzip.decompress(platform_bytes) == cli_bytes` byte-for-byte and that the sha256
-    values match. No skipif: the engine is a hard dependency.
-    Verify: `.venv/bin/python -m pytest -q tests/test_byte_identity.py`.
-15. **[agy E13] Create `scripts/compare_cli_platform.py`**: a standalone comparator for the verifier (sets
-    `DATABASE_URL` to a temp sqlite and the gate env before importing `app.main`, creates the schema, inserts a
-    verified user + session directly, drives upload -> commit -> analyze through `TestClient`), then the same CLI
-    comparison; prints one line per file with both sha256 values and MATCH/MISMATCH, and finally
-    `ALL 6 FILES BYTE-IDENTICAL` (exit 0) or a non-zero exit.
-    Verify: `.venv/bin/python scripts/compare_cli_platform.py` exits 0 and prints that line.
-16. **[agy E14] Edit `INTERFACE.md`**: append an F3 section with the two routes and their behaviours, the
-    `analyses` / `analysis_files` / `datasets.matrix_gzip` column tables (marked FROZEN), `OUTPUT_FILES`, the
-    `.pager` class, the `id_num` filter rule, the retention constants, and the new 2 000 000 cap.
-    Verify: `grep -c '## F3' INTERFACE.md` = 1.
-
-## Phase F — Arc only (never agy)
-
-17. Full gate: `.venv/bin/python -m pytest -q` (all existing tests plus the new ones, zero failures) and
-    `.venv/bin/python scripts/compare_cli_platform.py` (raw output pasted into the report).
-18. Migrate Neon: read the DSN from Secret Manager, `DATABASE_URL=... .venv/bin/python -m alembic upgrade head`,
-    confirm `alembic current` shows `0004`.
-19. Deploy: same source-based invocation as revision `raschlab-web-00010-w29`, with
-    `--memory 1Gi --concurrency 1 --timeout 120`. Verify with
-    `gcloud run services describe raschlab-web --region asia-southeast1 --format='value(spec.template.spec.containers[0].resources.limits.memory,spec.template.spec.containerConcurrency)'`.
-20. Live walkthrough on the deployed revision: login -> upload `sample_300x40.csv` -> commit -> analyze -> open the
-    result page. Record HTTP status, the visible Indonesian headers, `/health` commit, absence of tracebacks, and
-    the live peak memory from Cloud Run metrics for the run request. Then run the Hallmark audit gate (per the
-    house wiring in the antislop skill) before reporting F3 done. If the instance is OOM-killed at the 2 M cap,
-    the fallback lever is `--memory 1Gi` (re-measure; do not guess).
-
-## EDIT LIST (one agy run per row unless noted)
-
-| Run | Files | Verify |
+| # | condition | answer |
 |---|---|---|
-| E0 | `app/storage.py`, `app/ingest.py`, `app/templates/datasets.html` | cap greps + `test_ui_contract.py` |
-| E1 | `requirements.txt`, `Dockerfile` | the two greps |
-| E2 | `alembic/versions/0004_analysis.py` | `alembic heads`, offline SQL greps |
-| E3 | `app/models.py` | sqlite `create_all` smoke |
-| E4 | `app/analysis.py` | ast + import |
-| E5 | `app/ingest.py` | `test_ingest_routes.py` |
-| E6 | `app/analyze.py`, `app/main.py` | route list print |
-| E7 | `app/static/app.css` | `.pager` grep + contract test |
-| E8 | `app/templates/analysis.html`, `tests/test_ui_contract.py` | `test_ui_contract.py` |
-| E9 | `app/templates/dataset_detail.html` | ingest + contract tests |
-| E10 | `tests/test_analysis_unit.py` | its own test run |
-| E11 | `tests/test_analysis_routes.py` | its own test run |
-| E12 | `tests/test_byte_identity.py` | its own test run |
-| E13 | `scripts/compare_cli_platform.py` | run it, exit 0 |
-| E14 | `INTERFACE.md` | the grep |
+| 1 | `_gate_closed()` | 404 `PAGE_NOT_FOUND_MSG` |
+| 2 | `_current_user(request, db) is None` | 404 `PAGE_NOT_FOUND_MSG` |
+| 3 | analysis missing or `analysis.user_id != user.id` | 404 `ANALYSIS_NOT_FOUND_MSG` |
+| 4 | dataset missing or not owned | 404 `DATASET_NOT_FOUND_MSG` |
+| 5 | `analysis.status != "done"` | 303 `/analyses/{id}` |
+| 6 | unknown `table` key | 404 `EXPORT_TABLE_NOT_FOUND_MSG` |
+| 7 | rate limit exceeded | 429 + `Retry-After` |
+| 8 | table above `EXPORT_MAX_ROWS` / `EXPORT_MAX_CELLS` | 413 + message with the actual numbers |
+| 9 | stored file absent or empty | 404 `EXPORT_TABLE_NOT_FOUND_MSG` |
+| 10 | otherwise | 200, attachment headers |
 
-## REVIEW FINDINGS AND CLOSURES (independent review of commit eb401f5)
+The stale-run status flip in `get_explore` (L319-327) is deliberately NOT copied: a download must not mutate
+state. `bandingkan` resolves `from`/`to` under the same ownership and `done` rules as the single tables.
 
-1. **[major] `auth.send_email` was called with three arguments while the real helper
-   (`app/emailer.py:14`) requires four (`to, subject, html, text`).** Every retention notice raised
-   `TypeError`, which the surrounding `except` swallowed, so `notice_sent_at` stayed NULL forever and the
-   14-day notice was never delivered. The test that should have caught it monkeypatched the helper with
-   `*args, **kwargs`, so it could not see the shape of the real signature.
-   **Closed:** the call now passes `text=` (a plain-text version of the same Indonesian message), and a new test
-   reads `inspect.signature` of the REAL helper, records the kwargs the notice path passes, and fails if any
-   required parameter is missing. Verified: suite 106 passed.
-2. **[major] `build_matrix_gzip` built the matrix as Python lists of one-character strings instead of the
-   numpy `uint8` representation this plan requires (non-negotiable 3).**
-   **Closed:** the delimited encoding now fills a `numpy.uint8` array and converts it with `tobytes()`; the
-   array is dropped as soon as the prn text exists. Byte-identity re-proven afterwards:
-   `scripts/compare_cli_platform.py` still prints `ALL 6 FILES BYTE-IDENTICAL` (sha256 equal for all six
-   outputs), so the refactor moved no byte.
-3. **Memory measurement added** (`scripts/measure_analysis_memory.py`, four phases, each in its own process):
-   ingest 121.7 MB, engine-cli 520.5 MB, harness 564.8 MB, real app path 568.9 MB at 2 M cells with 10 %
-   missing. This is what moved the instance size from 512 MiB to 1 GiB (non-negotiable 2 above).
-4. **Open lead (engine side, not a platform defect):** engine memory depends on the data shape, 214 MB without
-   missing values versus 520 MB with 10 % missing at the same 2 M cells. Worth a dedicated look in the engine
-   repository later; on the platform side it is bounded by the instance size and the `failed` state, never by a
-   wrong number.
+Table key → stored file → sheet title:
 
-## ASSUMPTIONS
+| key | `analysis_files.filename` | sheet title | header rows |
+|---|---|---|---|
+| `butir` | `item_table_15.1.csv` | `butir` | 2 |
+| `opsi` | `option_table_15.3.csv` | `opsi` | 2 |
+| `responden` | `person_table.csv` | `responden` | 2 |
+| `ringkasan` | `summary_table.csv` | `ringkasan` | 1 (+ the blank spacer row) |
+| `wright` | `wright_map_measure.csv` | `wright` | 2 |
+| `bandingkan` | derived from two `item_table_15.1.csv` | `bandingkan` | 1 |
 
-1. Advanced engine options (item anchors / person deletes) are **deferred, not shipped as form fields**:
-   `params_json` carries `anchors: null, pdfile: null` so F4 can add fields with no migration.
-2. Person-table order is fixed to the engine default (`misfit`) with no form control; it is displayed as text and
-   stored in `params_json`.
-3. The parsed-matrix artifact is `datasets.matrix_gzip` = deterministic gzip of
-   `{"v":1,"namlen","key","codes","prn"}`, built at commit time (when the mapping becomes final). The upload path
-   is untouched; pre-F3 datasets are backfilled lazily on first analysis.
-4. Results are stored as the engine's own CSV bytes for all six outputs (the two Wright-map files included, so F5
-   never re-runs the engine). Rendering parses the four needed files per request. No xlsx output is generated.
-5. Downloads are not built in F3; byte-identity is proven against the stored bytes by the test and the script.
-6. Delimited datasets are re-encoded to synthetic letters (the engine's prn alphabet is single-character A-E), so
-   the option table's codes are synthetic for CSV/XLSX uploads while original tokens survive for Winsteps uploads.
-7. Retention runs as an in-app sweep (startup + 30 s, then every 6 h) because Cloud Run has no external cron;
-   worst-case deletion latency is one instance lifetime, always inside the 14-day notice window.
-8. Analysis rate limit is 12 per hour per user/IP through the existing in-memory limiter.
-9. HTML numbers use Indonesian formatting only through the `id_num` filter; column headers keep the engine's own
-   (English, Winsteps-style) text so page and file agree, while all prose is Indonesian.
-10. Render page size is 500 rows for item/person/option tables; the summary table is always full.
-11. Engine determinism across processes is assumed on the strength of its own regression tests and re-proven on
-    this box by the comparator.
-12. The deploy invocation matches the one used for `raschlab-web-00010-w29`; the memory/concurrency flags are
-    given explicitly above.
+Response headers on success:
+
+```
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename="raschlab-{id}-{table}.xlsx"; filename*=UTF-8''raschlab-{id}-{table}.xlsx
+Cache-Control: no-store
+```
+
+## Control inventory (frozen)
+
+| page | anchors | keys |
+|---|---|---|
+| `/analyses/{id}` | after `<h2>Rekap Responden</h2>` / after `<h2>Tabel Butir (15.1)</h2>` / after `<h2>Tabel Opsi dan Distraktor (15.3)</h2>` / after `<h2>Tabel Responden</h2>` | `ringkasan`, `butir`, `opsi`, `responden` |
+| `/analyses/{id}/explore` view `wright` | inside `#panel-wright`, after `<p id="wright-meta">…</p>`, before `<div id="wright-scale">` | `wright` |
+| `/analyses/{id}/explore` view `butir` | top of `explore/fragment.html`, one `render_view` chain | `butir` |
+| `/analyses/{id}/explore` view `partisipan` | same chain | `responden` |
+| `/analyses/{id}/explore` view `ringkasan` | same chain | `ringkasan` |
+| `/analyses/{id}/explore` view `bandingkan` | same chain, only when `compare_ctx.from_id` and `compare_ctx.to_id` are set | `bandingkan` + `from`/`to` |
+| `/analyses` | desktop table: new `Unduh Excel` column; mobile `file-cards`: same links in the card's action row | per row `butir`, `opsi`, `responden`, `ringkasan` |
+
+Markup shape (three lines, existing classes only):
+
+```html
+<div class="action-bar">
+  <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=KEY" aria-label="ARIA">Unduh Excel</a>
+</div>
+```
+
+**[curated]** the planner gave the list page a single control exporting `ringkasan` "because a 45.834-row butir
+file would be a hostile surprise". Rejected: the owner asked to download an old run **without opening it**, and
+narrowing that to the summary would hide the run's main result. The list page therefore carries the same four
+keys as the result page, and the route's cap message is what protects the size case.
+
+## Constraints (the ladder travels with the task)
+
+```text
+LADDER — before writing any code, stop at the first rung that holds:
+1. Does this need to exist?      -> no: skip it (YAGNI), say so in one line.
+2. Already in this codebase?     -> reuse the helper/util/pattern that already lives here. Look before writing.
+3. Stdlib does it?               -> use it.
+4. Native platform feature?      -> use it (input type=date over a picker lib, CSS over JS, DB constraint over app code).
+5. Already-installed dependency? -> use it. Never add a new one for what a few lines can do.
+6. Can it be one line?           -> one line.
+7. Only then: the minimum code that works.
+
+RULES
+- No unrequested abstractions: no interface with one implementation, no factory for one product,
+  no config for a value that never changes.
+- No boilerplate, no scaffolding "for later".
+- Deletion over addition. Boring over clever. Fewest files possible.
+- Shortest working diff wins — but only after understanding the problem.
+- Two stdlib options the same size -> take the edge-case-correct one. Less code, not a flimsier algorithm.
+- Mark a deliberate short-cut that has a real ceiling (global lock, O(n^2) scan, naive heuristic) with a
+  `ponytail:` comment naming the ceiling and the upgrade path.
+
+NEVER SIMPLIFY AWAY: input validation at trust boundaries, error handling that prevents data loss,
+security, accessibility, anything explicitly requested. Real hardware needs its calibration knob.
+NEVER LAZY ABOUT UNDERSTANDING: read the code the change touches, trace the real flow end to end, then
+climb. Bug fix = root cause, not symptom.
+LEAVE ONE RUNNABLE CHECK: non-trivial logic leaves one small runnable check behind. Trivial one-liners need no test.
+```
+
+## EDIT LIST (one writer run per file, this order)
+
+**Class-count pin statement.** No run owns a `tests/test_ui_contract.py` edit: F11 adds zero classes and drops
+zero classes. Every template run proves it by running that test file and pasting the raw result.
+
+### R1 — `app/export.py` (NEW, part 1: constants + builder) — owner: agy
+
+- Literal constants:
+  - `TABLE_KEYS = {"butir": "item_table_15.1.csv", "opsi": "option_table_15.3.csv", "responden": "person_table.csv", "ringkasan": "summary_table.csv", "wright": "wright_map_measure.csv"}`
+  - `HEADER_ROWS = {"butir": 2, "opsi": 2, "responden": 2, "ringkasan": 1, "wright": 2, "bandingkan": 1}`
+  - `SHEET_TITLES = {"butir": "butir", "opsi": "opsi", "responden": "responden", "ringkasan": "ringkasan", "wright": "wright", "bandingkan": "bandingkan"}`
+  - `COMPARE_HEADER = ["Nomor", "Butir", "Measure analisis pertama", "Measure analisis kedua", "Selisih (kedua − pertama)"]`
+  - `COMPARE_NUMERIC = {0: "int", 2: "float", 3: "float", 4: "float"}`
+  - `SUMMARY_NUMERIC = {2: "summary"}`
+  - `EXPORT_MAX_ROWS = 1_048_000`, `EXPORT_MAX_CELLS = 2_500_000`
+  - `EXPORT_RATE_LIMIT = 30`, `EXPORT_RATE_WINDOW_S = 3600`
+  - `EXPORT_TABLE_NOT_FOUND_MSG = "Tabel unduhan tidak tersedia untuk analisis ini."`
+  - `EXPORT_RATE_MSG = "Batas unduhan Excel tercapai (30 unduhan per jam). Silakan coba lagi nanti."`
+- `def build_xlsx(sheet_title: str, rows: list[list[str]], header_rows: int, numeric: dict[int, str] | None = None) -> bytes`
+  - `wb = openpyxl.Workbook(write_only=True)`, `ws = wb.create_sheet(title=sheet_title)`, `labels = rows[header_rows - 1] if rows and header_rows >= 1 else []`
+  - per cell: `value = "" if raw is None else str(raw)`; if `r_idx < header_rows` or `value == ""` → append a `WriteOnlyCell` with `str` (empty → `None`) and continue (headers and blank rows are verbatim, never coerced)
+  - `numeric is None` → engine rule: `fmt = number_format_for_header(label)` then `value, fmt = coerce_cell(value, fmt)`
+  - otherwise `mode = numeric.get(c_idx)`: `"summary"` → `fmt = summary_value_format(value)`; `"int"` → `fmt = "0"`; `"float"` → `fmt = "0.00"`; then `value, fmt = coerce_cell(value, fmt)`; `mode is None` → text
+  - set `cell.number_format = fmt` only when `fmt` is truthy; `ws.freeze_panes = f"A{header_rows + 1}"`; `wb.save(io.BytesIO())`; return the bytes
+  - imports: `openpyxl`, `from openpyxl.cell import WriteOnlyCell`, `from raschlab.report import number_format_for_header, coerce_cell, summary_value_format`
+- `def message_page(text: str, status_code: int, extra_headers: dict[str, str] | None = None) -> Response` returning a minimal HTML document (`<!doctype html>`, `lang="id"`, `<meta charset="utf-8">`, one `<p>` with the Indonesian text, one `<a href="/analyses">` back link) — no styling, no template file.
+- **SELF-VERIFY (paste raw output):**
+  `.venv/bin/python -c "import io, openpyxl, app.export as e; b=e.build_xlsx('t',[['ENTRY','MEASURE','PERSON'],['NUMBER','MEASURE','PERSON'],['1','-1.25','007'],['2','0.50','3251501001500027']],2); ws=openpyxl.load_workbook(io.BytesIO(b)).active; print([(c.value, type(c.value).__name__, c.number_format) for c in ws[3]])"` → `[(1,'int','0'), (-1.25,'float','0.00'), ('007','str','General')]`
+  and `.venv/bin/python -m pytest -q` → 186 passed.
+
+### R2 — `app/export.py` (same file, part 2: route) — owner: agy
+
+- `router = APIRouter()`; `@router.get("/analyses/{id}/export")`; `def export_table(id: int, request: Request, db: Session = Depends(get_session)) -> Response`
+- guard order exactly as the contract table; message constants imported from `app.explore` / `app.auth` (grep for where `PAGE_NOT_FOUND_MSG`, `ANALYSIS_NOT_FOUND_MSG`, `DATASET_NOT_FOUND_MSG`, `_gate_closed`, `_current_user` are defined before importing).
+- rows for the five stored keys: `load_tables(analysis)` from `app.analysis`, take `TABLE_KEYS[key]`; `[]` or all-empty rows → 404 `EXPORT_TABLE_NOT_FOUND_MSG`.
+- `bandingkan`: resolve both analyses (same owner + `done` rules), `build_compare_pairs` from `app.explore` on the two `item_table_15.1.csv` row lists, rows = `[COMPARE_HEADER] + [[p[0], p[1], p[2], p[3], p[4]] for p in res["pairs"]]`, `numeric = COMPARE_NUMERIC`. When the pair list is empty, still export the header row (an empty comparison is a real answer) — but the view only shows the control when both ids are set.
+- caps check before building: `rows_count = len(rows)`, `cells = sum(len(r) for r in rows)`; over a cap → `message_page(f"Tabel ini memuat {rows_count} baris dan {cells} sel, melebihi batas unduhan Excel ({EXPORT_MAX_ROWS} baris / {EXPORT_MAX_CELLS} sel).", 413)`.
+- rate limit before loading rows: `check_limit(f"export:{client_ip(request)}:{user.id}", EXPORT_RATE_LIMIT, EXPORT_RATE_WINDOW_S)`; refusal → `message_page(EXPORT_RATE_MSG, 429, {"Retry-After": str(retry_after)})`.
+- success → `Response(content=build_xlsx(...), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={...})` with the two headers from the contract.
+- **SELF-VERIFY:** `.venv/bin/python -c "from app.main import app; print(sorted(p for p in app.openapi()['paths'] if 'export' in p))"` (route list comes from `app.openapi()`, never from a hand-rolled scan of `app.routes`) and `.venv/bin/python -m pytest -q` → 186 passed.
+
+### R3 — `app/main.py` — owner: agy
+
+- `from app.export import router as export_router` next to the other three router imports, and
+  `app.include_router(export_router)` after `app.include_router(explore_router)`.
+- **SELF-VERIFY:** `.venv/bin/python -c "from app.main import app; print(sorted(getattr(r,'path','') for r in app.routes if 'export' in getattr(r,'path','')))"` → `['/analyses/{id}/export']`, and `.venv/bin/python -m pytest -q` → 186 passed.
+
+### R4 — `tests/test_export.py` (NEW) — owner: agy
+
+Seven tests, names literal:
+
+1. `test_cell_parity_with_engine_workbook` — for each of `butir`, `opsi`, `responden`, `ringkasan`, `wright`: build our sheet with `build_xlsx` on the SAME rows the fixture produced, build the engine reference with `raschlab.report.write_workbook` over the same rows into a tmp dir, then compare cell by cell: `value`, `type()`, `number_format`.
+2. `test_all_rows_not_the_500_row_page` — a fixture with more than 500 rows; `ws.max_row == len(csv_rows)`.
+3. `test_guard_matrix` (parametrized) — anonymous 404; gate closed 404; other user's analysis 404; `status="running"` 303; `table=bogus` 404; stored file missing 404.
+4. `test_identifier_columns_stay_text` — `PERSON`/`ITEM` label columns with `007` and a 16-digit id stay `str`; a `MEASURE` cell is `float` with `"0.00"`.
+5. `test_response_headers` — content type, both `filename=` and `filename*=UTF-8''`, `Cache-Control: no-store`.
+6. `test_bandingkan_matches_compare_pairs` — export rows equal `build_compare_pairs(...)["pairs"]` for two done analyses, and the header row equals `COMPARE_HEADER`.
+7. `test_export_caps_and_rate_limit` — a monkeypatched table over `EXPORT_MAX_CELLS` → 413 whose body carries the numbers; the 31st call in the window → 429 with `Retry-After`.
+- **SELF-VERIFY:** `.venv/bin/python -m pytest -q tests/test_export.py` green, then full `.venv/bin/python -m pytest -q` with the new count pasted raw.
+
+### R5 — `app/templates/analysis.html` — owner: agy
+
+- Four insertions, immediately after the heading line: `<h2>Rekap Responden</h2>` (L106, key `ringkasan`, aria `Unduh Excel rekap ringkasan`), `<h2>Tabel Butir (15.1)</h2>` (L140, `butir`, `Unduh Excel tabel butir`), `<h2>Tabel Opsi dan Distraktor (15.3)</h2>` (L197, `opsi`, `Unduh Excel tabel opsi dan distraktor`), `<h2>Tabel Responden</h2>` (L254, `responden`, `Unduh Excel tabel responden`).
+- Markup exactly the three-line shape above, `href="/analyses/{{ analysis.id }}/export?table=KEY"`.
+- **SELF-VERIFY:** `grep -c 'export?table=' app/templates/analysis.html` → 4; `grep -c 'aria-label="Unduh Excel' app/templates/analysis.html` → 4; `.venv/bin/python -m pytest -q tests/test_ui_contract.py` green; `git diff -- app/templates/analysis.html | grep -c '—'` → 0.
+
+### R6 — `app/templates/explore.html` — owner: agy
+
+- One insertion inside `#panel-wright`, after the `<p id="wright-meta">…</p>` line and before `<div id="wright-scale">`: key `wright`, aria `Unduh Excel data peta Wright`.
+- **SELF-VERIFY:** `grep -c 'export?table=wright' app/templates/explore.html` → 1; ui-contract pytest green; em-dash diff count → 0.
+
+### R7 — `app/templates/explore/fragment.html` — owner: agy
+
+- One `{% if render_view == … %}` chain at the TOP of the file, emitting at most one control: `butir` → `table=butir`; `partisipan` → `table=responden`; `ringkasan` → `table=ringkasan`; `bandingkan` → only when `compare_ctx is defined and compare_ctx.from_id and compare_ctx.to_id`, href `/analyses/{{ analysis.id }}/export?table=bandingkan&from={{ compare_ctx.from_id }}&to={{ compare_ctx.to_id }}`.
+- **SELF-VERIFY:** `grep -o 'export?table=' app/templates/explore/fragment.html | wc -l` → 4; ui-contract pytest green; em-dash diff count → 0.
+
+### R8 — `app/templates/analyses.html` — owner: agy
+
+- Desktop table: new `<th scope="col">Unduh Excel</th>` as the last column, and in the row loop a matching `<td>` carrying four `<a class="text-link">` links (`Butir`, `Opsi`, `Responden`, `Ringkasan`) with aria-labels naming the table and the run id.
+- Mobile `file-cards`: the same four links inside the card's existing `<div class="action-bar">`.
+- **SELF-VERIFY:** `grep -c 'export?table=' app/templates/analyses.html` → 8 (four in each of the two layouts); ui-contract pytest green; `git diff -- app/templates | grep -c '—'` → 0.
+
+### R9 — `scripts/verify_explorer.py` — owner: agy
+
+- Ten new checks (4 on `/analyses/{id}`, 5 on the explorer views, 1 on `/analyses` first row): each clicks the control, captures the downloaded bytes, opens them with `openpyxl`, and compares the sheet's cells against the values rendered in that page's DOM (paginated tables compare their rendered rows as an ordered subset; the Rekap section compares each visible value against the `VALUE` column), plus the three response headers.
+- `EXPECTED_TOTAL` moves from 195 to 205 on purpose; if the checks are split differently, move the constant to the real number and report it.
+- **SELF-VERIFY:** `.venv/bin/python scripts/verify_explorer.py` → 205/205 with the tail pasted raw.
+
+## ASSUMPTIONS (verified by Arc at curation time, not inherited)
+
+1. `analysis.html` is 312 lines with THREE `<table class="data-table">` blocks (Butir L139-194, Opsi L196-251, Responden L253-308) plus a "Rekap Responden" definition list (L105-137). The Ringkasan control therefore sits on the Rekap section and exports the full `summary_table.csv`; the harness compares that one against the `VALUE` column. The planner's ASSUMPTION 1 guessed this and got the line anchors close but not exact.
+2. `analysis.html` already renders alerts from `?msg=` (L21-26) and uses `.action-bar` (L40) and `.btn btn--secondary` (L100) — the classes the new controls reuse.
+3. `app/explore.py` defines `VIEWS = ("wright", "butir", "partisipan", "ringkasan", "bandingkan")`, `FRAGMENT_VIEWS` without `wright`, and reads `view`, `fragment`, `q_item`, `q_person`, `page_item`, `page_person`, `from`, `to` (L332-350). `wright_map_measure.csv` is loaded at L380 and drives `build_wright_payload`.
+4. `build_compare_pairs(item_rows_from, item_rows_to)` returns `{"pairs", "matched", "unmatched_from", "unmatched_to", "key_used", "empty_reason"}`; each pair is a 5-list `[entry, label, measure_from, measure_to, delta]` with the delta rendered by `Decimal` + `ROUND_HALF_UP` (L155-280). The rendered header is `Butir` (colspan 2), `Measure analisis pertama`, `Measure analisis kedua`, `Selisih (kedua − pertama)`.
+5. `wright_map_measure.csv` and `wright_map_frequency.csv` carry TWO header rows for the engine's workbook (`MEASURE_HEADER_ROW_1/2`, `FREQ_HEADER_ROW_1/2`), and their second row has empty labels except `PERSON_ENTRIES`/`ITEM_ENTRIES`, which are not in the engine's numeric table — so wright data cells stay text in the engine's own workbook too, and parity holds by construction.
+6. `summary_table.csv` is `SECTION,STATISTIC,VALUE` + one blank row; the engine workbook formats the VALUE column with `summary_value_format`.
+7. `app/ratelimit.py` exposes `check_limit(key, limit, window_s) -> (allowed, retry_after)` and `client_ip(request)`; `app/ingest.py` L225-239 is the usage pattern.
+8. `app/main.py` L9-12 imports routers and L48-51 calls `app.include_router(...)`; the `App(FastAPI)` subclass unwraps `original_router`, so both `app.routes` and `app.openapi()["paths"]` are trustworthy route sources here.
+9. `openpyxl 3.1.5` is already a dependency; the engine package is pinned at `c41c396` and its `report` module imports cleanly inside the web venv (verified by running `number_format_for_header`/`coerce_cell` on this box).
 
 ## RISKS
 
-1. **Memory at the cap (rank 1).** 8 M cells measured 744 MB, which is why the cap is now 2 M (214 MB measured).
-   With 512 MiB and `--concurrency 1`, one engine run per instance fits; the design must never hold two matrix
-   copies (non-negotiable 3). Live peak memory is checked after deploy; the fallback lever is 1 GiB.
-2. **Byte-identity drift (rank 2).** The stored bytes are the engine's own; localization exists only in `id_num`
-   at render. Guarded by `test_byte_identity.py` + `scripts/compare_cli_platform.py`.
-3. **Temp-file cleanup (rank 3).** Everything lives inside one `TemporaryDirectory` context; the engine's
-   `SystemExit` is caught inside that context; the failure-path test proves no files and no `done` status.
-4. **Per-user isolation (rank 4).** Both routes 404 for a foreign user, proved by tests on read and run.
-5. **Partially written result (rank 5).** `queued -> running -> done|failed`; the six file rows and `done` commit
-   in one transaction, so `done` implies six files; `running` rows older than 900 s flip to `failed`.
-6. **Docker build breakage (rank 6).** The pinned git dependency needs git in the slim image; proved locally by
-   `uv pip install` before any code imports it.
-7. **Contract-test collision (rank 7).** The new template changes the `== 9` assertion and the new CSS class must
-   pass the class inventory; `.pager` lands in E7 before the template in E8, and the contract test runs after each.
-8. **Legacy datasets (rank 8).** The first analysis of a pre-F3 dataset re-parses its raw file once and persists
-   the matrix afterwards.
-9. **Retention on ephemeral instances (rank 9).** Sweep at startup and every 6 h; email failures retry on the next
-   sweep because `notice_sent_at` stays NULL.
-10. **Neon growth (rank 10).** Results are KB-scale, the matrix container is MB-scale, retention is 180 days, and
-    datasets themselves are never auto-deleted.
-11. **Winsteps datasets with codes outside A-E (rank 11).** Fails closed at commit with an Indonesian message; no
-    silent wrong numbers.
-12. **Concurrent double-runs (rank 12).** A young `running` row for the same dataset redirects to it instead of
-    starting a second job.
+1. `explorer.js` drives pager links and may intercept `<a>` clicks inside panels, hijacking an export link. The harness (R9) actually downloads on all five views, so this is detected, not assumed away. A fix in JS is out of scope → stop and escalate.
+2. The 30/hour limit can trip a second harness run inside the same hour (10 downloads per run). Tests monkeypatch the limiter; the harness must not be starved — if it is, the harness resets the counter through a documented hook rather than raising the owner's limit.
+3. Engine conventions could differ from ASSUMPTIONS 5-6 for wright/summary; the parity test is the arbiter and it is written before the templates.
+4. `bandingkan` could drift from the screen if the fragment renders a client-side filter; the harness compares cells against the DOM for that view, so drift fails loudly.
+5. A writer adding a class moves the ui-contract pins; caught by that run's own verify step, remedy is a revert of that run, never a pin edit.
+6. Placement: a right-aligned `.action-bar` button directly under a table heading is the app's existing action convention (F9 aligned every primary action to x=1256), but if the audit finds the rhythm wrong the fix is a spacing change in `app.css`, which is out of this contract and needs its own round.
 
 ## ROLLBACK
 
-Code first, schema second; user data (users, datasets, raw uploads) is never dropped by either step.
-
-1. Send traffic back to the known-good revision (old code simply ignores the new tables):
-   `gcloud run services update-traffic raschlab-web --region asia-southeast1 --to-revisions=raschlab-web-00010-w29=100`
-2. `git revert` the F3 commits, push, redeploy, and confirm `/health` before touching anything else.
-3. Only if the migration itself must go:
-   `DATABASE_URL=... .venv/bin/python -m alembic downgrade 0003` — drops `analyses`, `analysis_files` and
-   `datasets.matrix_gzip` (derived, re-runnable analysis results only; `schema_version` returns to 3; users and
-   datasets rows untouched). Restore the old cap copy by reverting commit E0.
-
-# ADDENDUM (24 Sep 2026, evening): `/account` composition fix — FROZEN WRITE ORDER
-
-Owner's verdict on the post-login screen ("baru masuk tampilannya udah engga enakin banget") was measured,
-not argued: `/account` rendered one 432px panel = 30% of a 1440px content width, its card edge 0px below
-the app bar, 293px of dead space under it (login 30%, register 35%). Contrast, overflow and tap targets all
-passed, so the previous gate measured the wrong dimensions. Contract authority for this change set is the
-amended `DESIGN.md` (vertical-rhythm rule, `/account` two-column rule, `/datasets` sign-in landing,
-two-initial avatar); this addendum is the implementation contract and is binding for the writer runs.
-
-Instrument: `agy-build-pipeline/scripts/measure_page_composition.py` (composition + vertical rhythm; gap to
-the first SURFACE, width share, dead space, overflow, contrast, controls) over the pages rendered in-process
-by `/root/raschlab-ops/dump_pages_for_composition.py`. Before-run raw numbers:
-`/root/raschlab-ops/f3/composition_before_v3.json`.
-
-## EDIT LIST (each item is a literal anchor + literal replacement; one owner per file)
-
-1. `app/static/app.css` — two inserts.
-   a) After the `.band--actions { margin-top: var(--space-6); }` block, insert:
-      `.main > .band:first-child { padding-top: var(--space-8); }` and, inside a new
-      `@media (max-width: 719px)` block, `.main > .band:first-child { padding-top: var(--space-6); }`.
-      (`main` carries `class="main"` in base.html:62, so the selector matches; `.band--title` already
-      carries the same 32px, and padding does not accumulate.)
-   b) At the end of the file, after the `.pager` block, define the four new classes:
-      `.acct-avatar--lg`, `.summary-grid`, `.summary-col`, `.summary-figure`.
-      `.summary-grid` is one column by default and `grid-template-columns: repeat(2, minmax(0, 1fr))` from
-      `min-width: 900px`; each column's figure is tabular, with the number at display size and its label
-      muted. No new hex values: existing tokens only.
-2. `app/auth.py` — three edits.
-   a) all three `RedirectResponse("/account", 303)` (lines 168, 277, 352) become
-      `RedirectResponse("/datasets", 303)`.
-   b) imports: add `func` to the `from sqlalchemy import ...` line; extend
-      `from app.models import EmailToken, SessionRow, User` with `Analysis, Dataset`; add
-      `from app.storage import MAX_CELLS, MAX_UPLOAD_BYTES`.
-   c) `get_account` (line 371): keep the existing context keys and add `file_count`, `analysis_count`,
-      `last_analysis` (dict with `id`, `status`, `created_at` as `%Y-%m-%d`, `filename`, or `None`),
-      `limit_mb`, `limit_cells`. Queries exactly as the planner specified them (one per number; the last
-      analysis is a single joined query ordered by `created_at DESC, id DESC` limited to 1).
-3. `app/templates/base.html` (line 41) — the avatar renders TWO initials: derive them from the account
-   string (first letter of the local part plus the letter after the first `.`/`_`/`-`, falling back to the
-   first two characters), upper-cased. One span, class `acct-avatar` unchanged.
-4. `app/templates/account.html` — full rewrite to three bands, stamp comment macrostructure becomes
-   `account-band-stack`: (1) identity band, unframed, with the large initials disc, `h1 Profil Akun`, the
-   verification chip and the labelled pairs; (2) summary band, ONE full-width `.panel` containing
-   `.summary-grid` with two `.summary-col`s — left `Berkas Pengukuran` (file count, the two limits from the
-   constants, link to `/datasets`), right `Analisis` (count, last analysis date + status chip + filename with
-   a link to `/analyses/{id}` when it exists); both columns render the exact honest copy `Belum ada berkas`
-   / `Belum ada analisis` when empty, and no figure is rendered for a zero; (3) session band, unframed, with
-   the lone destructive `Keluar` button. Status words reuse the product vocabulary: `Selesai` (chip--fit),
-   `Memproses` (chip--accent), `Gagal` (chip--misfit). Copy is Indonesian; no em dash; no `<style>`, no
-   `style=` attribute.
-5. `tests/test_auth.py:235` — the expected location becomes `/datasets`.
-6. `tests/test_ui_contract.py` — extend the models import line, assert the new inventory counts, and add
-   tests: (a) both "already signed in" branches redirect to `/datasets`; (b) `account.html` contains no
-   `band--narrow`; (c) `/account` renders the honest empty copy for a fresh user and the real counts for a
-   user with one dataset and one analysis; (d) the avatar renders two initials for `idzharul.huda@gmail.com`;
-   (e) the new class names are defined in `app.css` (the existing closure test covers this once the count
-   assertion is updated).
+`cd /root/projects/raschlab-web && git revert --no-edit <F11 commits>` if pushed, otherwise
+`git reset --hard 4c6da59`. Nothing else to undo: no migration, no stored artifact, no env or secret change.
+If F11 is already live, Dada re-points Cloud Run at the previous revision (revision-level rollback, one command).
 
 ## ACCEPTANCE (measured, not asserted)
 
-- Canonical gate, 6 pages x 1440/1150/900/390 x light+dark: the gap above the first SURFACE is `>= 24px`
-  on `/account`, `/login`, `/register` (0px before) and the document never overflows.
-- `/account` first block width share `>= 60%` of the content width at 1440px (30% before) and dead space
-  below the last block `<= 25%` of the space under the header at 1440px (39% before).
-- `/account` at 390px: the summary grid collapses to ONE column (assert distinct left offsets == 1).
-- Suite green, including the class-inventory closure and the recomputed contrast test.
-- Hallmark audit of `account.html` (+ the new CSS rules) with 0 critical findings.
+1. `python -m pytest -q` green with the count pasted raw (baseline 186).
+2. Cell parity with the engine's own workbook, per sheet, compared automatically (values, types, number formats).
+3. Exported rows equal stored CSV rows for a fixture above 500 rows — the 500-row page is never the export.
+4. Guard matrix answers exactly as the contract table says.
+5. Identifier columns stay text; numeric columns are numbers carrying the engine's format.
+6. `scripts/verify_explorer.py` green with the new checks (`EXPECTED_TOTAL` moved on purpose).
+7. Hallmark audit of the three touched pages: 0 critical; every new control keyboard reachable, ≥44 px, Indonesian, no em dash; both themes checked.
+8. Live check after deploy: the three pages render the controls, one real download opens in openpyxl with the right sheet and row count, and `/health` reports the new commit.
 
-## OUT OF SCOPE
+## OUT OF SCOPE (explicit)
 
-`app/analysis.py`, `app/analyze.py`, `app/ingest.py`, `app/models.py`, `alembic/`, `analysis.html`,
-`datasets.html`, `dataset_detail.html`, the theme token values, deployment scripts. No schema change in this
-change set.
-
-## KNOWN FINDINGS NOT IN THIS CHANGESET (recorded, not silently dropped)
-
-- `.th-sort` header buttons measure 32px tall (below the 44px mobile tap-target floor) on `/datasets/{id}`;
-  the `a` links flagged by the same probe are inline text and legitimately short.
-- 4-5 "scroll container" elements on `/datasets/{id}` are the table wrappers by design (document overflow is
-  0px).
-- The root path `/` redirects to `/register` when the gate is open, so the public landing is the register
-  form by decision (no marketing hero per DESIGN.md).
+Whole-workbook multi-sheet export; CSV/ZIP download; "download every run"; e-mail or scheduled delivery;
+chart/PNG/PDF export; share links; any change to the engine repo; any DB migration; any change to existing table
+markup, pagination, or explorer JS/CSS.

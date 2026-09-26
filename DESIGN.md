@@ -303,6 +303,13 @@ Blue was the previous e-mail link colour (`#0B6C8F`); it exists in no token bloc
 - **Metric / capacity band**: label, value, unit, band. Values tabular. Never four equal stat cards.
 - **Toast**: confirmed actions only (upload accepted, file discarded), dismissible, `aria-live="polite"`.
 
+- **Export control (F11, 26 Sep 2026)**: downloading how a table looks on screen. Wrapper `.action-bar`, control
+  `.btn .btn--secondary`, label `Unduh Excel`, and a mandatory `aria-label` naming the table (five controls with
+  the same visible word are unusable with a screen reader). On the list page the four keys are `.text-link`
+  anchors, not buttons, so a row does not become four buttons wide. **Zero new classes**: the pins in
+  `tests/test_ui_contract.py` (145 used / 159 defined) do not move for this feature. An export is an accent-free
+  action: never `.btn--primary`, and never the only primary on the page. No em dash in its status text.
+
 ## States (required, not bonus)
 
 Empty, loading (upload + commit), error (each saying what happened, what to do, and keeping the user's
@@ -322,6 +329,12 @@ Upload limits are pinned as a PAIR and the rendered page must state both exact n
 
 - **16 MB per file** (`MAX_UPLOAD_BYTES = 16 * 1024 * 1024`)
 - **6.000.000 cells per dataset** (`MAX_CELLS = 6_000_000`)
+
+**Export limits (F11, 26 Sep 2026) are a second pinned pair:** `EXPORT_MAX_ROWS = 1_048_000` and
+`EXPORT_MAX_CELLS = 2_500_000`, stated in the copy of the refusal page with the actual numbers the table holds.
+The row cap is Excel's own sheet limit (1.048.576) minus headroom; the cell cap comes from measurement through
+the real writer path (687.540 cells = 10,3 s / 76,5 MiB; 1.500.030 cells = 28,4 s / 122,7 MiB, against a 120 s
+timeout on a 2 GiB instance). Raising either cap is a memory/instance decision, not a code-only change.
 
 Why 6M and not 8M: the ceiling is set by **memory, never by time**, and it moves with the instance. The
 engine needs 5,2 s for 2,29 M cells and 11,2 s for 3,90 M cells against a 120 s request timeout, while
