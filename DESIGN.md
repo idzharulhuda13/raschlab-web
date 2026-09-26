@@ -315,6 +315,13 @@ Blue was the previous e-mail link colour (`#0B6C8F`); it exists in no token bloc
   `Unduh`. A generic `Unduh Excel` next to a specific one would leave the reader guessing which button is which, so
   wherever a panel carries more than one export, every label in it is specific. Everywhere else the single label
   stays `Unduh Excel`.
+- **Settings screen (F12, 26 Sep 2026)**: the step between a ready dataset and a run. Vertical order: back-link to
+  the file, one title, an optional `alert alert--misfit` for a rejected value, then the three fields in ONE column
+  (`Ambang Misfit` a number input with step 0.05 and a hint naming the default and what lowering it does, `Mode`
+  and `Desimal` as selects), then the screen's single primary action `Jalankan Analisis` (`.btn .btn--primary`), then
+  one closing line saying every analysis keeps its own settings. Existing form classes only, so the class pins stay
+  put. The threshold is a number the user typed, never a badge, and it renders with a comma decimal separator
+  (`1,50`). Defaults are visible, not implied: the form opens filled with `1,50` / `compat` / `2`.
 
 ## States (required, not bonus)
 

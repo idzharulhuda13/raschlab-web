@@ -212,8 +212,58 @@ APP_ENV=prod .venv/bin/python -c "from app.main import app; print([r.path for r 
 | Route | Method | Behaviour |
 |---|---|---|
 | `/analyses` | GET | Lists user's finished analyses (newest first). Unauthenticated redirects to `/login` (303); renders `analyses.html` (200). |
-| `/datasets/{id}/analyze` | POST | Triggers Rasch analysis on a ready dataset. Closed gate redirects to `/` (303); unauthenticated redirects to `/login` (303); non-owner returns 404; dataset status not ready redirects to `/datasets/{id}` (303); rate-limited to 12 per hour per IP/user (429 with `Retry-After`); double-submit guard redirects to active running analysis (303) if started within `STALE_RUN_S` (900 s); synchronous thread execution runs engine; on `AnalysisError` before analysis record creation, renders `dataset_detail.html` (422) with Indonesian error message; on success, redirects to `/analyses/{id}` (303). |
+| `/datasets/{id}/analyze` | POST | Triggers Rasch analysis on a ready dataset. Closed gate redirects to `/` (303); unauthenticated redirects to `/login` (303); non-owner returns 404; dataset status not ready redirects to `/datasets/{id}` (303); rate-limited to 12 per hour per IP/user (429 with `Retry-After`); double-submit guard redirects to active running analysis (303) if started within `STALE_RUN_S` (900 s); synchronous thread execution runs engine; on `AnalysisError` before analysis record creation, renders `dataset_detail.html` (422) with Indonesian error message; on success, redirects to `/analyses/{id}` (303). **F12 form fields** `misfit`, `mode`, `digits` (all optional: an absent or empty field means the default) are validated by `parse_settings_form` **before** the rate limit is consulted; invalid input re-renders `analysis_settings.html` (422) with the submitted values and the Indonesian error copy. |
+| `/datasets/{id}/analysis-settings` | GET | The settings step (F12). Same gate/user/owner checks as the POST; a dataset whose status is not `ready` redirects to `/datasets/{id}` (303); renders `analysis_settings.html` (200) prefilled from the dataset's newest analysis row merged over the defaults, so a user who has never configured anything sees pure defaults. |
 | `/analyses/{id}` | GET | Displays analysis view or progress state. Closed gate or unauthenticated returns 404; non-owner returns 404; stale running or queued analyses older than `STALE_RUN_S` (900 s) flip to `failed` status with retry option; renders `analysis.html` (200) for running (in-progress notice), failed (error alert with retry form), and done (four output tables, respondent recap, metadata) states. |
+
+### Analysis settings (F12, FROZEN)
+
+The settings step exists so a user who has no `.CON` of their own can still choose, and so a user who does have one
+gets its directives honoured. Defaults are complete: an untouched form must run exactly what ran before F12.
+
+| field | kind | default | allowed | invalid input |
+|---|---|---|---|---|
+| `misfit` | number, step 0.05 | `1.50` | 0.5 to 5.0 | 422 + `Ambang misfit harus berada antara 0,5 dan 5,0.` |
+| `mode` | select | `compat` | `compat` (the reference-calibrated mode), `exact` | 422 + `Mode kalibrasi harus compat atau exact.` |
+| `digits` | select | `2` | 1 to 4 | 422 + `Desimal harus berada antara 1 dan 4.` |
+
+- Single source: `MISFIT_THRESHOLD_DEFAULT = 1.5` in `app/analysis.py`, carried into `PARAMS_DEFAULT["misfit"]`. Every
+  reader (results page, explorer, item flag, chart band, misfit count) reads the analysis's own stored value; no
+  other literal may exist. Three deliberate LAST-RESORT fallbacks remain, all of them for a value that is absent
+  because it predates F12 or because the payload is malformed, never as a second source: the explorer JavaScript
+  (`explorer-charts.js`, `explorer.js`) falls back to `1.5` / `1,50`, `app/explore.py` falls back for an analysis with
+  no stored key, and the retry form in `analysis.html` falls back to `1.5` for an analysis created before this feature.
+  A test asserts the island always carries `misfit_value` and `misfit_threshold`, so the JavaScript fallback cannot
+  fire on any page this application renders, and the settings screen's hint copy is derived from the constants rather
+  than spelled out.
+- `<ambang>` renders through one formatter as `1,50` (comma decimal separator, two decimals) so a default run
+  renders byte-identically to the pre-F12 copy.
+- Runs are immutable: changing a setting creates a NEW analysis row. An existing analysis keeps its `params_json`
+  and re-renders with the settings it actually ran with; a retry form carries the failed run's own settings as
+  hidden fields.
+
+**Uploaded `.CON` next to tabular data (F12, FROZEN).** For `delimited` datasets an uploaded control file is no
+longer ignored: its directives are read and stored as `Dataset.summary_json["control"]` (the same shape the Winsteps
+path already writes), and `write_inputs()` emits into the generated `analyze.CON`:
+
+| directive | rule (the engine's own rules, from `raschlab/docs/format.md`) |
+|---|---|
+| `KEY1` | used when present; its length must equal the dataset's item count AND every character must appear in the effective `CODES`, else the upload is rejected with an Indonesian message naming the count or the offending characters |
+| `CODES` | used when present; it is a response ALPHABET, NOT a subset of `ABCDE`: `01` (binary) and `1234` (rating scale) are legitimate. Rejected only when malformed (contains whitespace or repeated characters) or when it does not cover every code present in the data |
+| `MISSCORE` | emitted between `CODES` and `DATA` only when present and non-empty; it may be NUMERIC (a score value) or NON-NUMERIC (a character list whose characters count as missing), so a value like `E` is valid. Rejected only when it is neither a number nor a set of characters declared in `CODES` |
+| anything else (`NAME1`, `ITEM1`, `NI`, `NAMLEN`) | ignored: the web derives the layout from the uploaded data |
+
+These rules live in ONE helper, `validate_control_directives()` in `app/analysis.py`, called by the upload route and by
+`write_inputs()`, so what the user is told at upload and what the analysis writes cannot drift apart. **Do not tighten
+`CODES` to `ABCDE` and do not force `MISSCORE` to numeric: both would reject control files the engine accepts.**
+
+**Misfit column resolution (F12, FROZEN).** The results page decides `n_item` and `n_misfit` by locating the INFIT MNSQ
+column, and two header layouts exist: the engine writes the name across two rows (`INFIT`, then `MNSQ` in the same
+column) while older hand-built tables carry one cell reading `INFIT MNSQ`. `_infit_mnsq_column()` accepts both, and a
+test drives both, because accepting only the single-cell spelling silently hid the whole misfit section on production
+for every real analysis.
+
+
 
 ### Database schema additions (column names are FROZEN)
 
@@ -231,7 +281,7 @@ APP_ENV=prod .venv/bin/python -c "from app.main import app; print([r.path for r 
 | `user_id` | INTEGER | Foreign key referencing users(id) with CASCADE deletion, indexed (`ix_analyses_user_id`) (FROZEN). |
 | `dataset_id` | INTEGER | Foreign key referencing datasets(id) with CASCADE deletion, indexed (`ix_analyses_dataset_id`) (FROZEN). |
 | `status` | TEXT | Analysis execution state: `queued`, `running`, `done`, or `failed` (FROZEN). |
-| `params_json` | TEXT | JSON object of analysis parameters (`mode`, `digits`, `lconv`, `person_order`, `anchors`, `pdfile`) (FROZEN). |
+| `params_json` | TEXT | JSON object of analysis parameters (`mode`, `digits`, `lconv`, `person_order`, `anchors`, `pdfile`, and from F12 `misfit` = the INFIT MNSQ threshold that flags a misfitting item) (FROZEN). |
 | `engine_ref` | TEXT | Git commit hash reference of the pinned raschlab engine (FROZEN). |
 | `error` | TEXT | Indonesian error message string if analysis execution failed, nullable (FROZEN). |
 | `elapsed_ms` | INTEGER | Total engine execution time in milliseconds, nullable (FROZEN). |
@@ -410,6 +460,11 @@ Rule: a class used in a template must be in this list or already defined in `app
 ### Copy strings (FROZEN, exact)
 
 `Jelajahi hasil` · tab labels `Peta Wright`, `Butir`, `Partisipan`, `Ringkasan`, `Bandingkan` · `Fokus pada butir di peta untuk melihat rincian.` · `Sorot butir misfit (INFIT MNSQ ≥ 1,50)` · `Memuat data...` · `Tidak ada baris yang cocok dengan pencarian.` · `Hapus pencarian` · `Belum ada analisis lain yang sudah selesai untuk dibandingkan. Jalankan analisis pada berkas ini atau berkas lain untuk membandingkan.` · `Pilih dua analisis untuk dibandingkan.` · `Selisih lintas berkas hanya bermakna bila kedua analisis memakai butir penghubung (anchor) yang sama.` · `Cocok: <n> butir. Hanya di analisis pertama: <n>. Hanya di analisis kedua: <n>.` · `Dipasangkan berdasarkan label butir.` · `Dipasangkan berdasarkan nomor butir (kedua berkas tidak memuat label butir).` · `Butir tidak dapat dipasangkan: berkas tanpa label butir hanya dapat dibandingkan bila jumlah butirnya sama.` · `Membandingkan Analisis #<id> (<YYYY-MM-DD HH:MM>) dengan Analisis #<id> (<YYYY-MM-DD HH:MM>).` · `Tampilkan hanya perubahan ≥ 0,30 (ambang tampilan, bukan uji statistik).` · `Data peta Wright tidak dapat dibaca untuk analisis ini.` · meta line `Partisipan: <n> · Butir: <n> · Dikecualikan (skor sempurna/nol): <n>` · `Butir misfit (INFIT MNSQ ≥ 1,50): <n>.` · `Gagal memuat data. Muat ulang halaman dan coba lagi.` · noscript: `Halaman penjelajah ini membutuhkan JavaScript. Buka halaman hasil analisis untuk melihat tabel lengkap.` plus a link back to `/analyses/{id}`.
+
+**F12 makes four of those strings threshold-dependent:** `Sorot butir misfit (INFIT MNSQ ≥ 1,50)`,
+`Butir misfit (INFIT MNSQ ≥ 1,50): <n>.`, `Batas misfit 1,50` and `Infit tinggi (MNSQ ≥ 1,50)` now render the
+analysis's own stored threshold through the same `1,50` formatter. On a default run the rendered text is
+byte-identical to the strings above, which is what keeps `scripts/verify_explorer.py:941` matching.
 
 Fragment-only copy (also frozen, exact): `Cari butir` · `Cari partisipan` · `Cari` · `Menampilkan <n> dari <n> butir.` · `Menampilkan <n> dari <n> responden.` · `Memuat estimasi measure, S.E., dan statistik kecocokan untuk <n> butir sesuai urutan bawaan mesin.` · `Memuat estimasi ability measure, S.E., dan statistik kecocokan untuk <n> responden sesuai urutan misfit.` · `Sortir hanya berlaku pada halaman yang terlihat.` · `Memuat statistik agregat dari mesin untuk keseluruhan proses analisis.` · `Angka partisipan di tabel ini mencakup skor sempurna dan nol; peta Wright hanya memakai partisipan non-ekstrem.` · `Analisis pertama` · `Analisis kedua` · compare table headers `Butir`, `Measure analisis pertama`, `Measure analisis kedua`, `Selisih` · compare option format `Analisis #<id> · <dataset filename> · <YYYY-MM-DD HH:MM>` · `Rata-rata measure butir: <a> (analisis pertama) vs <b> (analisis kedua).` · pager labels `Sebelumnya` / `Selanjutnya` · the compare trigger reuses the tab label `Bandingkan`.
 

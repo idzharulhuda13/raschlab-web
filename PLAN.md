@@ -357,6 +357,68 @@ frekuensi?" was **"bikin aja gas"**, so the wright panel now carries two control
 `scripts/verify_explorer.py` green at its new total with the raw line pasted; the two new controls 44 px with a
 visible focus ring and contrast above 4.5:1 in both themes; no em dash.
 
+## F12 — langkah Pengaturan sebelum analisis (Dada, 26 Sep 2026)
+
+**Owner decisions (quoted, do not re-open).** Dada: *"oke pas unggah harusnya kan ada config, kalau misal mereka
+engga punya config, mereka bisa configure sendiri. Tapi kalau bisa udah default semua, kalau emang ada yang mau
+diganti baru bisa diganti, contoh threshold misfit 1.5, kalau butuh yang lebih teliti bisa jadi 1.2"*. Answered in a
+clarify the same day: (1) the settings live as a **separate step before the analysis runs**, not a panel on the
+upload page; (2) first-stage knobs are **misfit threshold + mode + digits**; (3) an uploaded `.CON` next to tabular
+data has its **`KEY1`, `CODES`, `MISSCORE`** honoured, everything else default; (4) changing settings **creates a NEW
+analysis** and existing analyses keep their own settings.
+
+**Non-negotiables (measured, do not re-derive):**
+
+1. **The threshold ends up in ONE place and only one.** Today `1.50` is hardcoded in FIVE spots: `app/analyze.py:42`
+   (`MISFIT_THRESHOLD`, used at `:261`), `app/templates/analysis.html:99` (the band sentence), the frozen explorer
+   copy `app/templates/explore.html:68` plus `INTERFACE.md:412/416`, `app/static/explorer-charts.js:119` and `:471`
+   (the two comparisons) with `:123`, `:409`, `:426` as their copy, and `app/static/explorer.js:586` and `:593`.
+   After F12 the single source is **`MISFIT_THRESHOLD_DEFAULT = 1.5` in `app/analysis.py`**, feeding
+   `PARAMS_DEFAULT["misfit"]`; every other site reads the analysis's own stored value. Proof is a grep, not an opinion.
+2. **Validation, exactly:** misfit a float **0.5 to 5.0** (step 0.05, default **1.50**); `mode` one of
+   **`compat` / `exact`** (the engine's `--mode` choices are exactly those two, default `compat`); `digits` an
+   integer **1 to 4** (default 2). Invalid input renders the settings page at **422** with Indonesian copy. Never a
+   500, never a silent fallback to the default.
+3. **`.CON` directives ride in `Dataset.summary_json["control"]`**, the same shape the Winsteps path already
+   stores (`app/ingest.py:334-335`), and `write_inputs()` (`app/analysis.py:301`) emits `KEY1`, `CODES` and
+   `MISSCORE` from it into the generated `analyze.CON`. **No database migration.**
+4. **No new CSS class.** The pins in `tests/test_ui_contract.py` (145 used / 159 defined) must not move, and all 23
+   classes the settings screen needs already exist in `app.css` (verified). Page templates move **12 to 13** on
+   purpose, pinned in the same test.
+5. **Exports stay verbatim:** the threshold is a display rule and must not enter any XLSX sheet.
+6. Old analyses keep their own `params_json`; the results page renders the settings that analysis actually ran with.
+7. `scripts/verify_explorer.py:941` matches `Butir misfit \(INFIT MNSQ [≥>=]+ 1,50\)`, so the **default label must
+   still read `1,50`** and the harness must stay green at its current total.
+
+**Edit list (one writer run per group):** R17 `app/analysis.py` (constants, `parse_settings_form`, `run_for_dataset`,
+`write_inputs` control) · R18 `app/analyze.py` + `analysis_settings.html` · R19 `dataset_detail.html` +
+`analysis.html` · R20 `app/ingest.py` + `datasets.html` · R21 `app/explore.py` + `explore.html` ·
+R22 `explorer-charts.js` + `explorer.js` · R23 `tests/test_analysis_settings.py` + `test_ui_contract.py` (12 -> 13).
+
+**ACCEPTANCE (measured, not asserted):** `pytest -q` green with the count pasted (baseline **195**);
+`scripts/verify_explorer.py` green at **206/206**; a route-level test per new form field; a test that uploads a
+`.CON` with `MISSCORE` and asserts the generated `analyze.CON` carries it and that scoring changes; the
+byte-identity test still green when no `.CON` is present; the grep proof from Non-negotiable 1; a test proving an
+existing analysis's params are untouched by a new run; Hallmark audit of the new screen.
+
+**OUT OF SCOPE:** exposing `anchors` / `pdfile` / `lconv` / `person_order`, saved presets per user, any migration,
+any change to the engine repo.
+
+**Review pass (26 Sep 2026, independent model, session `20260926_195114_9fdfd7`).** Reported 0 critical / 3 major /
+4 minor. **Accepted and fixed:** a `KEY1` character outside `CODES`, and a nonsense `MISSCORE`, both previously reached
+`analyze.CON` (they are now rejected by `validate_control_directives()` in `app/analysis.py`, the one place the rules
+live, called by the upload route and by `write_inputs()`); and the test named for the `.CON` upload never uploaded
+anything (`tests/test_analysis_settings.py` now posts a real `.con` beside a CSV and asserts the honoured directives
+reach the generated file while `NAMELEN` does not). **Declined with a citation:** "`CODES` must be a subset of `ABCDE`"
+and "`MISSCORE` must be numeric" — `raschlab/docs/format.md` defines `CODES` as the response alphabet (`01` for binary
+data, `1234` for a rating scale) and states that a non-numeric `MISSCORE` is a character list whose characters count as
+missing, so enforcing either rule would reject control files the engine accepts.
+
+**Defect found while building this, not an F12 regression.** The results page resolved the misfit column with the
+literal cell `INFIT MNSQ`, which the engine never writes: it writes `INFIT` and `MNSQ` on two header rows. Every real
+analysis therefore rendered `n_item = 0` and no misfit section at all, while fixtures carrying the single cell kept the
+suite and the explorer harness green. `_infit_mnsq_column()` now accepts both layouts, and a test drives both.
+
 ## ACCEPTANCE (measured, not asserted)
 
 1. `python -m pytest -q` green with the count pasted raw (baseline 186).
