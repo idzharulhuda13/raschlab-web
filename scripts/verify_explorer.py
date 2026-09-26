@@ -3,7 +3,7 @@
 
 Boots the real app on a temporary SQLite database, seeds crafted data,
 drives a real Chromium via Playwright, and prints a per-group PASS/FAIL
-table. Exactly 194 checks in 11 groups. Exit 0 only when all 194 pass.
+table. Exactly 195 checks in 11 groups. Exit 0 only when all 195 pass.
 """
 
 from __future__ import annotations
@@ -1501,6 +1501,20 @@ def group_e_interactive(page: Any, base_url: str,
         e30_ok,
     )
 
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=butir")
+    butir_tabstops = page.eval_on_selector_all(
+        "#panel-butir tr[data-order][tabindex]", "els => els.length"
+    )
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=partisipan")
+    partisipan_tabstops = page.eval_on_selector_all(
+        "#panel-partisipan tr[data-order][tabindex]", "els => els.length"
+    )
+    res.record(
+        "rows: no dead tab stops in the listed tables",
+        f"butir={butir_tabstops} partisipan={partisipan_tabstops}",
+        butir_tabstops == 0 and partisipan_tabstops == 0,
+    )
+
 
     res.record(
         "wright: labels never overlap, stay in the canvas, and cover the item's own position",
@@ -2080,7 +2094,7 @@ def main() -> int:
         print(f"TOTAL: {total} checks  |  {passed} PASS  |  {failed} FAIL")
         print(f"{'=' * 72}")
 
-        EXPECTED_TOTAL = 194
+        EXPECTED_TOTAL = 195
         if total != EXPECTED_TOTAL:
             print(
                 f"\nERROR: Expected {EXPECTED_TOTAL} checks, got {total}. "
@@ -2092,7 +2106,7 @@ def main() -> int:
             print(f"\nFAIL: {failed} check(s) failed.")
             return 1
 
-        print("\n194/194 PASS")
+        print("\n195/195 PASS")
         return 0
 
     finally:

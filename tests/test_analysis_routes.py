@@ -234,7 +234,7 @@ def test_analysis_loading_state_rendering_and_in_flight_redirect(client: TestCli
     assert page_resp.status_code == 200
     html = page_resp.text
     assert "Memproses" in html
-    assert "Analisis sedang diproses..." in html
+    assert "Analisis sedang diproses…" in html
 
     post_resp = client.post(f"/datasets/{dataset_id}/analyze", follow_redirects=False)
     assert post_resp.status_code == 303

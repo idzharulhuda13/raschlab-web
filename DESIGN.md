@@ -115,6 +115,14 @@ line up. The earlier Plus Jakarta Sans rationale is superseded by that direction
   above, never the 10-11px rows this file rejects elsewhere.
 - Explorer blocks (caption, table, pager, figure grid) separate at `--space-4`; the tab strip carries
   `--space-4` above and below; the summary figure grid uses `--space-6`.
+- **Interactive controls are 44px at every width** (added 26 Sep 2026): a sort header (`.th-sort`), a
+  checkbox row (`.field--toggle`, used by the Wright misfit highlight and the Bandingkan delta filter) and any
+  other control the mouse and the thumb both aim at take `min-height: 44px` on desktop as well. A 32px sort
+  header inside a 37px row is the shape this rule exists to prevent.
+- **A data row is not a control.** The Butir and Partisipan tables list numbers to read, sort and page
+  through: the rows carry no `tabindex`, no role and no hover treatment, so a keyboard user meets the sort
+  buttons and the pager instead of 147 dead tab stops (measured 26 Sep 2026: activating a row changed nothing).
+  A row earns a tab stop only when a real action hangs off it, and that action decides the pattern.
 
 ## Identity motif: the measured band (pita ukur)
 
@@ -122,9 +130,9 @@ The subject is a calibrated ruler: every dataset in the product is a matrix that
 persons on one logit scale. The motif is a **thin measured band — a labelled tick rule with real
 numbers** — used in exactly two places, each carrying information:
 
-1. **Dataset card, capacity band.** A band showing cells used against the 8.000.000-cell cap, with both
+1. **Dataset card, capacity band.** A band showing cells used against the 6.000.000-cell cap, with both
    endpoints labelled and the dataset's own value printed **plus the share of the cap as text** (for example
-   `12.000 sel terpakai (0,15% dari 8.000.000 sel)`). Tells the user how much room is left. The fill is the
+   `12.000 sel terpakai (0,2% dari 6.000.000 sel)`). Tells the user how much room is left. The fill is the
    **true proportion, never floored or shifted**: a value of 0,15% draws 0,15% of the track. So that a small
    value is still visible, the same position is marked by a **1px non-scaling stroke at the true offset**
    (an SVG line with `vector-effect="non-scaling-stroke"`), and the printed number remains the authority. A
@@ -250,8 +258,30 @@ how the earlier build read as a stacked list.
 **Long tables.** Tables with more than about 40 rows scroll inside `.table-scroll` with a sticky header, so
 the column names never leave the screen while the console is being read. The cap is `70vh`.
 
+## E-mail palette (the one documented exception to "tokens only")
+
+Mail clients do not run stylesheets, so `app/templates/email/*.html` must carry inline CSS and literal hex.
+That exception is granted, but only against the hues declared here — an e-mail is a user-facing surface of
+this product and a second accent hue there reads as a different product:
+
+| role | value | note |
+|---|---|---|
+| paper | `#F7F4EF` | same warm ground as the light theme |
+| surface | `#FFFFFF` | the card that holds the text |
+| ink | `#1E2422` | body and headings |
+| muted | `#59635F` | secondary lines |
+| line | `#DED6CA` | hairlines |
+| accent / link | `#0E5A47` | links and the primary button (green family, never blue) |
+
+Blue was the previous e-mail link colour (`#0B6C8F`); it exists in no token block and in no other surface.
+**A new colour may enter the e-mail templates only by being added to this table first.**
+
 ## Components and their states
 
+- **Alert**: hairline border all around (`--control` when neutral, the semantic colour on `.alert--fit/--warn/
+  --misfit`), radius `--radius-md`, `--surface` fill, and the semantic colour carried by the **leading glyph or
+  word** inside the box. **No thick coloured side stripe** — that shape is the named Hallmark side-stripe tell
+  and was removed on 26 Sep 2026; colour must never be the only signal.
 - **Button**: primary (accent fill, ground-coloured label, 44px tall, radius 10px), secondary (`--control`
   outline, ink label), ghost (text only), destructive (outline `--misfit`). Hover shifts fill by 6%,
   active by 10%, focus shows a 2px `--accent` ring at 2px offset, disabled is 45% opacity with

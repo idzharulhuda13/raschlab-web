@@ -619,18 +619,9 @@
     handleTableSort(table, sortBtn);
   });
 
-  // ponytail: one tab stop per item (147 here) keeps the change tiny; upgrade path is a roving tabindex
-  // (one tab stop per group, arrow keys inside), only if this proves annoying in use.
-  // Delegated keyboard listener for selectable table rows
-  document.addEventListener('keydown', function (e) {
-    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
-    var row = e.target.closest('tr[data-order][tabindex="0"]');
-    if (!row) return;
-    if (e.key === ' ' || e.key === 'Spacebar') {
-      e.preventDefault();
-    }
-    row.click();
-  });
+  // The listed rows are read-only (measured 26 Sep 2026: activating one changed nothing), so they carry no
+  // tabindex and no keyboard handler. The column sort buttons and the pager are the keyboard path through
+  // these tables. A row earns a tab stop only when a real action hangs off it.
 
   /**
    * The participant histogram has its own boot: the Wright payload the main boot waits for does not

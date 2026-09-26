@@ -8,6 +8,9 @@
   <div class="panel">
     <h1 class="auth-title">Daftar Akun</h1>
     <p class="auth-lead">Buat akun RaschLab untuk mulai kalibrasi butir.</p>
+    <p class="field-hint">RaschLab menghitung tingkat kesulitan butir dan kemampuan peserta pada satu skala
+    logit dari data jawaban benar/salah (CSV atau Excel), lalu menunjukkan butir mana yang tidak cocok dengan
+    model. Hasilnya bisa dibuka ulang, dibandingkan antar berkas, dan diunduh.</p>
 
     {% set query_msg = (request.query_params.get('msg') if request and request.query_params else None) or msg %}
     {% if query_msg == 'sent' %}

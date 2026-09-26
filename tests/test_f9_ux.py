@@ -281,7 +281,7 @@ def test_analyze_landing_page_shows_sentence(client: TestClient):
     location = ana_resp.headers.get("location", "")
     landing = client.get(location)
     assert landing.status_code == 200, f"Expected 200 on analyze landing, got {landing.status_code}"
-    expected_sentence = "Analisis berhasil dimulai. Tunggu hingga berstatus Selesai, lalu buka Jelajahi hasil."
+    expected_sentence = "Analisis berhasil dimulai. Tunggu hingga berstatus Selesai, lalu buka dashboard hasilnya."
     assert expected_sentence in landing.text, f"Analyze sentence not found in landing page text: {landing.text[:400]}"
 
 

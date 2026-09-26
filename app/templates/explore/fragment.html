@@ -46,7 +46,7 @@
     </thead>
     <tbody>
       {% for row in item_ctx.rows %}
-      <tr data-order="{{ loop.index0 }}" tabindex="0">
+      <tr data-order="{{ loop.index0 }}">
         {% for cell in row %}
           {% if loop.index0 == 13 %}
             <td class="mono">{{ cell }}</td>
@@ -273,7 +273,7 @@
 
 <p id="cmp-means">{% if compare_ctx.means %}Rata-rata measure butir: {{ compare_ctx.means.from | id_num }} (analisis pertama) vs {{ compare_ctx.means.to | id_num }} (analisis kedua).{% endif %}</p>
 
-<div class="field cmp-filter">
+<div class="field field--toggle cmp-filter">
   <input type="checkbox" id="cmp-delta-only">
   <label class="field-label" for="cmp-delta-only">Tampilkan hanya perubahan ≥ 0,30 (ambang tampilan, bukan uji statistik).</label>
 </div>

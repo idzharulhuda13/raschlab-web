@@ -21,7 +21,7 @@
 {% set query_msg = (request.query_params.get('msg') if request and request.query_params else None) or msg %}
 {% if query_msg == 'analyzed' %}
 <div class="alert alert--fit" role="status">
-  Analisis berhasil dimulai. Tunggu hingga berstatus Selesai, lalu buka Jelajahi hasil.
+  Analisis berhasil dimulai. Tunggu hingga berstatus Selesai, lalu buka dashboard hasilnya.
 </div>
 {% endif %}
 
@@ -32,13 +32,13 @@
     {% if status == 'done' %}
     <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
     {% elif status in ('running', 'queued') %}
-    <span class="chip chip--accent"><span class="chip-glyph">...</span> Memproses</span>
+    <span class="chip chip--accent"><span class="chip-glyph">…</span> Memproses</span>
     {% elif status == 'failed' %}
     <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
     {% endif %}
     {% if status == 'done' %}
     <div class="action-bar">
-      <a href="/analyses/{{ analysis.id }}/explore" class="btn btn--primary">Jelajahi hasil</a>
+      <a href="/analyses/{{ analysis.id }}/explore" class="btn btn--primary">Buka dashboard hasil</a>
     </div>
     {% endif %}
   </div>
@@ -70,7 +70,7 @@
 {% if status in ('running', 'queued') %}
 <section class="band">
   <div class="empty">
-    <p class="empty-text">Analisis sedang diproses...</p>
+    <p class="empty-text">Analisis sedang diproses…</p>
   </div>
 </section>
 {% elif status == 'failed' %}
@@ -79,7 +79,7 @@
     <strong>Analisis Gagal</strong>
     <p>{{ error }}</p>
   </div>
-  <form method="post" action="/datasets/{{ dataset.id }}/analyze" data-loading="Memproses analisis...">
+  <form method="post" action="/datasets/{{ dataset.id }}/analyze" data-loading="Memproses analisis…">
     <button type="submit" class="btn btn--primary">Jalankan Ulang</button>
   </form>
 </section>

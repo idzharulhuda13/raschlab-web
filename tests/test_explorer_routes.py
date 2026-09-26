@@ -24,7 +24,7 @@ Covers:
 - Malformed Wright data: status 200, #explorer-error with frozen reason, no #explorer-data,
   butir fragment still returns 200.
 - Results page link: done analysis page carries link to /analyses/{id}/explore with label
-  "Jelajahi hasil".
+  "Buka dashboard hasil".
 - Cross-dataset compare pairing keys: label-based pairing, entry-based pairing, unpairable
   case with frozen reason sentence.
 """
@@ -821,7 +821,7 @@ def test_explore_malformed_wright_renders_error_state(client: TestClient):
 
 
 # ---------------------------------------------------------------------------
-# (20) Results page links to explore with label "Jelajahi hasil"
+# (20) Results page links to explore with label "Buka dashboard hasil"
 # ---------------------------------------------------------------------------
 
 def test_results_page_links_to_explore(client: TestClient):
@@ -834,7 +834,7 @@ def test_results_page_links_to_explore(client: TestClient):
     html = resp.text
 
     assert f'href="/analyses/{analysis_id}/explore"' in html
-    assert "Jelajahi hasil" in html
+    assert "Buka dashboard hasil" in html
 
 
 # ---------------------------------------------------------------------------

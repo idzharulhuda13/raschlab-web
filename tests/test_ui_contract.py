@@ -320,8 +320,10 @@ def test_all_template_classes_defined_in_app_css():
     # 136: the partisipan histogram added .chart-block and .chart-caption, both defined in app.css and
     # both carrying contract meaning, so the count moves with them on purpose.
     # 142 / 156 (F9: readability, placement, navigation): action-bar, action-group--danger, danger-gap, page-exit, text-link, cmp-filter.
-    assert len(used_classes) == 142, f"Used template class count changed to {len(used_classes)}"
-    assert len(defined_classes) == 156, f"Defined app.css class count changed to {len(defined_classes)}"
+    # 143 / 157 (audit-fix batch 26 Sep 2026): .field--toggle, the 44px checkbox row, used by the Wright
+    # misfit highlight and the Bandingkan delta filter, and defined once with its .field-label override.
+    assert len(used_classes) == 143, f"Used template class count changed to {len(used_classes)}"
+    assert len(defined_classes) == 157, f"Defined app.css class count changed to {len(defined_classes)}"
 
 
 def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_ujian.csv") -> tuple[int, int]:

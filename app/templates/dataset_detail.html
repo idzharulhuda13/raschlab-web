@@ -141,7 +141,7 @@
           {% endif %}
           {% endfor %}
           {% if has_more_cols %}
-          <td class="mono">...</td>
+          <td class="mono">…</td>
           {% endif %}
         </tr>
         {% endfor %}
@@ -190,7 +190,7 @@
             <td>
               <label for="token-map-{{ loop.index0 }}" class="sr-only">Klasifikasi token {{ token if token != '' else 'kosong' }}</label>
               <select name="m{{ loop.index0 }}" id="token-map-{{ loop.index0 }}" class="select-input"{% if not key %} required{% endif %}>
-                <option value="" {% if token not in mapping %}selected{% endif %}>Pilih status...</option>
+                <option value="" {% if token not in mapping %}selected{% endif %}>Pilih status…</option>
                 <option value="correct" {% if mapping.get(token) == 'correct' %}selected{% endif %}>Benar (1)</option>
                 <option value="incorrect" {% if mapping.get(token) == 'incorrect' %}selected{% endif %}>Salah (0)</option>
                 <option value="missing" {% if mapping.get(token) == 'missing' %}selected{% endif %}>Data Hilang</option>
@@ -379,7 +379,7 @@
 
 {% if status == 'ready' %}
 <section class="band">
-  <form action="/datasets/{{ dataset.id }}/analyze" method="post" data-loading="Memproses analisis...">
+  <form action="/datasets/{{ dataset.id }}/analyze" method="post" data-loading="Memproses analisis…">
     <button type="submit" class="btn btn--primary">Jalankan Analisis Rasch</button>
   </form>
   {% if latest_analysis %}
@@ -388,7 +388,7 @@
     {% if latest_analysis.status == 'done' %}
     <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
     {% elif latest_analysis.status in ('running', 'queued') %}
-    <span class="chip chip--accent"><span class="chip-glyph">...</span> Memproses</span>
+    <span class="chip chip--accent"><span class="chip-glyph">…</span> Memproses</span>
     {% elif latest_analysis.status == 'failed' %}
     <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
     {% else %}

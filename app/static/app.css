@@ -169,6 +169,7 @@ a:hover {
 .acct-avatar {
   width: 28px;
   height: 28px;
+  flex: none;
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent);
@@ -187,6 +188,12 @@ a:hover {
 @media (max-width: 719px) {
   .acct-name {
     display: none;
+  }
+
+  .acct-avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 16px;
   }
 }
 
@@ -550,6 +557,20 @@ h2,
   color: var(--ink);
 }
 
+.field--toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+
+.field--toggle .field-label {
+  margin-bottom: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
 .field-input {
   width: 100%;
   min-height: 44px;
@@ -596,7 +617,7 @@ h2,
   padding: var(--space-4);
   border-radius: var(--radius-md);
   background: var(--surface);
-  border-left: 4px solid;
+  border: 1px solid var(--control);
   font-size: 16px;
   margin-bottom: var(--space-6);
   color: var(--ink);
@@ -804,7 +825,7 @@ h2,
   color: inherit;
   cursor: pointer;
   padding: 0;
-  min-height: 32px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -1816,14 +1837,6 @@ figure.summary-figure .def-value {
 }
 
 /* Misfit toggle */
-.field:has(> #wright-misfit-toggle) {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 44px;
-}
-
 label[for="wright-misfit-toggle"] {
   cursor: pointer;
 }

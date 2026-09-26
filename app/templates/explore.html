@@ -59,9 +59,9 @@
   <p id="wright-meta">Partisipan: {{ rekap.get('PERSON COUNT', '-') | id_num }} · Butir: {{ rekap.get('ITEM COUNT', '-') | id_num }} · Dikecualikan (skor sempurna/nol): {% if person_incl is not none and person_count is not none %}{{ (person_incl - person_count) | id_num }}{% else %}-{% endif %}</p>
   <div id="wright-scale" class="chart-scroll"></div>
   <p id="wright-readout" class="readout">Fokus pada butir di peta untuk melihat rincian.</p>
-  <div class="field">
-    <label class="field-label" for="wright-misfit-toggle">Sorot butir misfit (INFIT MNSQ ≥ 1,50)</label>
+  <div class="field field--toggle">
     <input type="checkbox" id="wright-misfit-toggle">
+    <label class="field-label" for="wright-misfit-toggle">Sorot butir misfit (INFIT MNSQ ≥ 1,50)</label>
   </div>
 </div>
 

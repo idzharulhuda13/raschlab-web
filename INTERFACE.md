@@ -175,7 +175,7 @@ The motif is class `band-scale` (a labelled measured band with real numbers).
   the app bar, right of the theme toggle). `base.html` renders the app bar (navigation: `Berkas` and `Hasil Analisis`) and links the three static
   files itself.
 - `gate.html` keeps the exact sentence `Aplikasi ini belum dibuka untuk umum.` (verification greps it).
-- `datasets.html` must contain both limit numbers verbatim: `16 MB` and `8.000.000 sel`.
+- `datasets.html` must contain both limit numbers verbatim: `16 MB` and `6.000.000 sel`.
 
 ### Storage caps (updated — the pair must agree)
 
@@ -531,3 +531,15 @@ page that also draws the map the histogram stayed in the light palette while the
 
 **Invariant the tests enforce.** The histogram is the map's `NR_PERSON` column verbatim, bin for bin, so
 `build_person_histogram` must never re-bin.
+## F10: audit-fix batch — the listed rows are read-only (2026-09-26)
+
+Frozen here so a later writer does not re-add tab stops to a table nobody can act on.
+
+| element | rule |
+|---|---|
+| `tr[data-order]` in `explore/fragment.html` (Butir table) | carries **no** `tabindex` |
+| `tr[data-order]` in `explore/fragment.html` (Partisipan table) | carries **no** `tabindex` |
+| keyboard path through a table | the column sort buttons (`.th-sort`, real `<button>`) and the pager links |
+| row selection, arrow-key row navigation | does not exist; do not add `tabindex`, `role="grid"` or a roving tabindex until a row has a real action |
+
+- reason | measured 26 Sep 2026 with the app booted on the Android fixture: **147 of 147** Butir rows carried `tabindex="0"`, and activating one (mouse click or `Enter`) changed nothing, identical URL and identical `#panel-butir` digest, `cursor: auto`. That is 147 dead tab stops (Hallmark R-26, a control that does nothing). The Partisipan table already had 0 tab stops over 500 rows, which is correct and stays. If a row ever gains a real action, that action decides the pattern; roving tabindex only comes back with a grid to navigate.

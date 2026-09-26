@@ -51,9 +51,9 @@
           {% if last_analysis.status == 'done' %}
           <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
           {% elif last_analysis.status == 'running' %}
-          <span class="chip chip--accent"><span class="chip-glyph">...</span> Memproses</span>
+          <span class="chip chip--accent"><span class="chip-glyph">…</span> Memproses</span>
           {% elif last_analysis.status == 'queued' %}
-          <span class="chip chip--accent"><span class="chip-glyph">...</span> Dalam antrean</span>
+          <span class="chip chip--accent"><span class="chip-glyph">…</span> Dalam antrean</span>
           {% else %}
           <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
           {% endif %}
