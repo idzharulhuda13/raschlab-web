@@ -557,6 +557,10 @@ interface: change it only with the tests and the harness in the same commit.
 | `table` | value | one of `butir`, `opsi`, `responden`, `ringkasan`, `wright`, `bandingkan` |
 | `from`, `to` | value | analysis ids, read **only** for `table=bandingkan` |
 
+`table` is declared in the route signature as an OPTIONAL query parameter, so the API schema carries it while a
+missing or unknown key still answers `404 EXPORT_TABLE_NOT_FOUND_MSG` (a required declaration would make FastAPI
+answer `422` and change the frozen contract).
+
 `q_item`, `q_person`, `page_item`, `page_person`, `page_option` are ignored on purpose: an export that narrowed
 itself to the current search or page would be a silent truncation, and the stored file is the unit of truth.
 

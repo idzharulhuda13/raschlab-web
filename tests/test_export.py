@@ -469,3 +469,33 @@ def test_export_caps_and_rate_limit(client, monkeypatch):
     assert retry_after is not None, "Missing Retry-After header on 429 response"
     retry_int = int(retry_after)
     assert retry_int >= 0
+
+
+def test_export_row_cap(client, monkeypatch):
+    user_id, token = _create_user_with_token(client, email="rowcap@example.test")
+    client.cookies.set(COOKIE_NAME, token)
+
+    person_rows = [
+        ["1", "10", "12", "0.50", "0.20", "1.00", "0.0", "1.00", "0.0", "0.40", "0.35", "70.0", "65.0", f"Person_{i}"]
+        for i in range(1, 6)
+    ]
+    real_rows = len(person_rows)
+    real_cells = sum(len(r) for r in person_rows)
+    files = {"person_table.csv": _csv(person_rows)}
+    analysis_id = _seed_done(user_id=user_id, filename="data_row_cap.csv", files=files, n_persons=5)
+
+    monkeypatch.setattr("app.export.EXPORT_MAX_ROWS", 3)
+    resp_413 = client.get(f"/analyses/{analysis_id}/export?table=responden")
+    assert resp_413.status_code == 413
+    assert str(real_rows) in resp_413.text
+    assert "5" in resp_413.text
+    assert str(real_cells) in resp_413.text
+
+    with pytest.raises(Exception):
+        openpyxl.load_workbook(io.BytesIO(resp_413.content))
+
+    monkeypatch.setattr("app.export.EXPORT_MAX_ROWS", EXPORT_MAX_ROWS)
+    resp_200 = client.get(f"/analyses/{analysis_id}/export?table=responden")
+    assert resp_200.status_code == 200
+    wb = openpyxl.load_workbook(io.BytesIO(resp_200.content))
+    assert wb is not None

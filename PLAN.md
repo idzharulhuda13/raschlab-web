@@ -210,7 +210,7 @@ zero classes. Every template run proves it by running that test file and pasting
 
 ### R2 — `app/export.py` (same file, part 2: route) — owner: agy
 
-- `router = APIRouter()`; `@router.get("/analyses/{id}/export")`; `def export_table(id: int, request: Request, db: Session = Depends(get_session)) -> Response`
+- `router = APIRouter()`; `@router.get("/analyses/{id}/export")`; `def export_table(id: int, request: Request, table: str | None = None, db: Session = Depends(get_session)) -> Response` — `table` is declared as an **optional** query parameter so the API schema lists it while a missing key still reaches our own 404 (a required declaration would make FastAPI answer 422). **[added 26 Sep 2026 after the review pass.]**
 - guard order exactly as the contract table; message constants imported from `app.explore` / `app.auth` (grep for where `PAGE_NOT_FOUND_MSG`, `ANALYSIS_NOT_FOUND_MSG`, `DATASET_NOT_FOUND_MSG`, `_gate_closed`, `_current_user` are defined before importing).
 - rows for the five stored keys: `load_tables(analysis)` from `app.analysis`, take `TABLE_KEYS[key]`; `[]` or all-empty rows → 404 `EXPORT_TABLE_NOT_FOUND_MSG`.
 - `bandingkan`: resolve both analyses (same owner + `done` rules), `build_compare_pairs` from `app.explore` on the two `item_table_15.1.csv` row lists, rows = `[COMPARE_HEADER] + [[p[0], p[1], p[2], p[3], p[4]] for p in res["pairs"]]`, `numeric = COMPARE_NUMERIC`. When the pair list is empty, still export the header row (an empty comparison is a real answer) — but the view only shows the control when both ids are set.
@@ -227,7 +227,7 @@ zero classes. Every template run proves it by running that test file and pasting
 
 ### R4 — `tests/test_export.py` (NEW) — owner: agy
 
-Seven tests, names literal:
+Eight tests, names literal:
 
 1. `test_cell_parity_with_engine_workbook` — for each of `butir`, `opsi`, `responden`, `ringkasan`, `wright`: build our sheet with `build_xlsx` on the SAME rows the fixture produced, build the engine reference with `raschlab.report.write_workbook` over the same rows into a tmp dir, then compare cell by cell: `value`, `type()`, `number_format`.
 2. `test_all_rows_not_the_500_row_page` — a fixture with more than 500 rows; `ws.max_row == len(csv_rows)`.
@@ -236,6 +236,7 @@ Seven tests, names literal:
 5. `test_response_headers` — content type, both `filename=` and `filename*=UTF-8''`, `Cache-Control: no-store`.
 6. `test_bandingkan_matches_compare_pairs` — export rows equal `build_compare_pairs(...)["pairs"]` for two done analyses, and the header row equals `COMPARE_HEADER`.
 7. `test_export_caps_and_rate_limit` — a monkeypatched table over `EXPORT_MAX_CELLS` → 413 whose body carries the numbers; the 31st call in the window → 429 with `Retry-After`.
+8. `test_export_row_cap` — the same over `EXPORT_MAX_ROWS`: 413 whose body carries the real row and cell counts, the body is not a workbook, and the same request answers 200 again once the cap is raised. **[added 26 Sep 2026 after the review pass: the first version only exercised the cell cap.]**
 - **SELF-VERIFY:** `.venv/bin/python -m pytest -q tests/test_export.py` green, then full `.venv/bin/python -m pytest -q` with the new count pasted raw.
 
 ### R5 — `app/templates/analysis.html` — owner: agy

@@ -111,7 +111,8 @@ router = APIRouter()
 
 
 @router.get("/analyses/{id}/export")
-def export_table(id: int, request: Request, db: Session = Depends(get_session)) -> Response:
+def export_table(id: int, request: Request, table: str | None = None,
+                 db: Session = Depends(get_session)) -> Response:
     """Download one result table of one finished analysis as an XLSX workbook."""
     if _gate_closed():
         raise HTTPException(status_code=404, detail=PAGE_NOT_FOUND_MSG)
@@ -130,7 +131,7 @@ def export_table(id: int, request: Request, db: Session = Depends(get_session)) 
     if analysis.status != "done":
         return RedirectResponse(f"/analyses/{analysis.id}", status_code=303)
 
-    table = (request.query_params.get("table") or "").strip()
+    table = (table or "").strip()
     if table not in SHEET_TITLES:
         raise HTTPException(status_code=404, detail=EXPORT_TABLE_NOT_FOUND_MSG)
 
