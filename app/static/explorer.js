@@ -579,18 +579,22 @@
       window.RaschExplorerCharts.drawWright(wrightScale, payload);
     }
 
+    var misfitValue = parseFloat(payload.misfit_value);
+    if (isNaN(misfitValue)) { misfitValue = 1.5; }
+    var misfitLabel = payload.misfit_threshold || '1,50';
+
     var misfitCount = 0;
     for (var itIdx = 0; itIdx < payload.items.length; itIdx++) {
       var itemRow = payload.items[itIdx];
       var infit = parseFloat(String(itemRow[4]).replace(',', '.'));
-      if (!isNaN(infit) && infit >= 1.50) {
+      if (!isNaN(infit) && infit >= misfitValue) {
         misfitCount++;
       }
     }
 
     var wrightMeta = document.getElementById('wright-meta');
     if (wrightMeta && wrightMeta.textContent.indexOf('Butir misfit') === -1) {
-      wrightMeta.textContent += ' · Butir misfit (INFIT MNSQ ≥ 1,50): ' + formatIdNum(misfitCount) + '.';
+      wrightMeta.textContent += ' · Butir misfit (INFIT MNSQ ≥ ' + misfitLabel + '): ' + formatIdNum(misfitCount) + '.';
     }
 
     var wrightReadout = document.getElementById('wright-readout');

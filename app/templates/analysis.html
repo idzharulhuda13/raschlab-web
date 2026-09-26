@@ -80,6 +80,9 @@
     <p>{{ error }}</p>
   </div>
   <form method="post" action="/datasets/{{ dataset.id }}/analyze" data-loading="Memproses analisis…">
+    <input type="hidden" name="misfit" value="{{ params.get('misfit', 1.5) }}">
+    <input type="hidden" name="mode" value="{{ params.get('mode', 'compat') }}">
+    <input type="hidden" name="digits" value="{{ params.get('digits', 2) }}">
     <button type="submit" class="btn btn--primary">Jalankan Ulang</button>
   </form>
 </section>
@@ -96,7 +99,7 @@
 <section class="band">
   <h2>Butir Bermasalah</h2>
   <div class="alert {% if n_misfit > 0 %}alert--warn{% else %}alert--fit{% endif %}" role="status">
-    <p>{{ n_misfit | id_num }} dari {{ n_item | id_num }} butir melewati ambang misfit INFIT MNSQ ≥ 1,50.</p>
+    <p>{{ n_misfit | id_num }} dari {{ n_item | id_num }} butir melewati ambang misfit INFIT MNSQ ≥ {{ misfit_threshold }}.</p>
     <a href="/analyses/{{ analysis.id }}/explore?view=butir" class="btn btn--secondary">Lihat rincian butir</a>
   </div>
 </section>

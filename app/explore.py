@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.analysis import (
     RETENTION_DAYS,
     STALE_RUN_S,
+    format_threshold,
     id_num,
     load_tables,
     paginate,
@@ -387,6 +388,13 @@ def get_explore(
 
     tab_params = "&".join(f"{k}={quote(str(v))}" for k, v in request.query_params.multi_items() if k != "view")
 
+    params = json.loads(analysis.params_json) if analysis.params_json else {}
+    misfit_val = params.get("misfit", 1.5)
+    if misfit_val is None:
+        misfit_val = 1.5
+    misfit_threshold = format_threshold(misfit_val)
+    misfit_value = float(misfit_val)
+
     context: dict[str, Any] = {
         "user": user,
         "dataset": dataset,
@@ -396,7 +404,8 @@ def get_explore(
         "elapsed_ms": analysis.elapsed_ms,
         "retention_days": RETENTION_DAYS,
         "rekap": rekap,
-        "params": json.loads(analysis.params_json) if analysis.params_json else {},
+        "params": params,
+        "misfit_threshold": misfit_threshold,
         "active_view": active_view,
         "render_view": render_view,
         "views": list(VIEWS),
@@ -423,6 +432,8 @@ def get_explore(
     if fragment is None:
         try:
             payload = build_wright_payload(wright_rows, item_rows)
+            payload["misfit_threshold"] = misfit_threshold
+            payload["misfit_value"] = misfit_value
             context["payload_json"] = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
         except (ExplorerDataError, ValueError, IndexError, KeyError):
             context["wright_error"] = WRIGHT_ERROR_MSG

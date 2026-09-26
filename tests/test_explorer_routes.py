@@ -1130,3 +1130,25 @@ def test_explore_compare_cross_dataset_pairing_keys(client: TestClient):
     assert "Dipasangkan berdasarkan nomor butir" not in html_c
     # No pair rows in the comparison table body means no delta cells from a mismatch.
     assert 'id="cmp-tbody"' in html_c
+
+
+def test_explorer_payload_always_carries_the_threshold(client: TestClient):
+    """The island must carry misfit_value and misfit_threshold, so the JS fallback can never fire in-app."""
+    user_id = _create_authenticated_user(client)
+    files = _build_standard_files()
+    analysis_id = _seed_done(user_id, "sample.csv", files)
+
+    page = client.get(f"/analyses/{analysis_id}/explore")
+    assert page.status_code == 200
+    body = page.text
+    assert "misfit_threshold" in body, "island is missing misfit_threshold"
+    assert "misfit_value" in body, "island is missing misfit_value"
+
+    # read the island itself, not the whole HTML, and assert the parsed values
+    import json as _json
+    import re as _re
+    match = _re.search(r'<script type="application/json" id="explorer-data">(.*?)</script>', body, _re.S)
+    assert match, "explorer data island not found"
+    payload = _json.loads(match.group(1))
+    assert payload["misfit_value"] == 1.5, payload["misfit_value"]
+    assert payload["misfit_threshold"] == "1,50", payload["misfit_threshold"]

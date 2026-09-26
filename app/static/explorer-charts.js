@@ -97,7 +97,7 @@
    * Replace container content with an item parameter definition list.
    * itemRow layout: [entry, label, measure, se, infitMNSQ, infitZSTD, outfitMNSQ, outfitZSTD, corr, exactOBS]
    */
-  function writeReadout(container, itemRow) {
+  function writeReadout(container, itemRow, payload) {
     if (!container) return;
     if (!itemRow || !Array.isArray(itemRow) || itemRow.length === 0) {
       if (!container.textContent.trim()) {
@@ -115,11 +115,16 @@
     heading.textContent = titleText;
     container.appendChild(heading);
 
+    payload = payload || (draws.length > 0 ? draws[draws.length - 1].data : null) || {};
+    var misfitValue = parseFloat(payload.misfit_value);
+    if (isNaN(misfitValue)) { misfitValue = 1.5; }
+    var misfitLabel = payload.misfit_threshold || '1,50';
+
     var infitVal = parseFloat(String(itemRow[4]).replace(',', '.'));
-    if (!isNaN(infitVal) && infitVal >= 1.5) {
+    if (!isNaN(infitVal) && infitVal >= misfitValue) {
       var flag = document.createElement('p');
       var flagStrong = document.createElement('strong');
-      flagStrong.textContent = 'Infit tinggi (MNSQ ≥ 1,50)';
+      flagStrong.textContent = 'Infit tinggi (MNSQ ≥ ' + misfitLabel + ')';
       flag.appendChild(flagStrong);
       container.appendChild(flag);
     }
@@ -190,6 +195,10 @@
         itemsByEntry.set(payload.items[j][0], payload.items[j]);
       }
     }
+
+    var misfitValue = parseFloat(payload.misfit_value);
+    if (isNaN(misfitValue)) { misfitValue = 1.5; }
+    var misfitLabel = payload.misfit_threshold || '1,50';
 
     var misfitToggle = document.getElementById('wright-misfit-toggle');
     var isMisfitChecked = Boolean(misfitToggle && misfitToggle.checked);
@@ -406,7 +415,7 @@
     }, 'skala logit'));
 
     var legendX = marginL + plotWidth - 132;
-    var bandGroup = svgEl('g', { 'aria-label': 'Batas misfit 1,50' });
+    var bandGroup = svgEl('g', { 'aria-label': 'Batas misfit ' + misfitLabel });
     bandGroup.appendChild(svgEl('line', {
       x1: legendX,
       y1: 32,
@@ -423,7 +432,7 @@
       'font-family': fontUi,
       'font-size': '11',
       fill: colorMuted
-    }, 'Batas misfit 1,50'));
+    }, 'Batas misfit ' + misfitLabel));
     axisFrag.appendChild(bandGroup);
 
     axisFrag.appendChild(svgEl('text', {
@@ -452,7 +461,7 @@
       }
       var readout = document.getElementById('wright-readout');
       if (readout && row) {
-        writeReadout(readout, row);
+        writeReadout(readout, row, payload);
       }
     }
 
@@ -468,7 +477,7 @@
         var alias = formatEntryAlias(entryNum);
         var itemRow = itemsByEntry.get(entryNum);
         var infitVal = itemRow ? parseFloat(String(itemRow[4]).replace(',', '.')) : NaN;
-        var isMisfit = !isNaN(infitVal) && infitVal >= 1.5;
+        var isMisfit = !isNaN(infitVal) && infitVal >= misfitValue;
         var itemY = axisY + ITEM_TOP + rowIdx * itemRowHeight;
 
         var gClass = 'wright-item-tick' + (isMisfit ? ' is-misfit' : '') + (isMisfit && isMisfitChecked ? ' is-misfit-highlight' : '');

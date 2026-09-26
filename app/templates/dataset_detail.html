@@ -379,9 +379,7 @@
 
 {% if status == 'ready' %}
 <section class="band">
-  <form action="/datasets/{{ dataset.id }}/analyze" method="post" data-loading="Memproses analisis…">
-    <button type="submit" class="btn btn--primary">Jalankan Analisis Rasch</button>
-  </form>
+  <a href="/datasets/{{ dataset.id }}/analysis-settings" class="btn btn--primary">Jalankan Analisis Rasch</a>
   {% if latest_analysis %}
   <p>
     <a href="/analyses/{{ latest_analysis.id }}" class="btn btn--secondary">Lihat hasil analisis terakhir</a>

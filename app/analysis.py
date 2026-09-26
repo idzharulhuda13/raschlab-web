@@ -56,7 +56,13 @@ OUTPUT_FILES = (
     "wright_map_frequency.csv",
 )
 
+MISFIT_THRESHOLD_DEFAULT = 1.5
+MISFIT_MIN, MISFIT_MAX = 0.5, 5.0
+DIGITS_MIN, DIGITS_MAX = 1, 4
+MODE_CHOICES = ("compat", "exact")
+
 PARAMS_DEFAULT = {
+    "misfit": MISFIT_THRESHOLD_DEFAULT,
     "mode": "compat",
     "digits": 2,
     "lconv": None,
@@ -66,8 +72,107 @@ PARAMS_DEFAULT = {
 }
 
 
+def format_threshold(value) -> str:
+    """Render a misfit threshold the way the pages show it: two decimals, comma separator."""
+    return f"{float(value):.2f}".replace(".", ",")
+
+
+def parse_settings_form(form) -> dict:
+    """Return analysis params from the settings form, defaulting anything absent or empty.
+
+    form is any mapping with .get (a Starlette FormData). Raises AnalysisError with Indonesian copy
+    when a value is present but not a usable one. Never falls back to the default on bad input.
+    """
+    params = dict(PARAMS_DEFAULT)
+    raw_misfit = form.get("misfit")
+    if raw_misfit is not None and str(raw_misfit).strip() != "":
+        text = str(raw_misfit).strip().replace(",", ".")
+        try:
+            misfit = float(text)
+        except ValueError as exc:
+            raise AnalysisError("Ambang misfit harus berupa angka antara 0,5 dan 5,0.") from exc
+        if not (MISFIT_MIN <= misfit <= MISFIT_MAX):
+            raise AnalysisError("Ambang misfit harus berada antara 0,5 dan 5,0.")
+        params["misfit"] = misfit
+    raw_mode = form.get("mode")
+    if raw_mode is not None and str(raw_mode).strip() != "":
+        mode = str(raw_mode).strip()
+        if mode not in MODE_CHOICES:
+            raise AnalysisError("Mode kalibrasi harus compat atau exact.")
+        params["mode"] = mode
+    raw_digits = form.get("digits")
+    if raw_digits is not None and str(raw_digits).strip() != "":
+        text = str(raw_digits).strip()
+        try:
+            digits = int(text)
+        except ValueError as exc:
+            raise AnalysisError("Desimal harus berupa bilangan bulat antara 1 dan 4.") from exc
+        if not (DIGITS_MIN <= digits <= DIGITS_MAX):
+            raise AnalysisError("Desimal harus berada antara 1 dan 4.")
+        params["digits"] = digits
+    return params
+
+
 class AnalysisError(Exception):
     """User-facing analysis exception with Indonesian error copy."""
+
+
+def validate_control_directives(control: dict, n_items: int, container_codes: str) -> dict:
+    """Narrow and check the honoured .CON directives, raising AnalysisError on a value the engine cannot use.
+
+    Rules come from the engine's own format document: CODES is an alphabet (any distinct single
+    characters, not just A to E), every response code in the data must appear in it, a KEY1 may only
+    use characters that CODES declares valid, and MISSCORE is either a number or a list of codes.
+    """
+    honoured: dict[str, str] = {}
+    for name in ("KEY1", "CODES", "MISSCORE"):
+        value = control.get(name)
+        if value is None or str(value).strip() == "":
+            continue
+        honoured[name] = str(value).strip()
+
+    codes = honoured.get("CODES", container_codes)
+    if honoured.get("CODES"):
+        if any(ch.isspace() for ch in codes):
+            raise AnalysisError(f"Kode respon pada berkas kontrol ({codes}) tidak boleh memuat spasi.")
+        if len(set(codes)) != len(codes):
+            raise AnalysisError(f"Kode respon pada berkas kontrol ({codes}) tidak boleh memuat karakter berulang.")
+    for ch in container_codes:
+        if ch not in codes:
+            raise AnalysisError(
+                f"Kode respon pada berkas kontrol ({codes}) tidak mencakup kode data ({container_codes})."
+            )
+
+    key = honoured.get("KEY1")
+    if key is not None:
+        if len(key) != n_items:
+            raise AnalysisError(
+                f"Panjang kunci jawaban pada berkas kontrol ({len(key)}) tidak sama dengan jumlah butir ({n_items})."
+            )
+        outside = sorted({ch for ch in key if ch not in codes})
+        if outside:
+            raise AnalysisError(
+                f"Kunci jawaban pada berkas kontrol memuat kode yang tidak ada di CODES: {''.join(outside)}."
+            )
+
+    misscore = honoured.get("MISSCORE")
+    if misscore is not None and not _is_number(misscore):
+        outside = sorted({ch for ch in misscore if ch not in codes})
+        if outside:
+            raise AnalysisError(
+                f"Nilai MISSCORE pada berkas kontrol ({misscore}) harus berupa angka atau daftar kode "
+                f"yang ada di CODES: {''.join(outside)} tidak dikenal."
+            )
+    return honoured
+
+
+def _is_number(text: str) -> bool:
+    try:
+        float(text)
+    except ValueError:
+        return False
+    return True
+
 
 
 def id_num(value: object) -> str:
@@ -327,6 +432,21 @@ def write_inputs(
     with open(lbl_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lbl_lines) + "\n")
 
+    control = {}
+    if dataset.summary_json:
+        try:
+            control = (json.loads(dataset.summary_json).get("control") or {})
+        except (TypeError, ValueError):
+            control = {}
+    if not isinstance(control, dict):
+        control = {}
+
+    honoured = validate_control_directives(control, dataset.n_items, codes)
+    if "KEY1" in honoured:
+        key = honoured["KEY1"]
+    if "CODES" in honoured:
+        codes = honoured["CODES"]
+
     con_lines = [
         "&INST",
         "NAME1 = 1",
@@ -335,10 +455,16 @@ def write_inputs(
         f"NI = {dataset.n_items}",
         f"KEY1 = {key}",
         f"CODES = {codes}",
-        "DATA = data.prn",
-        "ILABEL = items.lbl",
-        "&END",
     ]
+    if "MISSCORE" in honoured:
+        con_lines.append(f"MISSCORE = {honoured['MISSCORE']}")
+    con_lines.extend(
+        [
+            "DATA = data.prn",
+            "ILABEL = items.lbl",
+            "&END",
+        ]
+    )
     con_path = os.path.join(tmp_dir, "analyze.CON")
     with open(con_path, "w", encoding="utf-8") as f:
         f.write("\n".join(con_lines) + "\n")
@@ -392,8 +518,9 @@ def ensure_matrix(db: Session, dataset: Dataset) -> bytes:
     return matrix_gzip
 
 
-def run_for_dataset(db: Session, dataset: Dataset) -> Analysis:
+def run_for_dataset(db: Session, dataset: Dataset, params: dict | None = None) -> Analysis:
     """Execute analysis for dataset using the in-process engine and persist outputs."""
+    merged = {**PARAMS_DEFAULT, **(params or {})}
     matrix_gzip = ensure_matrix(db, dataset)
 
     created = now_epoch()
@@ -402,7 +529,7 @@ def run_for_dataset(db: Session, dataset: Dataset) -> Analysis:
         user_id=dataset.user_id,
         dataset_id=dataset.id,
         status="queued",
-        params_json=json.dumps(PARAMS_DEFAULT),
+        params_json=json.dumps(merged),
         engine_ref=ENGINE_REF,
         created_at=created,
         expires_at=expires,
@@ -428,11 +555,11 @@ def run_for_dataset(db: Session, dataset: Dataset) -> Analysis:
                         con_path=con_path,
                         data_path=prn_path,
                         out_dir=td,
-                        mode="compat",
+                        mode=merged["mode"],
                         out_format="csv",
-                        digits=2,
-                        lconv=None,
-                        person_order="misfit",
+                        digits=merged["digits"],
+                        lconv=merged.get("lconv"),
+                        person_order=merged.get("person_order") or "misfit",
                     )
             except (SystemExit, Exception) as exc:
                 err_text = stderr_buf.getvalue()

@@ -71,7 +71,7 @@ def test_no_style_blocks_in_any_template():
         assert "<style" not in content, f"<style tag found in {html_file}"
 
     page_templates = list(templates_dir.glob("*.html"))
-    assert len(page_templates) == 12, f"Expected 12 page templates directly under app/templates, found {len(page_templates)}"
+    assert len(page_templates) == 13, f"Expected 13 page templates directly under app/templates, found {len(page_templates)}"  # 13 pages since F12 added analysis_settings.html
     for html_file in page_templates:
         content = html_file.read_text()
         assert 'style="' not in content, f'style=" attribute found in page template {html_file}'
@@ -329,7 +329,7 @@ def test_all_template_classes_defined_in_app_css():
     # <=480px because the account menu beside it already carries that destination.
     # 145 / 159 (residual round, same day): .mono-link, the dataset filename links, which are real links inside
     # table rows and therefore carry the 44px minimum on desktop too.
-    assert len(used_classes) == 145, f"Used template class count changed to {len(used_classes)}"
+    assert len(used_classes) == 146, f"Used template class count changed to {len(used_classes)}"  # 146 since F12 reuses the defined class upload-form
     assert len(defined_classes) == 159, f"Defined app.css class count changed to {len(defined_classes)}"
 
 

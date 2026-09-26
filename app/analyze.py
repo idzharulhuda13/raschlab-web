@@ -14,19 +14,24 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.analysis import (
+    MISFIT_THRESHOLD_DEFAULT,
+    MODE_CHOICES,
+    PARAMS_DEFAULT,
     RETENTION_DAYS,
     STALE_RUN_S,
     AnalysisError,
+    format_threshold,
     id_num,
     latest_done_analysis,
     load_tables,
     paginate,
+    parse_settings_form,
     retention_sweep,
     run_for_dataset,
 )
@@ -39,9 +44,29 @@ from app.security import now_epoch
 
 logger = logging.getLogger("app.analyze")
 
-MISFIT_THRESHOLD = 1.50  # INFIT MNSQ at or above this value flags an item (same rule the explorer uses)
-
 templates.env.filters["id_num"] = id_num
+
+
+def _infit_mnsq_column(item_rows: list[list[str]]) -> int:
+    """Return the INFIT MNSQ column index, or -1 when the table does not carry it.
+
+    Two layouts exist: the engine writes the name across the two header rows (INFIT, then
+    MNSQ in the same column), while older hand-built tables carry it as a single cell that
+    reads INFIT MNSQ. Both must resolve to the same column, so that a real analysis and a
+    legacy fixture produce the same misfit count.
+    """
+    if not item_rows:
+        return -1
+    first = [str(h).strip().upper() for h in item_rows[0]]
+    second = [str(h).strip().upper() for h in item_rows[1]] if len(item_rows) > 1 else []
+    try:
+        return first.index("INFIT MNSQ")
+    except ValueError:
+        pass
+    for i, cell in enumerate(first):
+        if cell.startswith("INFIT") and i < len(second) and second[i] == "MNSQ":
+            return i
+    return -1
 
 
 def _do_retention_sweep() -> None:
@@ -78,11 +103,61 @@ async def lifespan(app: Any):
 router = APIRouter(lifespan=lifespan)
 
 
+@router.get("/datasets/{id}/analysis-settings", response_class=HTMLResponse)
+def get_analysis_settings(
+    request: Request,
+    id: int,
+    db: Session = Depends(get_session),
+):
+    if _gate_closed():
+        raise HTTPException(status_code=404, detail="Halaman tidak ditemukan.")
+    user = _current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+
+    dataset = db.execute(select(Dataset).where(Dataset.id == id)).scalar_one_or_none()
+    if dataset is None or dataset.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Dataset tidak ditemukan.")
+
+    if dataset.status != "ready":
+        return RedirectResponse(f"/datasets/{dataset.id}", status_code=303)
+
+    newest = db.scalars(
+        select(Analysis).where(Analysis.dataset_id == dataset.id).order_by(Analysis.id.desc())
+    ).first()
+    params = dict(PARAMS_DEFAULT)
+    if newest is not None and newest.params_json:
+        with contextlib.suppress(TypeError, ValueError):
+            stored = json.loads(newest.params_json)
+            if isinstance(stored, dict):
+                params.update({k: v for k, v in stored.items() if v is not None})
+
+    context = _build_dataset_context(request, user, dataset)
+    context.update(
+        {
+            "params": params,
+            "misfit_input": f"{float(params['misfit']):.2f}",
+            "submitted": None,
+            "defaults": {
+                "misfit": format_threshold(MISFIT_THRESHOLD_DEFAULT),
+                "mode": MODE_CHOICES[0],
+                "digits": str(PARAMS_DEFAULT["digits"]),
+            },
+        }
+    )
+    return templates.TemplateResponse(
+        request=request, name="analysis_settings.html", context=context, status_code=200
+    )
+
+
 @router.post("/datasets/{id}/analyze")
 def post_dataset_analyze(
     id: int,
     request: Request,
     db: Session = Depends(get_session),
+    misfit: str | None = Form(None),
+    mode: str | None = Form(None),
+    digits: str | None = Form(None),
 ):
     if _gate_closed():
         return RedirectResponse("/", status_code=303)
@@ -96,6 +171,27 @@ def post_dataset_analyze(
 
     if dataset.status != "ready":
         return RedirectResponse(f"/datasets/{dataset.id}", status_code=303)
+
+    try:
+        params = parse_settings_form({"misfit": misfit, "mode": mode, "digits": digits})
+    except AnalysisError as exc:
+        context = _build_dataset_context(request, user, dataset)
+        context.update(
+            {
+                "params": dict(PARAMS_DEFAULT),
+                "misfit_input": f"{float(PARAMS_DEFAULT['misfit']):.2f}",
+                "submitted": {"misfit": misfit, "mode": mode, "digits": digits},
+                "error": str(exc),
+                "defaults": {
+                    "misfit": format_threshold(MISFIT_THRESHOLD_DEFAULT),
+                    "mode": MODE_CHOICES[0],
+                    "digits": str(PARAMS_DEFAULT["digits"]),
+                },
+            }
+        )
+        return templates.TemplateResponse(
+            request=request, name="analysis_settings.html", context=context, status_code=422
+        )
 
     allowed, retry_after = check_limit(
         f"analyze:{client_ip(request)}:{user.id}", 12, 3600
@@ -121,7 +217,7 @@ def post_dataset_analyze(
         return RedirectResponse(f"/analyses/{existing_running.id}?msg=analyzed", status_code=303)
 
     try:
-        analysis = run_for_dataset(db, dataset)
+        analysis = run_for_dataset(db, dataset, params)
     except AnalysisError as exc:
         context = _build_dataset_context(request, user, dataset, error=str(exc))
         context["latest_analysis"] = latest_done_analysis(db, dataset.id)
@@ -219,6 +315,7 @@ def get_analysis(
         db.commit()
 
     params = json.loads(analysis.params_json) if analysis.params_json else {}
+    misfit_threshold = float(params.get("misfit", MISFIT_THRESHOLD_DEFAULT))
     anchors = params.get("anchors")
     context: dict[str, Any] = {
         "user": user,
@@ -232,6 +329,7 @@ def get_analysis(
         "n_misfit": 0,
         "n_item": 0,
         "params": params,
+        "misfit_threshold": format_threshold(misfit_threshold),
         "anchors": anchors,
         "is_anchored": bool(anchors),
     }
@@ -247,10 +345,7 @@ def get_analysis(
         n_item = 0
         if len(item_rows) >= 3:
             long_headers = [str(h).strip().upper() for h in item_rows[0]]
-            try:
-                infit_idx = long_headers.index("INFIT MNSQ")
-            except ValueError:
-                infit_idx = -1
+            infit_idx = _infit_mnsq_column(item_rows)
 
             if infit_idx != -1:
                 item_data_rows = item_rows[2:]
@@ -258,7 +353,7 @@ def get_analysis(
                 for r in item_data_rows:
                     if infit_idx < len(r):
                         try:
-                            if float(r[infit_idx]) >= MISFIT_THRESHOLD:
+                            if float(r[infit_idx]) >= misfit_threshold:
                                 n_misfit += 1
                         except (ValueError, TypeError):
                             pass

@@ -48,6 +48,7 @@ from app.auth import _current_user, _gate_closed, templates
 from app.db import get_session
 from app.models import Dataset, User
 from app.parsers import (
+    DEFAULT_MISSING_TOKENS,
     count_all_missing_persons,
     default_mapping,
     distinct_tokens,
@@ -60,7 +61,12 @@ from app.parsers import (
     validate_mapping,
 )
 from app.ratelimit import check_limit, client_ip
-from app.analysis import AnalysisError, build_matrix_gzip, latest_done_analysis
+from app.analysis import (
+    AnalysisError,
+    build_matrix_gzip,
+    latest_done_analysis,
+    validate_control_directives,
+)
 from app.security import now_epoch
 from app.storage import (
     MAX_CELLS,
@@ -112,7 +118,7 @@ def _format_error(exc: Exception) -> str:
             found = f"{int(observed):,}".replace(",", ".")
             return f"Berkas memuat {found} sel, melebihi batas maksimal {limit} sel."
         return f"Jumlah sel berkas melebihi batas maksimal {limit} sel."
-    if isinstance(exc, (ValueError, StorageError)):
+    if isinstance(exc, (AnalysisError, ValueError, StorageError)):
         return f"Berkas tidak valid: {msg}"
     return "Terjadi kesalahan saat memproses berkas. Pastikan format berkas sesuai."
 
@@ -161,8 +167,9 @@ def _build_dataset_context(
         if m == dataset.n_persons and i < len(item_labels)
     ]
 
-    key = mapping.get("key", "") or summary.get("control", {}).get("KEY1", "")
-    codes = mapping.get("codes", "") or summary.get("control", {}).get("CODES", "ABCDE")
+    ctrl = summary.get("control", {})
+    key = str(ctrl.get("KEY1", "")).strip() or mapping.get("key", "")
+    codes = str(ctrl.get("CODES", "")).strip() or mapping.get("codes", "") or "ABCDE"
     extra_missing = mapping.get("extra_missing", "")
 
     return {
@@ -287,7 +294,35 @@ async def post_datasets(
             all_missing_persons = count_all_missing_persons(parsed, mapping=mapping)
             preview_rows = [row[:12] for row in parsed.rows[:10]]
             preview_persons = parsed.person_labels[:10]
-            summary_control = None
+            parsed_control = None
+            if con is not None and (con.filename or "").strip():
+                con_bytes = await _read_upload_bounded(
+                    con,
+                    max_bytes=MAX_UPLOAD_BYTES,
+                    error_message="Ukuran berkas kontrol melebihi batas maksimal.",
+                )
+                if not con_bytes:
+                    raise ValueError("Berkas kontrol Winsteps (.CON) kosong.")
+                parsed_control = parse_control(con_bytes)
+
+            honoured = {}
+            if parsed_control:
+                data_tokens = [
+                    str(t).strip()
+                    for t in tokens_dict.keys()
+                    if str(t).strip()
+                    and mapping.get(t) != "missing"
+                    and str(t).strip().lower() not in DEFAULT_MISSING_TOKENS
+                ]
+                data_codes = "".join(sorted(set(data_tokens))) or "A"
+                honoured = validate_control_directives(parsed_control, n_items, data_codes)
+                if "KEY1" in honoured:
+                    mapping["key"] = honoured["KEY1"]
+                    key_row_detected = True
+                if "CODES" in honoured:
+                    mapping["codes"] = honoured["CODES"]
+
+            summary_control = honoured if honoured else None
         else:
             kind = "winsteps"
             fmt = "prn"
@@ -419,7 +454,13 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
                 submitted_mapping[t_val] = m_val
             i += 1
 
-        answer_key = str(form.get("key", "")).strip()
+        ctrl = summary.get("control", {})
+        existing_mapping = json.loads(dataset.mapping_json) if dataset.mapping_json else {}
+        answer_key = (
+            str(ctrl.get("KEY1", "")).strip()
+            or str(form.get("key", "")).strip()
+            or str(existing_mapping.get("key", "")).strip()
+        )
         if answer_key and len(answer_key) != dataset.n_items:
             error_msg = (
                 f"Panjang kunci jawaban ({len(answer_key)}) tidak sama dengan jumlah butir "
@@ -515,6 +556,12 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
 
         if answer_key:
             submitted_mapping["key"] = answer_key
+        if "CODES" in ctrl:
+            submitted_mapping["codes"] = str(ctrl["CODES"]).strip()
+        elif str(form.get("codes", "")).strip():
+            submitted_mapping["codes"] = str(form.get("codes", "")).strip()
+        elif existing_mapping.get("codes"):
+            submitted_mapping["codes"] = str(existing_mapping["codes"]).strip()
         dataset.mapping_json = json.dumps(submitted_mapping)
         dataset.summary_json = json.dumps(summary)
         dataset.status = "ready"
