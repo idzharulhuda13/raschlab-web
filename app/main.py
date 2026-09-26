@@ -12,6 +12,7 @@ from app.auth import router as auth_router
 from app.ingest import router as ingest_router
 from app.analyze import router as analyze_router
 from app.explore import router as explore_router
+from app.export import router as export_router
 from app.ui import initials_for
 
 APP_VERSION = "0.1.0"
@@ -49,6 +50,7 @@ app.include_router(auth_router)
 app.include_router(ingest_router)
 app.include_router(analyze_router)
 app.include_router(explore_router)
+app.include_router(export_router)
 
 
 @app.get("/", response_class=HTMLResponse)
