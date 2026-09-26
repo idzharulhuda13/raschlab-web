@@ -322,8 +322,12 @@ def test_all_template_classes_defined_in_app_css():
     # 142 / 156 (F9: readability, placement, navigation): action-bar, action-group--danger, danger-gap, page-exit, text-link, cmp-filter.
     # 143 / 157 (audit-fix batch 26 Sep 2026): .field--toggle, the 44px checkbox row, used by the Wright
     # misfit highlight and the Bandingkan delta filter, and defined once with its .field-label override.
-    assert len(used_classes) == 143, f"Used template class count changed to {len(used_classes)}"
-    assert len(defined_classes) == 157, f"Defined app.css class count changed to {len(defined_classes)}"
+    # 144 / 158 (residual round, same day): .appnav-link--akun, the account nav link that leaves the bar at
+    # <=480px because the account menu beside it already carries that destination.
+    # 145 / 159 (residual round, same day): .mono-link, the dataset filename links, which are real links inside
+    # table rows and therefore carry the 44px minimum on desktop too.
+    assert len(used_classes) == 145, f"Used template class count changed to {len(used_classes)}"
+    assert len(defined_classes) == 159, f"Defined app.css class count changed to {len(defined_classes)}"
 
 
 def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_ujian.csv") -> tuple[int, int]:

@@ -35,7 +35,7 @@
         {% for a in analyses %}
         <tr>
           <td>
-            <a href="/datasets/{{ a.dataset_id }}" class="mono">{{ a.dataset_filename }}</a>
+            <a href="/datasets/{{ a.dataset_id }}" class="mono mono-link">{{ a.dataset_filename }}</a>
           </td>
           <td class="mono">
             {{ a.created_at }}
@@ -61,7 +61,7 @@
     {% for a in analyses %}
     <li class="file-card">
       <div>
-        <a href="/datasets/{{ a.dataset_id }}" class="mono">{{ a.dataset_filename }}</a>
+        <a href="/datasets/{{ a.dataset_id }}" class="mono mono-link">{{ a.dataset_filename }}</a>
       </div>
       <div class="meta-line">
         <span class="mono">{{ a.created_at }}</span>

@@ -89,7 +89,7 @@
       {% for d in datasets %}
       <tr>
         <td>
-          <a href="/datasets/{{ d.id }}" class="mono">{{ d.filename }}</a>
+          <a href="/datasets/{{ d.id }}" class="mono mono-link">{{ d.filename }}</a>
         </td>
         <td>
           <span class="chip chip--format">{{ d.format | upper }}</span>
@@ -132,7 +132,7 @@
     <li class="file-card">
       <div>
         <span class="chip chip--format">{{ d.format | upper }}</span>
-        <a href="/datasets/{{ d.id }}" class="mono">{{ d.filename }}</a>
+        <a href="/datasets/{{ d.id }}" class="mono mono-link">{{ d.filename }}</a>
         <a href="/datasets/{{ d.id }}" class="btn btn--secondary">Buka</a>
       </div>
       <div class="meta-line">

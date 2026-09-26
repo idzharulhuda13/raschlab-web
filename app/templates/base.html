@@ -37,7 +37,7 @@
            {% if nav_path.startswith('/datasets') %}aria-current="page"{% endif %}>Berkas</a>
         <a href="/analyses" class="appnav-link{% if nav_path.startswith('/analyses') %} is-active{% endif %}"
            {% if nav_path.startswith('/analyses') %}aria-current="page"{% endif %}>Hasil Analisis</a>
-        <a href="/account" class="appnav-link{% if nav_path.startswith('/account') %} is-active{% endif %}"
+        <a href="/account" class="appnav-link appnav-link--akun{% if nav_path.startswith('/account') %} is-active{% endif %}"
            {% if nav_path.startswith('/account') %}aria-current="page"{% endif %}>Akun</a>
       </nav>
       {% endif %}

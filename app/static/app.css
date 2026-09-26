@@ -54,6 +54,9 @@ a:hover {
   position: absolute;
   top: -48px;
   left: var(--space-4);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   background: var(--surface);
   color: var(--accent);
   padding: var(--space-2) var(--space-4);
@@ -117,6 +120,7 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: 44px;
 }
 
 .wordmark-caption {
@@ -132,6 +136,7 @@ a:hover {
 .appnav-link {
   font-size: 16px;
   color: var(--muted);
+  min-width: 44px;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
@@ -154,6 +159,7 @@ a:hover {
 }
 
 .acct-summary {
+  min-width: 44px;
   min-height: 44px;
   list-style: none;
   cursor: pointer;
@@ -246,7 +252,7 @@ a:hover {
 }
 
 .theme-toggle {
-  height: 44px;
+  min-width: 44px;
   min-height: 44px;
   border-radius: var(--radius-md);
   border: 1px solid var(--control);
@@ -458,8 +464,16 @@ h2,
     padding-inline: var(--space-4);
   }
 
-  .appbar-inner > * {
+  /* Only the nav strip may be squeezed: the icon-shaped controls next to it keep their 44px. The links
+     themselves never shrink below their label, so a narrow screen scrolls the strip instead of clipping a
+     label inside its own 44px box. */
+  .appbar-inner > .appnav {
     min-width: 0;
+    overflow-x: auto;
+  }
+
+  .appnav-link {
+    flex: none;
   }
 
   .theme-toggle {
@@ -473,6 +487,14 @@ h2,
 
 @media (max-width: 480px) {
   .wordmark-caption {
+    display: none;
+  }
+
+  .appnav {
+    gap: var(--space-2);
+  }
+
+  .appnav-link--akun {
     display: none;
   }
 }
@@ -825,6 +847,7 @@ h2,
   color: inherit;
   cursor: pointer;
   padding: 0;
+  min-width: 44px;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
@@ -1032,6 +1055,7 @@ line.miss-marker {
   color: var(--muted);
   display: inline-flex;
   align-items: center;
+  min-height: 44px;
   gap: var(--space-2);
   margin-bottom: var(--space-4);
   text-decoration: none;
@@ -1039,6 +1063,18 @@ line.miss-marker {
 
 .back-link:hover {
   color: var(--accent);
+}
+
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.mono-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 
 .detail-title {
@@ -1742,10 +1778,8 @@ figure.summary-figure .def-value {
     font-size: var(--step-22);
   }
 
-  .th-sort { min-width: 44px; min-height: 44px; }
-  .back-link { display: inline-block; padding: 14px 8px; }
-  .wordmark { display: inline-block; padding: 10px 8px; }
-  .text-link { display: inline-block; padding: 14px 8px; }
+  /* The 44px minimum for these four controls now lives in the base rules above; the inline-block + padding
+     hacks that used to fake it here would stack on top of it and make them 72px tall. */
   .cmp-filter {
     display: flex;
     align-items: flex-start;

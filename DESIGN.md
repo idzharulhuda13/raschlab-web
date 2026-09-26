@@ -123,6 +123,14 @@ line up. The earlier Plus Jakarta Sans rationale is superseded by that direction
   through: the rows carry no `tabindex`, no role and no hover treatment, so a keyboard user meets the sort
   buttons and the pager instead of 147 dead tab stops (measured 26 Sep 2026: activating a row changed nothing).
   A row earns a tab stop only when a real action hangs off it, and that action decides the pattern.
+- **The app bar keeps its targets on a phone** (added 26 Sep 2026): every control in it holds 44x44 at every
+  width, including the icon-shaped ones (account summary, theme toggle) and the skip link. Measured at 360px,
+  the bar could not carry wordmark + three nav links + account + theme at those sizes without the nav colliding
+  with the avatar, so at `<=480px` the **account link leaves the nav**: it pointed at the same destination as
+  the account menu sitting next to it, and the menu keeps that route reachable. Shedding the duplicate is the
+  fix; shrinking a target below 44px is not. The two remaining links keep their natural width inside a strip that
+  scrolls sideways (`overflow-x: auto` + `flex: none`), so a 320px screen scrolls the strip instead of squeezing
+  a label into a 44px box: a link is either fully readable or off the strip, never clipped inside itself.
 
 ## Identity motif: the measured band (pita ukur)
 
