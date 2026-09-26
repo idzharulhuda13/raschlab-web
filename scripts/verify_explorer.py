@@ -3,7 +3,7 @@
 
 Boots the real app on a temporary SQLite database, seeds crafted data,
 drives a real Chromium via Playwright, and prints a per-group PASS/FAIL
-table. Exactly 195 checks in 11 groups. Exit 0 only when all 195 pass.
+table. Exactly 205 checks in 12 groups. Exit 0 only when all 205 pass.
 """
 
 from __future__ import annotations
@@ -127,7 +127,7 @@ def build_summary_csv(analysis_idx: int) -> str:
     item_mean   = ITEM_MEASURE_MEAN_A1   if analysis_idx == 1 else ITEM_MEASURE_MEAN_A2
     person_mean = PERSON_MEASURE_MEAN_A1 if analysis_idx == 1 else PERSON_MEASURE_MEAN_A2
     return "\n".join([
-        "CATEGORY,STATISTIC,VALUE",
+        "SECTION,STATISTIC,VALUE",
         ",,",
         f"ITEM,COUNT,{ITEM_COUNT_A1}",
         f"ITEM,MEASURE MEAN,{item_mean}",
@@ -175,7 +175,7 @@ def build_wright_frequency_csv() -> str:
 def build_option_csv() -> str:
     header = ("ENTRY,ITEM,CAT,SCORE,COUNT,OBS%,EXP%,OBS-EXP,"
                "PTMEA,ITEM MEASURE,STEP,CAT MEASURE,ITEM LABEL")
-    lines = [header, ",,,,,,,,,,,,,"]
+    lines = [header, "," * 12,]
     for i in range(1, 4):
         lines.append(f"{i},LBL{i:03d},A,1,490,73.50,73.20,0.30,0.50,0.50,,1.00,LBL{i:03d}")
     return "\n".join(lines) + "\n"
@@ -919,7 +919,10 @@ def group_d_dom_reconciliation(page: Any, base_url: str,
     # D13: analysis page misfit band number equals explorer wright-meta misfit count
     goto(page, f"{base_url}/analyses/{analysis1_id}")
     band_txt = page.evaluate("""() => {
-        const el = document.querySelector('.alert p');
+        const heads = Array.from(document.querySelectorAll('h2'));
+        const head = heads.find(h => h.textContent.includes('Butir Bermasalah'));
+        const band = head ? head.closest('section') : null;
+        const el = band ? band.querySelector('.alert p') : null;
         return el ? el.textContent : '';
     }""")
     m_band = re.search(r"(\d+)\s+dari", band_txt)
@@ -1926,6 +1929,274 @@ def group_k_authorization(base_url: str, analysis1_id: int,
 
 
 # ---------------------------------------------------------------------------
+# Group L: Excel export (10 checks)
+# ---------------------------------------------------------------------------
+
+
+def group_l_export(page: Any, base_url: str, analysis1_id: int,
+                   analysis2_id: int, res: Results) -> None:
+    """10 checks: XLSX export route, headers, sheets and data reconciliation."""
+    print("\n[L] Excel export")
+    import io
+    import openpyxl
+    import urllib.request
+    import urllib.error
+    sys.path.insert(0, str(REPO))
+    from app.export import COMPARE_HEADER
+
+    def download_xlsx(url_or_path: str):
+        full_url = f"{base_url}{url_or_path}" if url_or_path.startswith("/") else url_or_path
+        req = urllib.request.Request(full_url)
+        req.add_header("Cookie", f"{COOKIE_NAME}={SESSION_TOKEN}")
+        try:
+            with urllib.request.urlopen(req, timeout=15) as r:
+                status = r.status
+                headers = r.headers
+                body = r.read()
+            wb = openpyxl.load_workbook(io.BytesIO(body), data_only=True)
+            return status, headers, wb
+        except urllib.error.HTTPError as e:
+            return e.code, e.headers, None
+
+    def verify_headers(hdrs) -> bool:
+        ct = hdrs.get("Content-Type", "")
+        cd = hdrs.get("Content-Disposition", "")
+        cc = hdrs.get("Cache-Control", "")
+        return (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" in ct
+            and "filename=" in cd
+            and "filename*=UTF-8''" in cd
+            and "no-store" in cc
+        )
+
+    # 1. butir table against /analyses/<id>
+    goto(page, f"{base_url}/analyses/{analysis1_id}")
+    dom_item_data = page.evaluate("""() => {
+        const tbl = document.querySelectorAll('table.data-table')[0];
+        if (!tbl) return null;
+        const theadRows = Array.from(tbl.querySelectorAll('thead tr')).map(tr =>
+            Array.from(tr.querySelectorAll('th')).map(th => th.textContent.trim())
+        );
+        const first3Rows = Array.from(tbl.querySelectorAll('tbody tr')).slice(0, 3).map(tr => {
+            const td = tr.querySelector('td');
+            return td ? td.textContent.trim() : '';
+        });
+        return { theadRows, first3Rows };
+    }""")
+    status1, hdrs1, wb1 = download_xlsx(f"/analyses/{analysis1_id}/export?table=butir")
+    ws1 = wb1["butir"] if wb1 and "butir" in wb1.sheetnames else None
+    sheet_rows1 = list(ws1.iter_rows(values_only=True)) if ws1 else []
+    headers_ok1 = hdrs1 is not None and verify_headers(hdrs1)
+    clean_dom_h0_1 = [c.replace(" (logit)", "").strip() for c in (dom_item_data["theadRows"][0] if dom_item_data and len(dom_item_data["theadRows"]) > 0 else [])]
+    clean_dom_h1_1 = [c.strip() for c in (dom_item_data["theadRows"][1] if dom_item_data and len(dom_item_data["theadRows"]) > 1 else [])]
+    sheet_h0_1 = [str(c or "").strip() for c in sheet_rows1[0]] if len(sheet_rows1) > 0 else []
+    sheet_h1_1 = [str(c or "").strip() for c in sheet_rows1[1]] if len(sheet_rows1) > 1 else []
+    h_match1 = (clean_dom_h0_1 == sheet_h0_1 and clean_dom_h1_1 == sheet_h1_1)
+    sheet_first3_1 = [id_num(sheet_rows1[2 + i][0]) for i in range(min(3, max(0, len(sheet_rows1) - 2)))]
+    dom_first3_1 = [id_num(v) for v in (dom_item_data["first3Rows"] if dom_item_data else [])]
+    rows_match1 = (len(sheet_first3_1) == 3 and sheet_first3_1 == dom_first3_1)
+    c1_ok = (status1 == 200 and ws1 is not None and ws1.title == "butir" and headers_ok1 and h_match1 and rows_match1)
+    res.record("export: butir sheet matches item table headers and first 3 rows",
+               f"status={status1} h_match={h_match1} rows_match={rows_match1} hdrs={headers_ok1}",
+               c1_ok)
+
+    # 2. opsi table against /analyses/<id>
+    dom_option_data = page.evaluate("""() => {
+        const tbl = document.querySelectorAll('table.data-table')[1];
+        if (!tbl) return null;
+        const theadRows = Array.from(tbl.querySelectorAll('thead tr')).map(tr =>
+            Array.from(tr.querySelectorAll('th')).map(th => th.textContent.trim())
+        );
+        const first3Rows = Array.from(tbl.querySelectorAll('tbody tr')).slice(0, 3).map(tr => {
+            const td = tr.querySelector('td');
+            return td ? td.textContent.trim() : '';
+        });
+        return { theadRows, first3Rows };
+    }""")
+    status2, hdrs2, wb2 = download_xlsx(f"/analyses/{analysis1_id}/export?table=opsi")
+    ws2 = wb2["opsi"] if wb2 and "opsi" in wb2.sheetnames else None
+    sheet_rows2 = list(ws2.iter_rows(values_only=True)) if ws2 else []
+    file_h0_2 = build_option_csv().splitlines()[0].split(",")
+    file_h1_2 = build_option_csv().splitlines()[1].split(",")
+    sheet_h0_2 = [str(c or "").strip() for c in sheet_rows2[0]] if len(sheet_rows2) > 0 else []
+    sheet_h1_2 = [str(c or "").strip() for c in sheet_rows2[1]] if len(sheet_rows2) > 1 else []
+    h_match2 = (sheet_h0_2 == file_h0_2 and sheet_h1_2 == file_h1_2)
+    sheet_first3_2 = [id_num(sheet_rows2[2 + i][0]) for i in range(min(3, max(0, len(sheet_rows2) - 2)))]
+    dom_first3_2 = [id_num(v) for v in (dom_option_data["first3Rows"] if dom_option_data else [])]
+    rows_match2 = (len(sheet_first3_2) == 3 and sheet_first3_2 == dom_first3_2)
+    c2_ok = (status2 == 200 and ws2 is not None and ws2.title == "opsi" and h_match2 and rows_match2)
+    res.record("export: opsi sheet matches option table headers and first 3 rows",
+               f"status={status2} h_match={h_match2} rows_match={rows_match2}",
+               c2_ok)
+
+    # 3. responden table against /analyses/<id>
+    dom_person_data = page.evaluate("""() => {
+        const tbl = document.querySelectorAll('table.data-table')[2];
+        if (!tbl) return null;
+        const theadRows = Array.from(tbl.querySelectorAll('thead tr')).map(tr =>
+            Array.from(tr.querySelectorAll('th')).map(th => th.textContent.trim())
+        );
+        const first3Rows = Array.from(tbl.querySelectorAll('tbody tr')).slice(0, 3).map(tr => {
+            const td = tr.querySelector('td');
+            return td ? td.textContent.trim() : '';
+        });
+        return { theadRows, first3Rows };
+    }""")
+    status3, hdrs3, wb3 = download_xlsx(f"/analyses/{analysis1_id}/export?table=responden")
+    ws3 = wb3["responden"] if wb3 and "responden" in wb3.sheetnames else None
+    sheet_rows3 = list(ws3.iter_rows(values_only=True)) if ws3 else []
+    clean_dom_h0_3 = [c.replace(" (logit)", "").strip() for c in (dom_person_data["theadRows"][0] if dom_person_data and len(dom_person_data["theadRows"]) > 0 else [])]
+    clean_dom_h1_3 = [c.strip() for c in (dom_person_data["theadRows"][1] if dom_person_data and len(dom_person_data["theadRows"]) > 1 else [])]
+    sheet_h0_3 = [str(c or "").strip() for c in sheet_rows3[0]] if len(sheet_rows3) > 0 else []
+    sheet_h1_3 = [str(c or "").strip() for c in sheet_rows3[1]] if len(sheet_rows3) > 1 else []
+    h_match3 = (clean_dom_h0_3 == sheet_h0_3 and clean_dom_h1_3 == sheet_h1_3)
+    sheet_first3_3 = [id_num(sheet_rows3[2 + i][0]) for i in range(min(3, max(0, len(sheet_rows3) - 2)))]
+    dom_first3_3 = [id_num(v) for v in (dom_person_data["first3Rows"] if dom_person_data else [])]
+    rows_match3 = (len(sheet_first3_3) == 3 and sheet_first3_3 == dom_first3_3)
+    c3_ok = (status3 == 200 and ws3 is not None and ws3.title == "responden" and h_match3 and rows_match3)
+    res.record("export: responden sheet matches person table headers and first 3 rows",
+               f"status={status3} h_match={h_match3} rows_match={rows_match3}",
+               c3_ok)
+
+    # 4. ringkasan table against /analyses/<id>
+    rekap_numbers = page.evaluate("""() => {
+        const rekapHeader = Array.from(document.querySelectorAll('h2')).find(h => h.textContent.includes('Rekap'));
+        const band = rekapHeader ? rekapHeader.closest('section') : null;
+        if (!band) return [];
+        return Array.from(band.querySelectorAll('.def-value'))
+            .map(el => el.textContent.trim())
+            .filter(t => t && t !== '-' && t !== 'None');
+    }""")
+    status4, hdrs4, wb4 = download_xlsx(f"/analyses/{analysis1_id}/export?table=ringkasan")
+    ws4 = wb4["ringkasan"] if wb4 and "ringkasan" in wb4.sheetnames else None
+    sheet_rows4 = list(ws4.iter_rows(values_only=True)) if ws4 else []
+    hdr4 = [str(c or "").strip() for c in sheet_rows4[0]] if sheet_rows4 else []
+    hdr4_ok = (hdr4 == ["SECTION", "STATISTIC", "VALUE"])
+    sheet_vals4 = {id_num(r[2]) for r in sheet_rows4[1:] if len(r) > 2 and r[2] is not None}
+    rekap_in_sheet = all(id_num(v) in sheet_vals4 for v in rekap_numbers) and len(rekap_numbers) > 0
+    c4_ok = (status4 == 200 and hdr4_ok and rekap_in_sheet)
+    res.record("export: ringkasan sheet has header and all rekap values",
+               f"status={status4} hdr={hdr4} rekap_ok={rekap_in_sheet}",
+               c4_ok)
+
+    # 5. wright table against /analyses/<id>/explore?view=wright
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=wright")
+    payload_raw5 = page.evaluate("""() => {
+        const el = document.getElementById('explorer-data');
+        return el ? el.textContent : '';
+    }""")
+    bins5_count = -1
+    try:
+        data5 = json.loads(payload_raw5)
+        bins5_count = len(data5.get("bins", []))
+    except Exception:
+        pass
+    status5, hdrs5, wb5 = download_xlsx(f"/analyses/{analysis1_id}/export?table=wright")
+    ws5 = wb5["wright"] if wb5 and "wright" in wb5.sheetnames else None
+    sheet_rows5 = list(ws5.iter_rows(values_only=True)) if ws5 else []
+    measure_rows5 = len(sheet_rows5) - 2 if len(sheet_rows5) >= 2 else 0
+    c5_ok = (status5 == 200 and ws5 is not None and ws5.title == "wright" and bins5_count > 0 and measure_rows5 == bins5_count)
+    res.record("export: wright sheet measure row count matches explorer payload",
+               f"status={status5} sheet_rows={measure_rows5} payload_bins={bins5_count}",
+               c5_ok)
+
+    # 6. butir view export link
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=butir")
+    href6 = page.evaluate("""() => {
+        const a = document.querySelector('#panel-butir a[href*="export"]');
+        return a ? a.getAttribute('href') : '';
+    }""")
+    dom_first_col6 = page.evaluate("""() => {
+        const td = document.querySelector('#panel-butir tbody tr td:first-child');
+        return td ? td.textContent.trim() : '';
+    }""")
+    status6, hdrs6, wb6 = download_xlsx(href6) if href6 else (0, None, None)
+    ws6 = wb6.active if wb6 else None
+    sheet_rows6 = list(ws6.iter_rows(values_only=True)) if ws6 else []
+    sheet_first_col6 = sheet_rows6[2][0] if len(sheet_rows6) > 2 else None
+    c6_ok = (status6 == 200 and bool(href6) and id_num(sheet_first_col6) == id_num(dom_first_col6))
+    res.record("export: explorer butir view export link matches rendered table",
+               f"status={status6} sheet={id_num(sheet_first_col6)} dom={id_num(dom_first_col6)}",
+               c6_ok)
+
+    # 7. partisipan view export link
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=partisipan")
+    href7 = page.evaluate("""() => {
+        const a = document.querySelector('#panel-partisipan a[href*="export"]');
+        return a ? a.getAttribute('href') : '';
+    }""")
+    dom_first_col7 = page.evaluate("""() => {
+        const td = document.querySelector('#panel-partisipan tbody tr td:first-child');
+        return td ? td.textContent.trim() : '';
+    }""")
+    status7, hdrs7, wb7 = download_xlsx(href7) if href7 else (0, None, None)
+    ws7 = wb7["responden"] if wb7 and "responden" in wb7.sheetnames else None
+    sheet_rows7 = list(ws7.iter_rows(values_only=True)) if ws7 else []
+    sheet_first_col7 = sheet_rows7[2][0] if len(sheet_rows7) > 2 else None
+    c7_ok = (status7 == 200 and bool(href7) and ws7 is not None and id_num(sheet_first_col7) == id_num(dom_first_col7))
+    res.record("export: explorer partisipan view export link matches rendered table",
+               f"status={status7} sheet={id_num(sheet_first_col7)} dom={id_num(dom_first_col7)}",
+               c7_ok)
+
+    # 8. ringkasan view export link
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=ringkasan")
+    href8 = page.evaluate("""() => {
+        const a = document.querySelector('#panel-ringkasan a[href*="export"]');
+        return a ? a.getAttribute('href') : '';
+    }""")
+    dom_first_col8 = page.evaluate("""() => {
+        const td = document.querySelector('#panel-ringkasan tbody tr td:first-child');
+        return td ? td.textContent.trim() : '';
+    }""")
+    status8, hdrs8, wb8 = download_xlsx(href8) if href8 else (0, None, None)
+    ws8 = wb8["ringkasan"] if wb8 and "ringkasan" in wb8.sheetnames else None
+    sheet_rows8 = list(ws8.iter_rows(values_only=True)) if ws8 else []
+    sheet_first_col8 = next((r[0] for r in sheet_rows8[1:] if r and r[0] not in (None, "")), None)
+    c8_ok = (status8 == 200 and bool(href8) and ws8 is not None and id_num(sheet_first_col8) == id_num(dom_first_col8))
+    res.record("export: explorer ringkasan view export link matches rendered table",
+               f"status={status8} sheet={id_num(sheet_first_col8)} dom={id_num(dom_first_col8)}",
+               c8_ok)
+
+    # 9. bandingkan view export link
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=bandingkan&from={analysis1_id}&to={analysis2_id}")
+    href9 = page.evaluate("""() => {
+        const a = document.querySelector('#panel-bandingkan a[href*="export"]');
+        return a ? a.getAttribute('href') : '';
+    }""")
+    rendered_cmp_rows = page.evaluate("""() => {
+        return document.querySelectorAll('#cmp-tbody tr').length;
+    }""")
+    status9, hdrs9, wb9 = download_xlsx(href9) if href9 else (0, None, None)
+    ws9 = wb9["bandingkan"] if wb9 and "bandingkan" in wb9.sheetnames else None
+    sheet_rows9 = list(ws9.iter_rows(values_only=True)) if ws9 else []
+    hdr9 = [str(c or "").strip() for c in sheet_rows9[0]] if sheet_rows9 else []
+    hdr9_ok = (hdr9 == COMPARE_HEADER)
+    count9_ok = (len(sheet_rows9) == rendered_cmp_rows + 1)
+    c9_ok = (status9 == 200 and bool(href9) and ws9 is not None and hdr9_ok and count9_ok)
+    res.record("export: explorer bandingkan view export matches compare rows",
+               f"status={status9} hdr_ok={hdr9_ok} rows={len(sheet_rows9)} rendered+1={rendered_cmp_rows + 1}",
+               c9_ok)
+
+    # 10. list page export links
+    goto(page, f"{base_url}/analyses")
+    row_links10 = page.evaluate("""() => {
+        const rows = Array.from(document.querySelectorAll('.file-table table.data-table tbody tr'));
+        return rows.map(tr => {
+            const a = tr.querySelector("a[href*='export?table=']");
+            return a ? a.getAttribute('href') : null;
+        });
+    }""")
+    all_rows_have_link = bool(row_links10) and all(l is not None for l in row_links10)
+    first_link = row_links10[0] if all_rows_have_link else ""
+    status10, hdrs10, wb10 = download_xlsx(first_link) if first_link else (0, None, None)
+    headers_ok10 = hdrs10 is not None and verify_headers(hdrs10)
+    c10_ok = (all_rows_have_link and status10 == 200 and headers_ok10)
+    res.record("export: list page rows offer export link with xlsx response",
+               f"status={status10} rows_ok={all_rows_have_link} hdrs_ok={headers_ok10}",
+               c10_ok)
+
+
+# ---------------------------------------------------------------------------
 # Table printer
 # ---------------------------------------------------------------------------
 
@@ -2075,6 +2346,9 @@ def main() -> int:
             capture("K", "Authorization",
                     group_k_authorization, base_url, analysis1_id, foreign_aid, all_results)
 
+            capture("L", "Excel export",
+                    group_l_export, page, base_url, analysis1_id, analysis2_id, all_results)
+
             browser.close()
 
         # ----------------------------------------------------------------
@@ -2094,7 +2368,7 @@ def main() -> int:
         print(f"TOTAL: {total} checks  |  {passed} PASS  |  {failed} FAIL")
         print(f"{'=' * 72}")
 
-        EXPECTED_TOTAL = 195
+        EXPECTED_TOTAL = 205
         if total != EXPECTED_TOTAL:
             print(
                 f"\nERROR: Expected {EXPECTED_TOTAL} checks, got {total}. "
@@ -2106,7 +2380,7 @@ def main() -> int:
             print(f"\nFAIL: {failed} check(s) failed.")
             return 1
 
-        print("\n195/195 PASS")
+        print("\n205/205 PASS")
         return 0
 
     finally:
