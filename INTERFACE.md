@@ -578,8 +578,17 @@ itself to the current search or page would be a silent truncation, and the store
 - Rows are the engine's rows verbatim. Header rows and fully blank rows stay text exactly as stored.
 - The numeric decision is **delegated to the engine**, never re-derived: the column label is the cell's label in
   the LAST header row (`raschlab.report.number_format_for_header`), then `raschlab.report.coerce_cell(value, fmt)`.
-  Non-numeric columns stay strings, which is what keeps `PERSON` and `ITEM` identifiers text even when they are
-  all digits. `ringkasan` uses `raschlab.report.summary_value_format` on the `VALUE` column.
+  The format is applied only when the engine returns one for that column, and it is applied to BLANK data cells
+  too: the engine's `coerce_cell("", fmt)` returns `(None, fmt)`, so a blank cell in a numeric column keeps `0`
+  or `0.00` while its value stays empty. Non-numeric columns stay strings, which is what keeps `PERSON` and `ITEM`
+  identifiers text even when they are all digits. `ringkasan` uses `raschlab.report.summary_value_format` on the
+  `VALUE` column.
+- `wright` carries one extra rule, because its second header row has NO labels for `MEASURE`, `NR_PERSON` and
+  `NR_ITEM` (columns 0, 1, 3): the engine's `fill_sheet` finds no format for those names and leaves the cell
+  alone, so they hold **real numbers in a `General` cell**. Read from CSV text without a rule they would ship as
+  text and Excel could not calculate or sort them, so the export coerces exactly those three columns to numbers
+  and leaves the format unset. The histogram columns (2, 4, 5) stay text and the labelled columns (6, 7) follow
+  the header-name rule, both matching the engine.
 - `bandingkan` is the one derived sheet. Its header row is `Nomor`, `Butir`, `Measure analisis pertama`,
   `Measure analisis kedua`, `Selisih (kedua − pertama)` — the labels the table renders — and its numeric columns
   are 0, 2, 3, 4. Its rows come from the same server-side chain the view renders (`build_compare_pairs`,
