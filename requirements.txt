@@ -8,4 +8,4 @@ python-multipart>=0.0.9
 argon2-cffi>=24.1
 httpx>=0.27
 openpyxl>=3.1
-raschlab @ git+https://github.com/idzharulhuda13/raschlab@8e8ac678c792d9ecef20cb7efd5ee27cc841af4a
+raschlab @ git+https://github.com/idzharulhuda13/raschlab@c41c39682908f3fc3fc3eadb70da4147fc873a3d

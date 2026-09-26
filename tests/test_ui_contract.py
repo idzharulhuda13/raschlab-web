@@ -152,6 +152,9 @@ def test_retired_names_and_token_contract():
 
     app_css = Path("app/static/app.css").read_text()
     assert "96px" not in app_css, "Raw literal 96px found in app.css"
+    # A long unbroken filename inside the unanchored note must wrap instead of pushing the page sideways;
+    # before this rule, a 184-character filename measured a 1807px document width on a 375px viewport.
+    assert ".alert .mono" in app_css, "alert-scoped mono wrap rule missing from app.css"
 
     for html_file in Path("app/templates").glob("*.html"):
         content = html_file.read_text()

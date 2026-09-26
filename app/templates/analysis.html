@@ -84,6 +84,14 @@
   </form>
 </section>
 {% elif status == 'done' %}
+{% if not is_anchored %}
+<section class="band">
+  <div class="alert alert--warn" role="status">
+    <strong>Hasil Tanpa Jangkar (Unanchored)</strong>
+    <p>Analisis untuk berkas <span class="mono">{{ dataset.filename }}</span> berjalan tanpa jangkar, jadi titik nol skala dihitung dari data Anda sendiri, bukan dari acuan luar. Sebagai gambaran selisihnya: dibandingkan acuan Winsteps tersimpan pada matriks TBS 147 butir, measure tanpa jangkar berbeda rata-rata {{ '0.0013' | id_num }} dan maksimum {{ '0.0105' | id_num }} logit setelah titik nol disamakan. Angka itu berlaku untuk matriks pembanding tersebut, bukan jaminan untuk setiap data.</p>
+  </div>
+</section>
+{% endif %}
 {% if n_item > 0 %}
 <section class="band">
   <h2>Butir Bermasalah</h2>

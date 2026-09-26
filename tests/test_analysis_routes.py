@@ -105,6 +105,9 @@ def test_analyze_flow_and_result_page_contract(client: TestClient):
     html = get_resp.text
 
     assert "Tabel Butir (15.1)" in html
+    assert "Hasil Tanpa Jangkar" in html
+    assert "0,0013" in html and "0,0105" in html
+    assert "bukan jaminan untuk setiap data" in html
     assert "misfit (outfit MNSQ menurun)" in html
     assert "Urutan Responden:" in html
     assert '<td class="num-col mono">-0,02</td>' in html
@@ -347,3 +350,30 @@ def test_gate_closed_blocks_analysis_routes(client: TestClient, monkeypatch: pyt
 
     get_resp = client.get("/analyses/1")
     assert get_resp.status_code == 404
+
+
+def test_analysis_done_page_omits_precision_note_when_anchored(client: TestClient):
+    """The note is conditional: an anchored params_json must not render it."""
+    user_id = _create_authenticated_user(client, email="berjangkar@example.test")
+    dataset_id = _upload_and_commit_sample(client)
+    now = now_epoch()
+    with SessionLocal() as db:
+        analysis = Analysis(
+            dataset_id=dataset_id,
+            user_id=user_id,
+            status="done",
+            params_json=json.dumps({"mode": "compat", "anchors": [{"item": 1, "value": 0.0}]}),
+            engine_ref="raschlab-engine-test",
+            created_at=now,
+            started_at=now,
+            finished_at=now,
+            expires_at=now + 180 * 86400,
+        )
+        db.add(analysis)
+        db.commit()
+        analysis_id = analysis.id
+
+    resp = client.get(f"/analyses/{analysis_id}")
+    assert resp.status_code == 200
+    assert "Hasil Tanpa Jangkar" not in resp.text
+

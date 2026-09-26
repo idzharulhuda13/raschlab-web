@@ -218,6 +218,8 @@ def get_analysis(
         analysis.finished_at = now
         db.commit()
 
+    params = json.loads(analysis.params_json) if analysis.params_json else {}
+    anchors = params.get("anchors")
     context: dict[str, Any] = {
         "user": user,
         "dataset": dataset,
@@ -229,6 +231,9 @@ def get_analysis(
         "retention_days": RETENTION_DAYS,
         "n_misfit": 0,
         "n_item": 0,
+        "params": params,
+        "anchors": anchors,
+        "is_anchored": bool(anchors),
     }
 
     if analysis.status == "done":
@@ -298,7 +303,6 @@ def get_analysis(
                 "summary_headers": summary_headers,
                 "summary_rows": summary_rows,
                 "rekap": rekap,
-                "params": json.loads(analysis.params_json) if analysis.params_json else {},
                 "page_item": item_paged.page,
                 "page_option": option_paged.page,
                 "page_person": person_paged.page,
