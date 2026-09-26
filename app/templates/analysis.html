@@ -104,6 +104,9 @@
 
 <section class="band">
   <h2>Rekap Responden</h2>
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=ringkasan" aria-label="Unduh Excel rekap ringkasan">Unduh Excel</a>
+  </div>
   <div class="header-pairs">
     <div class="def-row">
       <span class="def-label">Total Responden Berkas: </span>
@@ -138,6 +141,9 @@
 
 <section class="band">
   <h2>Tabel Butir (15.1)</h2>
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=butir" aria-label="Unduh Excel tabel butir">Unduh Excel</a>
+  </div>
   <div class="table-scroll">
     <table class="data-table">
       <caption class="table-caption">Memuat estimasi measure, S.E., dan statistik kecocokan untuk {{ item_paged.total_rows | id_num }} butir sesuai urutan bawaan mesin.</caption>
@@ -195,6 +201,9 @@
 
 <section class="band">
   <h2>Tabel Opsi dan Distraktor (15.3)</h2>
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=opsi" aria-label="Unduh Excel tabel opsi dan distraktor">Unduh Excel</a>
+  </div>
   <div class="table-scroll">
     <table class="data-table">
       <caption class="table-caption">Memuat frekuensi pemilihan setiap opsi respon per butir sesuai urutan bawaan mesin.</caption>
@@ -252,6 +261,9 @@
 
 <section class="band">
   <h2>Tabel Responden</h2>
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=responden" aria-label="Unduh Excel tabel responden">Unduh Excel</a>
+  </div>
   <div class="table-scroll">
     <table class="data-table">
       <caption class="table-caption">Memuat estimasi ability measure, S.E., dan statistik kecocokan untuk {{ person_paged.total_rows | id_num }} responden sesuai urutan misfit.</caption>

@@ -57,6 +57,9 @@
   {% set person_incl = rekap.get('PERSON EXTREME INCL COUNT') | int if ('PERSON EXTREME INCL COUNT' in rekap and rekap.get('PERSON EXTREME INCL COUNT') is not none) else none %}
   {% set person_count = rekap.get('PERSON COUNT') | int if ('PERSON COUNT' in rekap and rekap.get('PERSON COUNT') is not none) else none %}
   <p id="wright-meta">Partisipan: {{ rekap.get('PERSON COUNT', '-') | id_num }} · Butir: {{ rekap.get('ITEM COUNT', '-') | id_num }} · Dikecualikan (skor sempurna/nol): {% if person_incl is not none and person_count is not none %}{{ (person_incl - person_count) | id_num }}{% else %}-{% endif %}</p>
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=wright" aria-label="Unduh Excel data peta Wright">Unduh Excel</a>
+  </div>
   <div id="wright-scale" class="chart-scroll"></div>
   <p id="wright-readout" class="readout">Fokus pada butir di peta untuk melihat rincian.</p>
   <div class="field field--toggle">

@@ -1,4 +1,21 @@
 {% if render_view == 'butir' %}
+<div class="action-bar">
+  <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=butir" aria-label="Unduh Excel tabel butir">Unduh Excel</a>
+</div>
+{% elif render_view == 'partisipan' %}
+<div class="action-bar">
+  <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=responden" aria-label="Unduh Excel tabel responden">Unduh Excel</a>
+</div>
+{% elif render_view == 'ringkasan' %}
+<div class="action-bar">
+  <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=ringkasan" aria-label="Unduh Excel tabel ringkasan">Unduh Excel</a>
+</div>
+{% elif render_view == 'bandingkan' and compare_ctx is defined and compare_ctx.from_id and compare_ctx.to_id %}
+<div class="action-bar">
+  <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=bandingkan&from={{ compare_ctx.from_id }}&to={{ compare_ctx.to_id }}" aria-label="Unduh Excel tabel perbandingan">Unduh Excel</a>
+</div>
+{% endif %}
+{% if render_view == 'butir' %}
 <form class="search-bar" method="get" action="/analyses/{{ analysis.id }}/explore">
   <input type="hidden" name="view" value="butir">
   <input type="hidden" name="page_item" value="1">

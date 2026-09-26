@@ -29,6 +29,7 @@
           <th scope="col">Dimensi Data</th>
           <th scope="col">Hasil</th>
           <th scope="col">Eksplorasi</th>
+          <th scope="col">Unduh Excel</th>
         </tr>
       </thead>
       <tbody>
@@ -51,6 +52,14 @@
           <td>
             <a href="/analyses/{{ a.id }}/explore" class="btn btn--secondary">Buka dashboard</a>
           </td>
+          <td>
+            <div class="action-bar">
+              <a href="/analyses/{{ a.id }}/export?table=butir" class="text-link" aria-label="Unduh Excel tabel butir analisis {{ a.id }}">Butir</a>
+              <a href="/analyses/{{ a.id }}/export?table=opsi" class="text-link" aria-label="Unduh Excel tabel opsi analisis {{ a.id }}">Opsi</a>
+              <a href="/analyses/{{ a.id }}/export?table=responden" class="text-link" aria-label="Unduh Excel tabel responden analisis {{ a.id }}">Responden</a>
+              <a href="/analyses/{{ a.id }}/export?table=ringkasan" class="text-link" aria-label="Unduh Excel ringkasan analisis {{ a.id }}">Ringkasan</a>
+            </div>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -72,6 +81,12 @@
       <div class="action-bar">
         <a href="/analyses/{{ a.id }}" class="btn btn--secondary">Buka hasil</a>
         <a href="/analyses/{{ a.id }}/explore" class="btn btn--secondary">Buka dashboard</a>
+      </div>
+      <div class="action-bar">
+        <a href="/analyses/{{ a.id }}/export?table=butir" class="text-link" aria-label="Unduh Excel tabel butir analisis {{ a.id }}">Butir</a>
+        <a href="/analyses/{{ a.id }}/export?table=opsi" class="text-link" aria-label="Unduh Excel tabel opsi analisis {{ a.id }}">Opsi</a>
+        <a href="/analyses/{{ a.id }}/export?table=responden" class="text-link" aria-label="Unduh Excel tabel responden analisis {{ a.id }}">Responden</a>
+        <a href="/analyses/{{ a.id }}/export?table=ringkasan" class="text-link" aria-label="Unduh Excel ringkasan analisis {{ a.id }}">Ringkasan</a>
       </div>
     </li>
     {% endfor %}
