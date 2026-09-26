@@ -3,7 +3,7 @@
 
 Boots the real app on a temporary SQLite database, seeds crafted data,
 drives a real Chromium via Playwright, and prints a per-group PASS/FAIL
-table. Exactly 205 checks in 12 groups. Exit 0 only when all 205 pass.
+table. Exactly 206 checks in 12 groups. Exit 0 only when all 206 pass.
 """
 
 from __future__ import annotations
@@ -169,7 +169,14 @@ def build_wright_map_csv(malformed: bool = False) -> str:
 
 
 def build_wright_frequency_csv() -> str:
-    return "MEASURE,FREQUENCY\n-3.50,5\n3.20,3\n"
+    lines = [
+        "MEASURE,NR_PERSON,NR_PERSON_PRESENT,PERSON_HIST,PERSON_FREQ_HIST,NR_ITEM,ITEMS,ITEM_HIST,PERSON_ENTRIES,ITEM_ENTRIES",
+        ",,,,,,,,PERSON_ENTRIES,ITEM_ENTRIES",
+        "-3.50,2,2,#,#*,1,LBL001,#,7 12,3",
+        "0.00,3,3,##,##*,2,LBL002 LBL003,##,45 61 88,1 2",
+        "3.20,1,1,#,#*,0,,,99,",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def build_option_csv() -> str:
@@ -185,9 +192,13 @@ def build_option_csv() -> str:
 # Database seeding
 # ---------------------------------------------------------------------------
 
+_HARNESS_DB_PATH: str | None = None
+
 
 def seed_database(db_path: str) -> dict[str, Any]:
     """Seed the SQLite database and return IDs for test checks."""
+    global _HARNESS_DB_PATH
+    _HARNESS_DB_PATH = db_path
     con = sqlite3.connect(db_path)
     cur = con.cursor()
 
@@ -2100,6 +2111,68 @@ def group_l_export(page: Any, base_url: str, analysis1_id: int,
                f"status={status5} sheet_rows={measure_rows5} payload_bins={bins5_count}",
                c5_ok)
 
+    # 5b. wright panel export controls and frekuensi sheet download
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=wright")
+    export_controls = page.evaluate("""() => {
+        const anchors = Array.from(document.querySelectorAll('#panel-wright a[href*="export"]'));
+        return anchors.map(a => ({
+            text: a.textContent.trim(),
+            href: a.getAttribute('href') || '',
+            visible: !!(a.offsetWidth || a.offsetHeight || a.getClientRects().length)
+        }));
+    }""")
+    controls_ok = (
+        len(export_controls) == 2
+        and all(c.get("visible", False) for c in export_controls)
+        and export_controls[0]["text"] == "Unduh measure"
+        and "table=wright" in export_controls[0]["href"]
+        and export_controls[1]["text"] == "Unduh frekuensi"
+        and "table=frekuensi" in export_controls[1]["href"]
+    )
+    status_freq, hdrs_freq, wb_freq = download_xlsx(f"/analyses/{analysis1_id}/export?table=frekuensi")
+    sheet_names_freq = wb_freq.sheetnames if wb_freq else []
+    single_sheet_ok = (sheet_names_freq == ["frekuensi"])
+    ws_freq = wb_freq["frekuensi"] if single_sheet_ok else None
+
+    stored_csv_text = None
+    if _HARNESS_DB_PATH and os.path.exists(_HARNESS_DB_PATH):
+        try:
+            with sqlite3.connect(_HARNESS_DB_PATH) as con:
+                row = con.execute(
+                    "SELECT content_gzip FROM analysis_files WHERE analysis_id = ? AND filename = ?",
+                    (analysis1_id, "wright_map_frequency.csv"),
+                ).fetchone()
+                if row and row[0]:
+                    stored_csv_text = gzip.decompress(row[0]).decode("utf-8")
+        except Exception:
+            pass
+    if stored_csv_text is None:
+        stored_csv_text = build_wright_frequency_csv()
+
+    import csv
+    stored_csv_rows = [r for r in csv.reader(io.StringIO(stored_csv_text.strip())) if r]
+    row_count_ok = bool(ws_freq and ws_freq.max_row == len(stored_csv_rows))
+
+    first_data_nr_person = ws_freq.cell(row=3, column=2).value if ws_freq and ws_freq.max_row >= 3 else None
+    nr_person_is_num = (
+        isinstance(first_data_nr_person, (int, float))
+        and not isinstance(first_data_nr_person, str)
+    )
+
+    c5b_ok = (
+        controls_ok
+        and status_freq == 200
+        and single_sheet_ok
+        and ws_freq is not None
+        and row_count_ok
+        and nr_person_is_num
+    )
+    res.record(
+        "export: wright panel exports frekuensi sheet matching stored CSV",
+        f"status={status_freq} controls_ok={controls_ok} single_sheet={single_sheet_ok} rows={ws_freq.max_row if ws_freq else 0} expected_rows={len(stored_csv_rows)} nr_person={first_data_nr_person!r} ({type(first_data_nr_person).__name__})",
+        c5b_ok,
+    )
+
     # 6. butir view export link
     goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=butir")
     href6 = page.evaluate("""() => {
@@ -2368,7 +2441,7 @@ def main() -> int:
         print(f"TOTAL: {total} checks  |  {passed} PASS  |  {failed} FAIL")
         print(f"{'=' * 72}")
 
-        EXPECTED_TOTAL = 205
+        EXPECTED_TOTAL = 206
         if total != EXPECTED_TOTAL:
             print(
                 f"\nERROR: Expected {EXPECTED_TOTAL} checks, got {total}. "
@@ -2380,7 +2453,7 @@ def main() -> int:
             print(f"\nFAIL: {failed} check(s) failed.")
             return 1
 
-        print("\n205/205 PASS")
+        print(f"\n{passed}/{total} PASS")
         return 0
 
     finally:

@@ -205,9 +205,10 @@ def test_cell_parity_with_engine_workbook(tmp_path):
         "responden": "person",
         "ringkasan": "summary",
         "wright": "wright_measure",
+        "frekuensi": "wright_frequency",
     }
 
-    stored_keys = ["butir", "opsi", "responden", "ringkasan", "wright"]
+    stored_keys = ["butir", "opsi", "responden", "ringkasan", "wright", "frekuensi"]
     for key in stored_keys:
         engine_sheet_name = engine_sheet_map[key]
         if engine_sheet_name not in engine_wb.sheetnames:
@@ -226,6 +227,41 @@ def test_cell_parity_with_engine_workbook(tmp_path):
         xlsx_bytes = build_xlsx(SHEET_TITLES[key], rows, HEADER_ROWS[key], numeric)
         our_wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=False)
         our_ws = our_wb[SHEET_TITLES[key]]
+
+        if key == "frekuensi":
+            for r in range(1, our_ws.max_row + 1):
+                r_idx = r - 1
+                for c in range(1, our_ws.max_column + 1):
+                    c_idx = c - 1
+                    cell_our = our_ws.cell(row=r, column=c)
+                    raw_text = rows[r_idx][c_idx] if r_idx < len(rows) and c_idx < len(rows[r_idx]) else ""
+                    coord = f"R{r}C{c} ({cell_our.coordinate})"
+
+                    if cell_our.value is None:
+                        assert raw_text == "", (
+                            f"[{key}] expected empty field at {coord}, got {raw_text!r}"
+                        )
+                    else:
+                        assert (str(cell_our.value) == raw_text) or (
+                            isinstance(cell_our.value, (int, float)) and float(raw_text) == float(cell_our.value)
+                        ), (
+                            f"[{key}] cell value mismatch at {coord}: {cell_our.value!r} != {raw_text!r}"
+                        )
+
+                    if r > HEADER_ROWS[key]:
+                        if c_idx in (0, 1, 2, 5):
+                            assert isinstance(cell_our.value, (int, float)), (
+                                f"[{key}] expected number at {coord}, got {type(cell_our.value)}"
+                            )
+                        else:
+                            assert cell_our.value is None or isinstance(cell_our.value, str), (
+                                f"[{key}] expected str or None at {coord}, got {type(cell_our.value)}"
+                            )
+                    else:
+                        assert cell_our.value is None or isinstance(cell_our.value, str), (
+                            f"[{key}] header expected str or None at {coord}, got {type(cell_our.value)}"
+                        )
+            continue
 
         assert our_ws.max_row == engine_ws.max_row, (
             f"[{key}] row count mismatch: {our_ws.max_row} != {engine_ws.max_row}"
@@ -499,3 +535,41 @@ def test_export_row_cap(client, monkeypatch):
     assert resp_200.status_code == 200
     wb = openpyxl.load_workbook(io.BytesIO(resp_200.content))
     assert wb is not None
+
+
+def test_export_frekuensi_route(client):
+    user_id, token = _create_user_with_token(client, email="frekuensi@example.test")
+    client.cookies.set(COOKIE_NAME, token)
+
+    freq_csv = (
+        "MEASURE,NR_PERSON,NR_PERSON_PRESENT,PERSON_HIST,PERSON_FREQ_HIST,NR_ITEM,ITEMS,ITEM_HIST,PERSON_ENTRIES,ITEM_ENTRIES\r\n"
+        ",,,,,,,,PERSON_ENTRIES,ITEM_ENTRIES\r\n"
+        "1.75,0,0,,,0,,,,\r\n"
+        "1.5,84,84,####################################################################################,###############,0,,,1 3 5 10 12 17 19 24 26 28 33 35 40 42 47 49 56 58 63 65 70 72 79 81 86 88 93 95 102 104 109 111 116 118 125 127 132 134 139 141 146 148 150 155 157 162 164 169 171 173 178 180 185 187 192 194 201 203 208 210 215 217 224 226 231 233 238 240 247 249 254 256 261 263 270 272 277 279 284 286 291 293 295 300,\r\n"
+        "1.25,216,216,########################################################################################################################################################################################################################,###############,0,,,2 4 6 7 8 9 11 13 14 15 16 18 20 21 22 23 25 27 29 30 31 32 34 36 37 38 39 41 43 44 45 46 48 50 51 52 53 54 55 57 59 60 61 62 64 66 67 68 69 71 73 74 75 76 77 78 80 82 83 84 85 87 89 90 91 92 94 96 97 98 99 100 101 103 105 106 107 108 110 112 113 114 115 117 119 120 121 122 123 124 126 128 129 130 131 133 135 136 137 138 140 142 143 144 145 147 149 151 152 153 154 156 158 159 160 161 163 165 166 167 168 170 172 174 175 176 177 179 181 182 183 184 186 188 189 190 191 193 195 196 197 198 199 200 202 204 205 206 207 209 211 212 213 214 216 218 219 220 221 222 223 225 227 228 229 230 232 234 235 236 237 239 241 242 243 244 245 246 248 250 251 252 253 255 257 258 259 260 262 264 265 266 267 268 269 271 273 274 275 276 278 280 281 282 283 285 287 288 289 290 292 294 296 297 298 299,\r\n"
+        "1.0,0,0,,,0,,,,\r\n"
+        "0.75,0,0,,,0,,,,\r\n"
+        "0.5,0,0,,,0,,,,\r\n"
+        "0.25,0,0,,,0,,,,\r\n"
+        "0.0,0,0,,,40,I01 I02 I03 I04 I05 I06 I07 I08 I09 I10 I11 I12 I13 I14 I15 I16 I17 I18 I19 I20 I21 I22 I23 I24 I25 I26 I27 I28 I29 I30 I31 I32 I33 I34 I35 I36 I37 I38 I39 I40,##################################,,1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40\r\n"
+        "-0.25,0,0,,,0,,,,\r\n"
+    )
+    files = {"wright_map_frequency.csv": freq_csv}
+    analysis_id = _seed_done(user_id=user_id, filename="data_frekuensi.csv", files=files)
+
+    resp = client.get(f"/analyses/{analysis_id}/export?table=frekuensi")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == XLSX_MEDIA_TYPE
+
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content), data_only=False)
+    assert wb.sheetnames == ["frekuensi"]
+    ws = wb["frekuensi"]
+
+    csv_rows = list(csv.reader(io.StringIO(freq_csv.strip())))
+    assert ws.max_row == len(csv_rows)
+
+    nr_person_cell = ws.cell(row=10, column=2)
+    items_cell = ws.cell(row=10, column=7)
+    assert isinstance(nr_person_cell.value, int)
+    assert isinstance(items_cell.value, str)
+

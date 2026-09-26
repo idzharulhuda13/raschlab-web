@@ -309,6 +309,12 @@ Blue was the previous e-mail link colour (`#0B6C8F`); it exists in no token bloc
   anchors, not buttons, so a row does not become four buttons wide. **Zero new classes**: the pins in
   `tests/test_ui_contract.py` (145 used / 159 defined) do not move for this feature. An export is an accent-free
   action: never `.btn--primary`, and never the only primary on the page. No em dash in its status text.
+- **Two controls in one panel (F11b, 26 Sep 2026)**: the wright panel downloads two different tables, so its labels
+  name the side each button carries, `Unduh measure` and `Unduh frekuensi` (see `INTERFACE.md`, sheet `frekuensi`).
+  Same wrapper, same `.btn .btn--secondary`, same mandatory `aria-label`; the visible label still leads with the verb
+  `Unduh`. A generic `Unduh Excel` next to a specific one would leave the reader guessing which button is which, so
+  wherever a panel carries more than one export, every label in it is specific. Everywhere else the single label
+  stays `Unduh Excel`.
 
 ## States (required, not bonus)
 

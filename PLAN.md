@@ -294,6 +294,69 @@ Eight tests, names literal:
 `git reset --hard 4c6da59`. Nothing else to undo: no migration, no stored artifact, no env or secret change.
 If F11 is already live, Dada re-points Cloud Run at the previous revision (revision-level rollback, one command).
 
+## F11b — unduhan sisi frekuensi (Dada, 26 Sep 2026: "bikin aja gas")
+
+**WHY.** `wright_map_frequency.csv` is written by the engine on every run and rendered by no page, so it was the one
+stored table that could not leave the web at all. Dada's answer on 26 Sep 2026 to "Mau kutambahin kontrol untuk sisi
+frekuensi?" was **"bikin aja gas"**, so the wright panel now carries two controls instead of one.
+
+**Non-negotiables (measured, do not re-derive):**
+
+1. Key `frekuensi` -> `wright_map_frequency.csv`, **2 header rows**, sheet title `frekuensi`.
+2. **Type rule, and the only deliberate deviation from the engine in this whole feature.** The engine's OWN workbook
+   writes every cell of its `wright_frequency` sheet as TEXT with format `General` (measured by handing the real
+   `wright_map_frequency.csv` from `/root/raschlab-runs/kuantitatif/` to `raschlab.report.write_workbook`: R3C1 is
+   `'2.5'/str`, R4C10 is `'83'/str`). The cause is the engine's own lookup: the format comes from the label in the
+   LAST header row, that row is empty for columns 1-8, and `PERSON_ENTRIES`/`ITEM_ENTRIES` are not in
+   `raschlab.report.NUMBER_FORMATS`. Shipping that verbatim would give Dada counts he cannot sum, which is the whole
+   reason this feature exists. So `FREQ_NUMERIC = {0: "float", 1: "int", 2: "int", 5: "int"}` types `MEASURE`,
+   `NR_PERSON`, `NR_PERSON_PRESENT`, `NR_ITEM`; `ITEMS`, `PERSON_HIST`, `PERSON_FREQ_HIST`, `ITEM_HIST`,
+   `PERSON_ENTRIES`, `ITEM_ENTRIES` stay TEXT (an entry cell holds several numbers, e.g. `924 1237`). **Values still
+   equal the stored value exactly**; only type and format move, and the test must enforce both halves.
+3. Two controls in the wright panel: `Unduh measure` (`table=wright`) and `Unduh frekuensi` (`table=frekuensi`), both
+   `.btn .btn--secondary` inside the existing `.action-bar`, both with a mandatory `aria-label` naming the side.
+   The frozen label `Unduh Excel` cannot name two tables in one panel, so it is replaced **in that panel only**.
+4. `scripts/verify_explorer.py`'s `build_wright_frequency_csv()` currently returns a TWO-COLUMN toy
+   (`MEASURE,FREQUENCY\n-3.50,5\n3.20,3\n`) while the engine's file has **10 columns and 2 header rows**. A check
+   written against that toy would measure nothing, so the fixture is repaired to the real shape in the same run.
+
+**EDIT LIST (one writer run per file, this order):**
+
+### R12 — `app/export.py`
+- `TABLE_KEYS` += `"frekuensi": "wright_map_frequency.csv"`; `HEADER_ROWS` += `"frekuensi": 2`; `SHEET_TITLES` += `"frekuensi": "frekuensi"`.
+- New `FREQ_NUMERIC = {0: "float", 1: "int", 2: "int", 5: "int"}` and `TABLE_NUMERIC` += `"frekuensi": FREQ_NUMERIC`.
+- Nothing else moves: guard order, caps, rate limit, response headers, and the `bandingkan` branch stay untouched.
+
+### R13 — `app/templates/explore.html`
+- In the wright panel's `.action-bar` (currently one control at line 61 with label `Unduh Excel` and
+  `aria-label="Unduh Excel data peta Wright"`), relabel that control to `Unduh measure` with
+  `aria-label="Unduh Excel peta Wright sisi measure"`, and add a second `.btn .btn--secondary` anchor to
+  `/analyses/{{ analysis.id }}/export?table=frekuensi` labelled `Unduh frekuensi` with
+  `aria-label="Unduh Excel peta Wright sisi frekuensi"`.
+- No other page changes: the four result-page controls and the list-page links keep the label `Unduh Excel`.
+
+### R14 — `tests/test_export.py`
+- Extend `test_cell_parity_with_engine_workbook` to include key `frekuensi` -> engine sheet `wright_frequency`, with
+  the two-half rule from Non-negotiable 2: every cell equals the RAW stored value (`str(our) == raw`), the four
+  numeric columns are `int`/`float`, and every other column is `str`. The existing five keys keep the strict
+  value+type+format comparison untouched.
+- Add `test_export_frekuensi_route`: the route answers 200 with the XLSX media type, the sheet is named `frekuensi`,
+  its row count equals the stored CSV's, and a mid-table count cell is `int` while its `ITEMS` cell in the same row is `str`.
+
+### R15 — `scripts/verify_explorer.py`
+- Repair `build_wright_frequency_csv()` to the engine's real shape: two header rows
+  (`MEASURE,NR_PERSON,NR_PERSON_PRESENT,PERSON_HIST,PERSON_FREQ_HIST,NR_ITEM,ITEMS,ITEM_HIST,PERSON_ENTRIES,ITEM_ENTRIES`
+  then eight empty fields and `PERSON_ENTRIES,ITEM_ENTRIES`), well-formed rows of exactly 10 fields, at least three
+  data rows, one of them with several numbers in `PERSON_ENTRIES`.
+- Add ONE check to `group_l_export`: the wright panel DOM offers exactly two export controls with the labels
+  `Unduh measure` and `Unduh frekuensi`, and `table=frekuensi` answers 200 with a sheet named `frekuensi` whose row
+  count equals the stored CSV's and whose `NR_PERSON` cell in the first data row is a number.
+- `EXPECTED_TOTAL` 205 -> 206.
+
+**ACCEPTANCE (measured, not asserted):** `pytest -q` green with the raw count pasted (baseline 194);
+`scripts/verify_explorer.py` green at its new total with the raw line pasted; the two new controls 44 px with a
+visible focus ring and contrast above 4.5:1 in both themes; no em dash.
+
 ## ACCEPTANCE (measured, not asserted)
 
 1. `python -m pytest -q` green with the count pasted raw (baseline 186).

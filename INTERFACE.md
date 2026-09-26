@@ -554,7 +554,7 @@ interface: change it only with the tests and the harness in the same commit.
 | name | kind | contract |
 |---|---|---|
 | `GET /analyses/{id}/export` | route | query `table`, required |
-| `table` | value | one of `butir`, `opsi`, `responden`, `ringkasan`, `wright`, `bandingkan` |
+| `table` | value | one of `butir`, `opsi`, `responden`, `ringkasan`, `wright`, `frekuensi`, `bandingkan` |
 | `from`, `to` | value | analysis ids, read **only** for `table=bandingkan` |
 
 `table` is declared in the route signature as an OPTIONAL query parameter, so the API schema carries it while a
@@ -573,11 +573,28 @@ itself to the current search or page would be a silent truncation, and the store
 | `responden` | `person_table.csv` | `responden` | 2 |
 | `ringkasan` | `summary_table.csv` | `ringkasan` | 1, then the blank spacer row |
 | `wright` | `wright_map_measure.csv` | `wright` | 2 |
+| `frekuensi` | `wright_map_frequency.csv` | `frekuensi` | 2 |
 | `bandingkan` | derived from two `item_table_15.1.csv` | `bandingkan` | 1 |
 
-`wright_map_frequency.csv` gets no control: no page renders it.
+`frekuensi` is the one key whose table no page renders: it is the engine's equal-frequency view of the same map,
+stored for every run and reachable nowhere else, so the download is the only way it leaves the web. The wright panel
+therefore carries TWO controls, which is why their labels name their side (`Unduh measure`, `Unduh frekuensi`) and
+why the frozen single label `Unduh Excel` no longer appears there (it cannot name two tables at once).
 
 ### Sheet rules
+
+- **One measured deviation, on sheet `frekuensi` only.** The engine's OWN workbook writes every cell of
+  `wright_frequency` as TEXT with format `General` (measured on the engine CLI's `analysis_report.xlsx`, key from
+  `raschlab.report.FREQ_HEADER_ROW_2`), because it resolves a column's format from the label in the LAST header row:
+  that row is empty for columns 1-8 and `PERSON_ENTRIES` / `ITEM_ENTRIES` are absent from `raschlab.report.NUMBER_FORMATS`.
+  Shipping that verbatim would hand the owner a file whose counts cannot be summed, which is the reason this feature
+  exists. So the four numeric columns are typed on purpose: `FREQ_NUMERIC = {0: "float", 1: "int", 2: "int", 5: "int"}`
+  (that is `MEASURE`, `NR_PERSON`, `NR_PERSON_PRESENT`, `NR_ITEM`), while `ITEMS`, both histograms and
+  `PERSON_ENTRIES` / `ITEM_ENTRIES` stay TEXT (an entry cell can hold several numbers, e.g. `924 1237`).
+  **VALUES still match the engine byte for byte; only the type and the number format deviate**, and the parity test
+  enforces both halves: every cell must equal the raw stored value, the four columns must be `int`/`float`, and the
+  remaining columns must be `str`. This is the only place where this document's "delegated to the engine" rule is
+  overridden, and it is overridden because the engine's own answer here contradicts the feature's purpose.
 
 - Rows are the engine's rows verbatim. Header rows and fully blank rows stay text exactly as stored.
 - The numeric decision is **delegated to the engine**, never re-derived: the column label is the cell's label in

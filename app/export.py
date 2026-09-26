@@ -20,14 +20,15 @@ from app.models import Analysis, Dataset
 from app.ratelimit import check_limit, client_ip
 from raschlab.report import coerce_cell, number_format_for_header, summary_value_format
 
-TABLE_KEYS = {"butir": "item_table_15.1.csv", "opsi": "option_table_15.3.csv", "responden": "person_table.csv", "ringkasan": "summary_table.csv", "wright": "wright_map_measure.csv"}
-HEADER_ROWS = {"butir": 2, "opsi": 2, "responden": 2, "ringkasan": 1, "wright": 2, "bandingkan": 1}
-SHEET_TITLES = {"butir": "butir", "opsi": "opsi", "responden": "responden", "ringkasan": "ringkasan", "wright": "wright", "bandingkan": "bandingkan"}
+TABLE_KEYS = {"butir": "item_table_15.1.csv", "opsi": "option_table_15.3.csv", "responden": "person_table.csv", "ringkasan": "summary_table.csv", "wright": "wright_map_measure.csv", "frekuensi": "wright_map_frequency.csv"}
+HEADER_ROWS = {"butir": 2, "opsi": 2, "responden": 2, "ringkasan": 1, "wright": 2, "bandingkan": 1, "frekuensi": 2}
+SHEET_TITLES = {"butir": "butir", "opsi": "opsi", "responden": "responden", "ringkasan": "ringkasan", "wright": "wright", "bandingkan": "bandingkan", "frekuensi": "frekuensi"}
 COMPARE_HEADER = ["Nomor", "Butir", "Measure analisis pertama", "Measure analisis kedua", "Selisih (kedua − pertama)"]
 COMPARE_NUMERIC = {0: "int", 2: "float", 3: "float", 4: "float"}
 SUMMARY_NUMERIC = {2: "summary"}
 WRIGHT_NUMERIC = {0: "raw", 1: "raw", 3: "raw"}
-TABLE_NUMERIC = {"ringkasan": SUMMARY_NUMERIC, "wright": WRIGHT_NUMERIC}
+FREQ_NUMERIC = {0: "float", 1: "int", 2: "int", 5: "int"}
+TABLE_NUMERIC = {"ringkasan": SUMMARY_NUMERIC, "wright": WRIGHT_NUMERIC, "frekuensi": FREQ_NUMERIC}
 EXPORT_MAX_ROWS = 1_048_000
 EXPORT_MAX_CELLS = 2_500_000
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
