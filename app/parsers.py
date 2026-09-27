@@ -13,6 +13,7 @@ import re
 from typing import Any, Iterable, NamedTuple
 import openpyxl
 
+from raschlab.control import NUMERIC_DIRECTIVES
 from app.storage import (
     MAX_CELLS as _MAX_CELLS,
     MAX_UPLOAD_BYTES as _MAX_UPLOAD_BYTES,
@@ -343,9 +344,9 @@ def parse_control(raw: bytes) -> dict[str, Any]:
             break
 
     if inst_idx is None:
-        raise ValueError("Missing &INST in control file")
+        raise ValueError("Berkas kontrol tidak memuat blok &INST.")
     if end_idx is None:
-        raise ValueError("Missing &END in control file")
+        raise ValueError("Berkas kontrol tidak memuat &END setelah &INST.")
 
     result: dict[str, Any] = {}
     for line in lines[inst_idx + 1 : end_idx]:
@@ -355,18 +356,23 @@ def parse_control(raw: bytes) -> dict[str, Any]:
         key_raw, val_raw = content.split("=", 1)
         key, val = key_raw.strip().upper(), val_raw.strip()
 
-        if key != "KEY1":
-            if val.isdigit() or (val.startswith(("-", "+")) and len(val) > 1 and val[1:].isdigit()):
+        if key in NUMERIC_DIRECTIVES:
+            try:
                 result[key] = int(val)
-            else:
-                result[key] = val
+            except ValueError:
+                try:
+                    result[key] = float(val)
+                except ValueError:
+                    result[key] = str(val)
         else:
             result[key] = str(val)
 
     if "KEY1" in result:
         result["KEY1"] = str(result["KEY1"])
         if "NI" in result and len(result["KEY1"]) != int(result["NI"]):
-            raise ValueError(f"KEY1 length ({len(result['KEY1'])}) does not match NI ({result['NI']})")
+            raise ValueError(
+                f"Panjang kunci jawaban pada berkas kontrol ({len(result['KEY1'])}) tidak sama dengan NI ({result['NI']})."
+            )
 
     return result
 

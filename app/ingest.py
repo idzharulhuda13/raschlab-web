@@ -132,23 +132,49 @@ def _user_datasets(db: Session, user_id: int) -> list[Dataset]:
     return list(db.execute(stmt).scalars().all())
 
 
+def _suggest_token(token: Any) -> str:
+    s = str(token).strip()
+    if s == "1" or s.upper() == "B":
+        return "correct"
+    if s == "0" or s.upper() == "A":
+        return "incorrect"
+    return "missing"
+
+
 def _build_dataset_context(
     request: Request,
     user: User,
     dataset: Dataset,
     error: str | None = None,
     unassigned_tokens: list[str] | None = None,
+    mapping: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     summary = json.loads(dataset.summary_json) if dataset.summary_json else {}
-    mapping = json.loads(dataset.mapping_json) if dataset.mapping_json else {}
+    if mapping is None:
+        if dataset.status == "staged":
+            stored_mapping = {}
+            raw_m = json.loads(dataset.mapping_json) if dataset.mapping_json else {}
+            mapping = {k: v for k, v in raw_m.items() if k in ("key", "codes", "extra_missing")}
+        else:
+            stored_mapping = json.loads(dataset.mapping_json) if dataset.mapping_json else {}
+            mapping = stored_mapping
+    else:
+        stored_mapping = mapping
+
     item_labels = json.loads(dataset.item_labels_json) if dataset.item_labels_json else []
 
+    ctrl = summary.get("control", {})
+    key = str(ctrl.get("KEY1", "")).strip() or mapping.get("key", "")
+    codes = str(ctrl.get("CODES", "")).strip() or mapping.get("codes", "") or "ABCDE"
+    extra_missing = mapping.get("extra_missing", "")
+
+    key_detected = bool(
+        summary.get("key_row_detected")
+        or (ctrl and "KEY1" in ctrl)
+        or key
+    )
+
     distinct_dict = summary.get("distinct_tokens", {})
-    if unassigned_tokens is None:
-        if dataset.kind == "delimited":
-            unassigned_tokens = validate_mapping(distinct_dict.keys(), mapping)
-        else:
-            unassigned_tokens = []
 
     # A stored summary may predate the identity-column guard; never hand the template
     # more tokens than it can render, or the response blows past the platform limit.
@@ -157,6 +183,25 @@ def _build_dataset_context(
     tokens_truncated = tokens_total > TOKEN_RENDER_CAP
     if tokens_truncated:
         distinct_items = distinct_items[:TOKEN_RENDER_CAP]
+
+    suggested: dict[str, str] = {}
+    if not key_detected:
+        for token, _ in distinct_items:
+            if token not in stored_mapping:
+                suggested[token] = _suggest_token(token)
+
+    if dataset.status == "staged" and key_detected:
+        mapping = {k: v for k, v in mapping.items() if k in ("key", "codes", "extra_missing")}
+
+    if unassigned_tokens is None:
+        if dataset.kind == "delimited":
+            effective = dict(suggested)
+            effective.update(mapping)
+            unassigned_tokens = validate_mapping(distinct_dict.keys(), effective)
+        else:
+            unassigned_tokens = []
+
+    if tokens_truncated:
         unassigned_tokens = unassigned_tokens[:TOKEN_RENDER_CAP]
 
     missing_counts = summary.get("missing_per_item", [])
@@ -167,17 +212,13 @@ def _build_dataset_context(
         if m == dataset.n_persons and i < len(item_labels)
     ]
 
-    ctrl = summary.get("control", {})
-    key = str(ctrl.get("KEY1", "")).strip() or mapping.get("key", "")
-    codes = str(ctrl.get("CODES", "")).strip() or mapping.get("codes", "") or "ABCDE"
-    extra_missing = mapping.get("extra_missing", "")
-
     return {
         "user": user,
         "dataset": dataset,
         "status": dataset.status,
         "summary": summary,
         "mapping": mapping,
+        "suggested": suggested,
         "item_labels": item_labels,
         "distinct_tokens": distinct_items,
         "tokens_total": tokens_total,
@@ -466,7 +507,9 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
                 f"Panjang kunci jawaban ({len(answer_key)}) tidak sama dengan jumlah butir "
                 f"({dataset.n_items})."
             )
-            context = _build_dataset_context(request, user, dataset, error=error_msg)
+            context = _build_dataset_context(
+                request, user, dataset, error=error_msg, mapping=submitted_mapping
+            )
             context["mapping"] = submitted_mapping
             return templates.TemplateResponse(
                 request=request,
@@ -493,7 +536,9 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
                 "identitas peserta kemungkinan besar terbaca sebagai kolom butir. Unggah ulang berkas "
                 "dengan nama kolom identitas yang dikenali (mis. id, username, peserta), atau hapus kolom itu."
             )
-            context = _build_dataset_context(request, user, dataset, error=error_msg)
+            context = _build_dataset_context(
+                request, user, dataset, error=error_msg, mapping=submitted_mapping
+            )
             context["mapping"] = submitted_mapping
             return templates.TemplateResponse(
                 request=request,
@@ -509,7 +554,12 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
                 shown = f"{shown}, ... dan {len(unassigned) - 20} token lainnya"
             error_msg = f"Ada token yang belum dipetakan: {shown}."
             context = _build_dataset_context(
-                request, user, dataset, error=error_msg, unassigned_tokens=unassigned
+                request,
+                user,
+                dataset,
+                error=error_msg,
+                unassigned_tokens=unassigned,
+                mapping=submitted_mapping,
             )
             context["mapping"] = submitted_mapping
             return templates.TemplateResponse(
@@ -544,7 +594,7 @@ async def post_dataset_commit(id: int, request: Request, db: Session = Depends(g
             )
         except AnalysisError as exc:
             context = _build_dataset_context(
-                request, user, dataset, error=str(exc)
+                request, user, dataset, error=str(exc), mapping=submitted_mapping
             )
             context["mapping"] = submitted_mapping
             return templates.TemplateResponse(

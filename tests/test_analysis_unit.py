@@ -153,14 +153,14 @@ def test_fail_closed_five_distinct_incorrect_tokens():
         build_matrix_gzip("delimited", person_labels, item_labels, rows, mapping=mapping)
 
 
-def test_fail_closed_winsteps_codes_outside_a_to_e():
-    """Winsteps codes directive with characters outside A-E raises AnalysisError."""
+def test_fail_closed_winsteps_codes_invalid():
+    """Winsteps codes directive with space or invalid chars raises AnalysisError."""
     person_labels = ["P1"]
     item_labels = ["I1", "I2"]
     rows = ["12"]
-    control = {"NI": 2, "KEY1": "12", "CODES": "12345"}
+    control = {"NI": 2, "KEY1": "12", "CODES": "1 2"}
 
-    with pytest.raises(AnalysisError, match="di luar huruf A-E; mesin hanya menerima A-E"):
+    with pytest.raises(AnalysisError, match="harus satu karakter per sel tanpa spasi"):
         build_matrix_gzip("winsteps", person_labels, item_labels, rows, control=control)
 
 

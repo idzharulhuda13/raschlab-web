@@ -2122,12 +2122,16 @@ def group_l_export(page: Any, base_url: str, analysis1_id: int,
         }));
     }""")
     controls_ok = (
-        len(export_controls) == 2
+        # F13/B2 added a third control to this panel: "Unduh semua" (one workbook carrying every sheet),
+        # so the expected set is three and the new link is pinned by text and href as well.
+        len(export_controls) == 3
         and all(c.get("visible", False) for c in export_controls)
         and export_controls[0]["text"] == "Unduh measure"
         and "table=wright" in export_controls[0]["href"]
         and export_controls[1]["text"] == "Unduh frekuensi"
         and "table=frekuensi" in export_controls[1]["href"]
+        and "Unduh semua" in export_controls[2]["text"]
+        and "table=semua" in export_controls[2]["href"]
     )
     status_freq, hdrs_freq, wb_freq = download_xlsx(f"/analyses/{analysis1_id}/export?table=frekuensi")
     sheet_names_freq = wb_freq.sheetnames if wb_freq else []

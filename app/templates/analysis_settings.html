@@ -3,6 +3,10 @@
 
 {% block title %}Pengaturan Analisis: RaschLab{% endblock %}
 
+{% block head %}
+<script src="/static/settings-presets.js" defer></script>
+{% endblock %}
+
 {% block content %}
 <a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke berkas</a>
 
@@ -21,6 +25,11 @@
     <div class="field">
       <label for="misfit" class="field-label">Ambang Misfit (INFIT MNSQ)</label>
       <input type="number" id="misfit" name="misfit" step="0.05" min="0.5" max="5" class="field-input" value="{% if submitted and submitted.misfit %}{{ submitted.misfit }}{% else %}{{ misfit_input }}{% endif %}">
+      <div class="chip-row">
+        <button type="button" class="chip" data-misfit="1.00">1,00 ketat</button>
+        <button type="button" class="chip" data-misfit="1.20">1,20 teliti</button>
+        <button type="button" class="chip" data-misfit="1.50">1,50 bawaan</button>
+      </div>
       <p class="field-hint">Bawaan {{ defaults.misfit }}. Turunkan bila perlu pemeriksaan yang lebih teliti.</p>
     </div>
 

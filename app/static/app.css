@@ -680,6 +680,16 @@ h2,
   color: var(--misfit);
 }
 
+.alert--info {
+  border-color: var(--accent);
+}
+
+.alert--info strong,
+.alert--info b,
+.alert--info > :first-child {
+  color: var(--accent);
+}
+
 .alert .mono {
   overflow-wrap: anywhere;
 }
@@ -710,6 +720,33 @@ h2,
   color: var(--ink);
   box-shadow: none;
   cursor: default;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+button.chip,
+.chip-row .chip {
+  min-height: 44px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+button.chip:hover,
+.chip-row .chip:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+button.chip:focus-visible,
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .chip--fit {

@@ -329,8 +329,10 @@ def test_all_template_classes_defined_in_app_css():
     # <=480px because the account menu beside it already carries that destination.
     # 145 / 159 (residual round, same day): .mono-link, the dataset filename links, which are real links inside
     # table rows and therefore carry the 44px minimum on desktop too.
-    assert len(used_classes) == 146, f"Used template class count changed to {len(used_classes)}"  # 146 since F12 reuses the defined class upload-form
-    assert len(defined_classes) == 159, f"Defined app.css class count changed to {len(defined_classes)}"
+    # 148 / 161 (B4 and B3 contract additions): .alert--info for honoured control directives notice,
+    # .chip-row for threshold preset buttons, and .chip interactive styling.
+    assert len(used_classes) == 148, f"Used template class count changed to {len(used_classes)}"
+    assert len(defined_classes) == 161, f"Defined app.css class count changed to {len(defined_classes)}"
 
 
 def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_ujian.csv") -> tuple[int, int]:

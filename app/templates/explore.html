@@ -60,6 +60,7 @@
   <div class="action-bar">
     <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=wright" aria-label="Unduh Excel peta Wright sisi measure">Unduh measure</a>
     <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=frekuensi" aria-label="Unduh Excel peta Wright sisi frekuensi">Unduh frekuensi</a>
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=semua" aria-label="Unduh semua tabel analisis {{ analysis.id }} {{ dataset.filename }} (satu berkas, 6 sheet)">Unduh semua (satu berkas, 6 sheet)</a>
   </div>
   <div id="wright-scale" class="chart-scroll"></div>
   <p id="wright-readout" class="readout">Fokus pada butir di peta untuk melihat rincian.</p>

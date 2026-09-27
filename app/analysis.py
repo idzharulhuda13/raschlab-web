@@ -244,12 +244,16 @@ def build_matrix_gzip(
             # one item and wrong for another. Cells outside the response codes stay missing.
             missing_tokens = {t for t in cell_tokens if _is_missing_token(t, mapping)}
             response_tokens = {t for t in cell_tokens if t and t not in missing_tokens}
-            invalid = sorted(t for t in response_tokens if t not in "ABCDE")
+            ctrl_codes = ""
+            if control and isinstance(control, dict):
+                ctrl_codes = str(control.get("CODES") or control.get("codes") or "").strip()
+            effective = ctrl_codes if ctrl_codes else ("".join(sorted(response_tokens)) or "A")
+            invalid = sorted(t for t in response_tokens if len(t) != 1 or t not in effective)
             if invalid:
                 raise AnalysisError(
-                    f"Kode respon '{', '.join(invalid)}' di luar huruf A-E; mesin hanya menerima A-E."
+                    f"Kode respon '{', '.join(invalid)}' tidak ada di alfabet berkas kontrol ({effective}). Satu karakter per sel."
                 )
-            codes = "".join(sorted(response_tokens)) or "A"
+            codes = effective
             byte_space = ord(" ")
             mat = np.full((len(rows), n_items), byte_space, dtype=np.uint8)
             for r_idx, row in enumerate(rows):
@@ -335,9 +339,9 @@ def build_matrix_gzip(
         if not codes:
             codes = "ABCDE"
 
-        invalid_codes = set(codes) - set("ABCDE")
-        if invalid_codes:
-            raise AnalysisError(f"Kode respon '{codes}' di luar huruf A-E; mesin hanya menerima A-E.")
+        invalid_codes = [c for c in codes if len(c) != 1 or c.isspace()]
+        if invalid_codes or not codes:
+            raise AnalysisError(f"Kode respon '{codes}' harus satu karakter per sel tanpa spasi.")
 
         n_items = len(item_labels) if item_labels else (
             int(control.get("NI") or control.get("ni"))

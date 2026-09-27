@@ -18,7 +18,13 @@ from app.explore import (
 )
 from app.models import Analysis, Dataset
 from app.ratelimit import check_limit, client_ip
-from raschlab.report import coerce_cell, number_format_for_header, summary_value_format
+from raschlab.report import (
+    coerce_cell,
+    number_format_for_header,
+    summary_value_format,
+    write_workbook,
+)
+from raschlab.wright import FREQ_HEADER_ROW_1, MEASURE_HEADER_ROW_1
 
 TABLE_KEYS = {"butir": "item_table_15.1.csv", "opsi": "option_table_15.3.csv", "responden": "person_table.csv", "ringkasan": "summary_table.csv", "wright": "wright_map_measure.csv", "frekuensi": "wright_map_frequency.csv"}
 HEADER_ROWS = {"butir": 2, "opsi": 2, "responden": 2, "ringkasan": 1, "wright": 2, "bandingkan": 1, "frekuensi": 2}
@@ -78,6 +84,64 @@ def build_xlsx(sheet_title: str, rows: list[list[str]], header_rows: int, numeri
     return buf.getvalue()
 
 
+def build_workbook_bytes(analysis: Analysis, tables: dict[str, list[list[str]]] | None = None) -> bytes:
+    """Build the combined 6-sheet XLSX workbook and return its bytes."""
+    if tables is None:
+        tables = load_tables(analysis)
+
+    def _get_stored(table_key: str) -> list[list[str]] | None:
+        filename = TABLE_KEYS.get(table_key)
+        if not filename:
+            return None
+        stored = tables.get(filename) or []
+        if not stored or all(not any(str(cell).strip() for cell in row) for row in stored):
+            return None
+        return stored
+
+    item_stored = _get_stored("butir")
+    person_stored = _get_stored("responden")
+    option_stored = _get_stored("opsi")
+    summary_stored = _get_stored("ringkasan")
+    wright_stored = _get_stored("wright")
+    freq_stored = _get_stored("frekuensi")
+
+    item_rows = [dict(enumerate(r)) for r in item_stored[HEADER_ROWS["butir"]:]] if item_stored else []
+    person_rows = [dict(enumerate(r)) for r in person_stored[HEADER_ROWS["responden"]:]] if person_stored else []
+    option_rows = [dict(enumerate(r)) for r in option_stored[HEADER_ROWS["opsi"]:]] if option_stored else []
+
+    summary_rows = []
+    if summary_stored:
+        for r in summary_stored:
+            if not any(str(c).strip() for c in r):
+                continue
+            if [str(c).strip() for c in r[:3]] == ["SECTION", "STATISTIC", "VALUE"]:
+                continue
+            summary_rows.append(list(r))
+
+    wright_measure_rows = (
+        [dict(zip(MEASURE_HEADER_ROW_1, r)) for r in wright_stored[HEADER_ROWS["wright"]:]]
+        if wright_stored
+        else None
+    )
+    wright_frequency_rows = (
+        [dict(zip(FREQ_HEADER_ROW_1, r)) for r in freq_stored[HEADER_ROWS["frekuensi"]:]]
+        if freq_stored
+        else None
+    )
+
+    buf = io.BytesIO()
+    write_workbook(
+        buf,
+        item_rows,
+        person_rows,
+        option_rows,
+        summary_rows,
+        wright_measure_rows=wright_measure_rows,
+        wright_frequency_rows=wright_frequency_rows,
+    )
+    return buf.getvalue()
+
+
 def message_page(text: str, status_code: int, extra_headers: dict[str, str] | None = None) -> Response:
     body = "<!doctype html><html lang=\"id\"><head><meta charset=\"utf-8\"><title>Unduhan Excel: RaschLab</title></head><body><p>" + text + "</p><p><a href=\"/analyses\">Kembali ke daftar hasil analisis</a></p></body></html>"
     return Response(content=body, status_code=status_code, media_type="text/html", headers=extra_headers)
@@ -133,7 +197,7 @@ def export_table(id: int, request: Request, table: str | None = None,
         return RedirectResponse(f"/analyses/{analysis.id}", status_code=303)
 
     table = (table or "").strip()
-    if table not in SHEET_TITLES:
+    if table != "semua" and table not in SHEET_TITLES:
         raise HTTPException(status_code=404, detail=EXPORT_TABLE_NOT_FOUND_MSG)
 
     allowed, retry_after = check_limit(
@@ -143,6 +207,36 @@ def export_table(id: int, request: Request, table: str | None = None,
     )
     if not allowed:
         return message_page(EXPORT_RATE_MSG, 429, {"Retry-After": str(retry_after)})
+
+    if table == "semua":
+        tables = load_tables(analysis)
+        total_rows = 0
+        total_cells = 0
+        has_any = False
+        for key, filename in TABLE_KEYS.items():
+            stored = tables.get(filename) or []
+            if stored and any(any(str(cell).strip() for cell in row) for row in stored):
+                has_any = True
+                total_rows += len(stored)
+                total_cells += sum(len(row) for row in stored)
+        if not has_any:
+            raise HTTPException(status_code=404, detail=EXPORT_TABLE_NOT_FOUND_MSG)
+        if total_rows > EXPORT_MAX_ROWS or total_cells > EXPORT_MAX_CELLS:
+            message = (
+                f"Tabel ini memuat {total_rows} baris dan {total_cells} sel, melebihi batas unduhan Excel"
+                f" ({EXPORT_MAX_ROWS} baris dan {EXPORT_MAX_CELLS} sel)."
+            )
+            return message_page(message, 413)
+        body = build_workbook_bytes(analysis, tables=tables)
+        filename = f"raschlab-{id}-{table}.xlsx"
+        return Response(
+            content=body,
+            media_type=XLSX_MEDIA_TYPE,
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{filename}",
+                "Cache-Control": "no-store",
+            },
+        )
 
     if table == "bandingkan":
         rows = _compare_rows(db, user, request)

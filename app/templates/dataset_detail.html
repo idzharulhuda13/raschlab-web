@@ -91,6 +91,27 @@
 </div>
 {% endif %}
 
+{% if summary.get('control') %}
+{% set ctrl = summary.get('control') %}
+<div class="band">
+  <div class="alert alert--info" role="status">
+    <strong>Direktif dari berkas kontrol yang dipakai</strong>
+    <ul>
+      {% if 'KEY1' in ctrl %}
+      <li>KEY1 ({{ ctrl['KEY1'] | length }} karakter)</li>
+      {% endif %}
+      {% if 'CODES' in ctrl %}
+      <li>CODES: {{ ctrl['CODES'] }}</li>
+      {% endif %}
+      {% if 'MISSCORE' in ctrl %}
+      <li>MISSCORE: {{ ctrl['MISSCORE'] }}</li>
+      {% endif %}
+    </ul>
+    <p>Direktif lain di dalam berkas kontrol diabaikan; tata letak berkas tetap mengikuti data yang diunggah.</p>
+  </div>
+</div>
+{% endif %}
+
 {% if status == 'staged' and unassigned_tokens and not key %}
 <div class="band">
   <div class="alert alert--warn" role="status">
@@ -172,6 +193,9 @@
     <div class="table-scroll">
       <table class="data-table">
         <caption class="table-caption">Token unik, kemunculan, dan klasifikasinya</caption>
+        {% if suggested %}
+        <p class="field-hint">Saran otomatis berdasarkan isi berkas. Periksa sebelum konfirmasi.</p>
+        {% endif %}
         <thead>
           <tr>
             <th scope="col">Token Unik</th>
@@ -190,10 +214,10 @@
             <td>
               <label for="token-map-{{ loop.index0 }}" class="sr-only">Klasifikasi token {{ token if token != '' else 'kosong' }}</label>
               <select name="m{{ loop.index0 }}" id="token-map-{{ loop.index0 }}" class="select-input"{% if not key %} required{% endif %}>
-                <option value="" {% if token not in mapping %}selected{% endif %}>Pilih status…</option>
-                <option value="correct" {% if mapping.get(token) == 'correct' %}selected{% endif %}>Benar (1)</option>
-                <option value="incorrect" {% if mapping.get(token) == 'incorrect' %}selected{% endif %}>Salah (0)</option>
-                <option value="missing" {% if mapping.get(token) == 'missing' %}selected{% endif %}>Data Hilang</option>
+                <option value="" {% if token not in mapping and token not in suggested %}selected{% endif %}>Pilih status…</option>
+                <option value="correct" {% if mapping.get(token) == 'correct' or (token not in mapping and suggested.get(token) == 'correct') %}selected{% endif %}>Benar (1)</option>
+                <option value="incorrect" {% if mapping.get(token) == 'incorrect' or (token not in mapping and suggested.get(token) == 'incorrect') %}selected{% endif %}>Salah (0)</option>
+                <option value="missing" {% if mapping.get(token) == 'missing' or (token not in mapping and suggested.get(token) == 'missing') %}selected{% endif %}>Data Hilang</option>
               </select>
             </td>
           </tr>

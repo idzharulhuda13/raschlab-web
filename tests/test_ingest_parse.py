@@ -139,7 +139,7 @@ def test_control_key1_length_mismatch_rejected():
         b"KEY1=ABCDE\n"
         b"&END\n"
     )
-    with pytest.raises(ValueError, match=r"KEY1 length \(5\) does not match NI \(10\)"):
+    with pytest.raises(ValueError, match=r"Panjang kunci jawaban pada berkas kontrol \(5\) tidak sama dengan NI \(10\)"):
         parse_control(con_mismatch)
 
 
