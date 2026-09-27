@@ -265,6 +265,41 @@ for every real analysis.
 
 
 
+### F13 — control files, keyed numeric data, and one-file export (27 Sep 2026, FROZEN)
+
+**Control-file directives keep the engine's types.** `app/parsers.py::parse_control` coerces to a number ONLY
+the directives `raschlab.control.NUMERIC_DIRECTIVES` declares (NAME1, ITEM1, NI, NAMLEN, MISSCORE); every other
+value stays the string it is, so `CODES = 01` keeps its leading zero and `CODES = 1234` stays text. `KEY1` is
+always a string. Failures from that parser are Indonesian: no `&INST` gives "Berkas kontrol tidak memuat blok
+&INST.", no `&END` gives "Berkas kontrol tidak memuat &END setelah &INST.", a KEY1/NI mismatch gives "Panjang
+kunci jawaban pada berkas kontrol (N) tidak sama dengan NI (M)." The library's English sentences must never
+reach a page.
+
+**The effective alphabet may be numeric.** In the key branch of the delimited builder, a response token is valid
+when it is a single character present in the effective alphabet: the honoured `CODES` when the upload carried a
+`.con`, otherwise the codes the data itself uses. That same alphabet is what gets written as `CODES` into the
+generated `analyze.CON`, so the engine's validity and our check cannot disagree. Cells outside it stay missing.
+
+**`GET /analyses/{id}/export` accepts one more table key: `semua`**, a single XLSX whose sheets are named like
+the engine's own workbook (`15.1`, `person`, `15.3`, `summary`, `wright_measure`, `wright_frequency`). It obeys
+the same caps (`EXPORT_MAX_ROWS`, `EXPORT_MAX_CELLS`, measured as the sum over the six tables) and the same rate
+limit: 413 with the real numbers, 429 with `Retry-After`. Any other unknown key keeps the 404, and every
+existing per-table key and its output are unchanged.
+
+**The dataset page renders the honoured directives** (`summary["control"]`) as a list of directive names, with
+the value for CODES and MISSCORE and only the length for KEY1, plus one line stating that other directives were
+ignored. Nothing renders for an upload without a `.con`.
+
+**The settings screen gains three preset chips** (1,00 ketat, 1,20 teliti, 1,50 bawaan) that fill the threshold
+field without submitting; the field stays editable, keeps `step=0.05`, and the page works with JavaScript off.
+
+**The commit screen suggests a classification per token** (`1`/`B` -> Benar, `0`/`A` -> Salah, anything else and
+the empty token -> Data Hilang) with one line saying the suggestion must be checked. When a key was detected, no
+suggestion appears.
+
+**New CSS classes, deliberate (the pin in `tests/test_ui_contract.py` moves with this reason):** `alert--info`
+for the honoured-directives block, `chip` and `chip-row` for the presets.
+
 ### Database schema additions (column names are FROZEN)
 
 #### Datasets table modification (FROZEN)

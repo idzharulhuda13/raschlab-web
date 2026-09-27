@@ -430,6 +430,65 @@ suite and the explorer harness green. `_infit_mnsq_column()` now accepts both la
 7. Hallmark audit of the three touched pages: 0 critical; every new control keyboard reachable, ≥44 px, Indonesian, no em dash; both themes checked.
 8. Live check after deploy: the three pages render the controls, one real download opens in openpyxl with the right sheet and row count, and `/health` reports the new commit.
 
+## F13 — control-file correctness and commit/export ergonomics (27 Sep 2026, FROZEN)
+
+Requested by Dada ("gas semua") over the backlog recorded below. Nothing here is optional, and each group
+keeps its own evidence requirement.
+
+### D1 — the control parser keeps a directive's meaning
+`app/parsers.py::parse_control` must coerce to a number ONLY the directives the engine declares numeric
+(`raschlab.control.NUMERIC_DIRECTIVES` = NAME1, ITEM1, NI, NAMLEN, MISSCORE). Every other value stays the
+string it is, so `CODES = 01` keeps its leading zero instead of becoming `1`. `KEY1` stays a string as
+today. Evidence: a test per spelling (`01`, `10`, `1234`, `AB`, `"01"`, `-1`, `-0.5`, `NA`) asserting value
+AND type, with the byte-identity tests unchanged.
+
+### D3 — Indonesian failures from the parser
+A control file that contradicts itself must fail in Indonesian, never with the library's English sentence.
+Known cases: `KEY1 length (N) does not match NI (M)`, `Missing &INST in control file`, `Missing &END in
+control file`. An unknown failure keeps a generic Indonesian sentence plus the detail. No English parser
+text may reach a page.
+
+### D2 — a numeric instrument may use a key
+In the key branch of the delimited matrix builder (`app/analysis.py`), a response token is valid when it is
+a SINGLE character the effective alphabet declares (the honoured `CODES` when the upload carried a `.con`,
+otherwise the codes the data itself uses), not only `A`-`E`. Cells outside the alphabet stay missing, each
+cell's character travels through unchanged, and the alphabet written into the generated `analyze.CON` is
+the effective one. Evidence: the same 0/1 fixture commits and runs with a key, and its numbers reproduce
+the equivalent letter fixture scored with the equivalent key; `test_byte_identity.py` unchanged.
+
+### D4 — a numeric alphabet is exercised by tests
+At least one test drives a numeric fixture (0/1 with a missing token) through upload -> commit with a key
+from a `.con` -> run, asserting the generated `analyze.CON` carries the honoured `KEY1`/`CODES`/`MISSCORE`
+and not `NAMELEN`. The test must fail if the numeric path regresses.
+
+### B1 — the commit screen suggests a classification
+Each distinct token arrives with a suggested classification (`1`/`B` -> Benar, `0`/`A` -> Salah, anything
+else and the empty token -> Data Hilang), stays editable, and carries one line saying the suggestion is a
+guess to be checked. A file whose key row was detected keeps today's behaviour.
+
+### B2 — one workbook with every sheet
+A new export returns a single XLSX carrying all six tables as sheets named like the engine's own output,
+reusing `raschlab.report.write_workbook`. It obeys the same caps and rate limit as the existing exports
+(413 with real numbers, 429 with `Retry-After`), sits beside the per-table downloads, and is offered from
+the analysis page and the explorer.
+
+### B3 — threshold shortcuts
+The settings screen offers 1,00 (ketat), 1,20 (teliti) and 1,50 (bawaan) as one-click presets that fill the
+threshold field, which stays editable and keeps `step=0.05`. Without JavaScript the field still works.
+
+### B4 — show which directives were honoured
+The dataset page lists the `.CON` directives that were used (`KEY1`, `CODES`, `MISSCORE`, when present) and
+states that the rest were ignored. An upload with no `.con` shows nothing.
+
+### ACCEPTANCE (measured, not asserted)
+1. D1/D3: the parser probe prints the same value AND type as the engine for all eight spellings; no English parser text on any page.
+2. D2: a 0/1 fixture with `CODES = 01` and a `KEY1` commits, runs, and reproduces the letter fixture's numbers.
+3. D4: a test fails when the numeric path is reverted by one line.
+4. B1-B4: each behaviour seen in a probe (prefilled selects, one workbook with six sheets, a preset filling the field, the honoured list rendered), keyboard reachable, >=44 px, Indonesian, no em dash, both themes.
+5. Suite and harness green; `EXPECTED_TOTAL`, the template pin and the CSS-class pin move only with a written reason.
+6. Hallmark audit of every touched page: 0 critical.
+7. Live check after deploy: a `.CON` with `CODES = 01` works end to end, the workbook downloads with six sheets, and `/health` reports the new commit.
+
 ## BACKLOG (recorded 27 Sep 2026 from the live e2e, not started)
 
 Order inside each group is the recommended order. Nothing here is a promise: each item needs its own
