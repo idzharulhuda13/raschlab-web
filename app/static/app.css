@@ -1651,6 +1651,15 @@ line.miss-marker {
   display: block;
 }
 
+/* The explorer panels are the only content not wrapped in a .band, so their text, controls and tables
+   ran to the screen edge at every width while every other page kept the shell gutter. Same box as a
+   band, so the two line up on a phone and on a desktop. */
+.explorer-panel > * {
+  max-width: var(--shell-max);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+}
+
 /* Chart containers */
 .chart-scroll {
   overflow-x: auto;
@@ -1902,7 +1911,6 @@ figure.summary-figure .def-value {
     align-items: flex-start;
     gap: var(--space-2);
     min-height: 44px;
-    padding-inline: 0;
   }
   .cmp-filter label { flex: 1; margin-bottom: 0; }
 }
