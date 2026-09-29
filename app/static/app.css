@@ -1709,6 +1709,14 @@ line.miss-marker {
 }
 
 /* Compare strip */
+/* The display threshold toggle is a sibling of the compare strip rather than a child of it, so it
+   borrows the same shell inset and lines up with the selects instead of running to the page edge. */
+.cmp-filter {
+  max-width: var(--shell-max);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+}
+
 .compare-strip {
   position: sticky;
   top: 72px;
@@ -1866,6 +1874,7 @@ figure.summary-figure .def-value {
     align-items: flex-start;
     gap: var(--space-2);
     min-height: 44px;
+    padding-inline: 0;
   }
   .cmp-filter label { flex: 1; margin-bottom: 0; }
 }
