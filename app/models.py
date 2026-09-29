@@ -71,6 +71,7 @@ class Analysis(Base):
     status: Mapped[str] = mapped_column(String, nullable=False)
     params_json: Mapped[str] = mapped_column(Text, nullable=False)
     engine_ref: Mapped[str] = mapped_column(String, nullable=False)
+    primary_at: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     elapsed_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)

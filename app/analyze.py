@@ -30,6 +30,7 @@ from app.analysis import (
     id_num,
     latest_done_analysis,
     load_tables,
+    mark_analysis,
     paginate,
     parse_delete_list,
     parse_settings_form,
@@ -538,3 +539,24 @@ def get_analysis(
         context=context,
         status_code=200,
     )
+
+
+@router.post("/analyses/{id}/mark")
+def post_analysis_mark(
+    id: int,
+    request: Request,
+    db: Session = Depends(get_session),
+    primary: str | None = Form(None),
+):
+    if _gate_closed():
+        return RedirectResponse("/", status_code=303)
+    user = _current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+
+    analysis = db.scalar(select(Analysis).where(Analysis.id == id))
+    if analysis is None or analysis.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Analisis tidak ditemukan.")
+
+    mark_analysis(db, analysis, (primary or "").strip() == "1")
+    return RedirectResponse(f"/analyses/{analysis.id}", status_code=303)

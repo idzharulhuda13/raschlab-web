@@ -23,7 +23,7 @@ import time
 from typing import Any
 
 import numpy as np
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session, object_session
 
 from app import auth
@@ -753,6 +753,46 @@ def latest_done_analysis(db: Session, dataset_id: int) -> Analysis | None:
         select(Analysis)
         .where(Analysis.dataset_id == dataset_id, Analysis.status == "done")
         .order_by(Analysis.id.desc())
+    ).first()
+
+
+def mark_analysis(db: Session, analysis: Analysis, marked: bool) -> None:
+    """Mark an analysis as the version in use for its dataset, or clear the mark.
+
+    At most one analysis per dataset carries the mark, and the invariant lives here rather than in
+    a constraint because the same models build the SQLite test schema while production is Postgres.
+    Marking demotes every sibling of the dataset in the same commit as the mark itself, so a reader
+    can never catch two marked rows between the two statements. The timestamp records when the run
+    was marked and is never refreshed: calling this on an already marked analysis changes nothing.
+    Clearing the mark never touches the siblings, because unmarking one run says nothing about
+    which other run should take over.
+    """
+    if not marked:
+        analysis.primary_at = None
+        db.commit()
+        return
+
+    already_marked = analysis.primary_at is not None
+    db.execute(
+        update(Analysis)
+        .where(Analysis.dataset_id == analysis.dataset_id, Analysis.id != analysis.id)
+        .values(primary_at=None)
+    )
+    if not already_marked:
+        analysis.primary_at = now_epoch()
+    db.commit()
+
+
+def marked_analysis_id(db: Session, dataset_id: int) -> int | None:
+    """Return the id of the analysis marked as the version in use for a dataset, or None.
+
+    Defensive by design: a store written before the write path kept the invariant can carry more
+    than one marked row, so the newest by primary_at and then by id answers instead of raising.
+    """
+    return db.scalars(
+        select(Analysis.id)
+        .where(Analysis.dataset_id == dataset_id, Analysis.primary_at.isnot(None))
+        .order_by(Analysis.primary_at.desc(), Analysis.id.desc())
     ).first()
 
 
