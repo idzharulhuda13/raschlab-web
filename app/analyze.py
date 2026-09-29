@@ -47,6 +47,74 @@ logger = logging.getLogger("app.analyze")
 templates.env.filters["id_num"] = id_num
 
 
+STATUS_KEYS = ("kept", "deleted", "lacking", "extreme_min", "extreme_max")
+BAND_X0, BAND_X1 = 10.0, 550.0
+
+
+def _clean_audit(person_rows: list[list[str]], rekap: dict[str, str]) -> dict[str, Any] | None:
+    """What the engine kept and dropped, read from the STATUS column it now writes.
+
+    Returns None when the respondent table carries no STATUS column, which is the case for every
+    analysis run before that column existed: the page then says so in words instead of drawing
+    zeros, because a zero here reads as "nothing was removed" and that would be a lie.
+
+    Geometry is computed here rather than in the template so the band's segment widths are derived
+    from the data and stay in one place.
+    """
+    if len(person_rows) < 2:
+        return None
+    header = [str(h).strip().upper() for h in person_rows[1]]
+    if "STATUS" not in header:
+        return None
+    idx = header.index("STATUS")
+    counts: dict[str, int] = dict.fromkeys(STATUS_KEYS, 0)
+    for row in person_rows[2:]:
+        if len(row) <= idx:
+            continue
+        key = str(row[idx]).strip().lower()
+        if key in counts:
+            counts[key] += 1
+    total = sum(counts.values())
+    if total == 0:
+        return None
+    span = BAND_X1 - BAND_X0
+    ekstrem = counts["extreme_min"] + counts["extreme_max"]
+
+    def width(value: int) -> float:
+        return round(span * value / total, 2)
+
+    def pct(value: int) -> str:
+        return f"{value / total * 100:.1f}".replace(".", ",")
+
+    def summary_int(statistic: str) -> int:
+        raw = str(rekap.get(f"COUNTS {statistic}", "0")).strip() or "0"
+        try:
+            return max(0, int(float(raw)))
+        except ValueError:
+            return 0
+
+    w_ekstrem = width(ekstrem)
+    return {
+        "dipakai": counts["kept"],
+        "dihapus": counts["deleted"],
+        "kurang": counts["lacking"],
+        "ekstrem_bawah": counts["extreme_min"],
+        "ekstrem_atas": counts["extreme_max"],
+        "ekstrem": ekstrem,
+        "total": total,
+        "butir_dihapus": summary_int("ITEM DELETED"),
+        "pct_dipakai": pct(counts["kept"]),
+        "pct_dihapus": pct(counts["deleted"]),
+        "pct_ekstrem": pct(ekstrem),
+        "x_dipakai": BAND_X0,
+        "w_dipakai": width(counts["kept"]),
+        "x_dihapus": round(BAND_X0 + width(counts["kept"]), 2),
+        "w_dihapus": width(counts["deleted"]),
+        "x_ekstrem": round(BAND_X1 - w_ekstrem, 2),
+        "w_ekstrem": w_ekstrem,
+    }
+
+
 def _infit_mnsq_column(item_rows: list[list[str]]) -> int:
     """Return the INFIT MNSQ column index, or -1 when the table does not carry it.
 
@@ -385,6 +453,7 @@ def get_analysis(
             {
                 "n_misfit": n_misfit,
                 "n_item": n_item,
+                "clean_audit": _clean_audit(person_rows, rekap),
                 "tables": tables,
                 "item_headers": item_headers,
                 "item_paged": item_paged,

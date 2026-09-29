@@ -95,6 +95,39 @@
   </div>
 </section>
 {% endif %}
+<section class="band" id="kebersihan">
+  <h2>Kebersihan Data</h2>
+  {% if clean_audit %}
+  <p>Komposisi {{ clean_audit.total | id_num }} baris yang dibaca mesin.</p>
+  <div class="chip-row">
+    <span class="chip chip--fit"><span class="chip-glyph">OK</span> {{ clean_audit.dipakai | id_num }} dipakai</span>
+    <span class="chip chip--misfit"><span class="chip-glyph">!</span> {{ clean_audit.dihapus | id_num }} dihapus</span>
+    <span class="chip chip--warn"><span class="chip-glyph">!</span> {{ clean_audit.ekstrem | id_num }} ekstrem</span>
+  </div>
+  <svg viewBox="0 0 560 100" role="img" width="100%" aria-label="Komposisi {{ clean_audit.total | id_num }} baris: {{ clean_audit.dipakai | id_num }} dipakai, {{ clean_audit.dihapus | id_num }} dihapus, {{ clean_audit.ekstrem | id_num }} ekstrem">
+    <line x1="10" y1="40" x2="550" y2="40" stroke="var(--line)" stroke-width="1"></line>
+    <rect x="{{ clean_audit.x_dipakai }}" y="24" width="{{ clean_audit.w_dipakai }}" height="12" fill="var(--accent)"></rect>
+    <rect x="{{ clean_audit.x_dihapus }}" y="24" width="{{ clean_audit.w_dihapus }}" height="12" fill="var(--misfit)"></rect>
+    <rect x="{{ clean_audit.x_ekstrem }}" y="24" width="{{ clean_audit.w_ekstrem }}" height="12" fill="var(--warn)"></rect>
+    <text x="{{ clean_audit.x_dipakai + clean_audit.w_dipakai / 2 }}" y="54" text-anchor="middle" font-size="11" fill="var(--ink)">{{ clean_audit.dipakai | id_num }} dipakai</text>
+    <text x="{{ clean_audit.x_dipakai + clean_audit.w_dipakai / 2 }}" y="68" text-anchor="middle" font-size="11" fill="var(--muted)">{{ clean_audit.pct_dipakai }}%</text>
+    <text x="{{ clean_audit.x_dihapus + clean_audit.w_dihapus / 2 }}" y="82" text-anchor="middle" font-size="11" fill="var(--ink)">{{ clean_audit.dihapus | id_num }} dihapus</text>
+    <text x="{{ clean_audit.x_dihapus + clean_audit.w_dihapus / 2 }}" y="94" text-anchor="middle" font-size="11" fill="var(--muted)">{{ clean_audit.pct_dihapus }}%</text>
+    <text x="548" y="54" text-anchor="end" font-size="11" fill="var(--ink)">{{ clean_audit.ekstrem | id_num }} ekstrem</text>
+    <text x="548" y="68" text-anchor="end" font-size="11" fill="var(--muted)">{{ clean_audit.pct_ekstrem }}%</text>
+    <text x="10" y="18" text-anchor="start" font-size="11" fill="var(--muted)">0</text>
+    <text x="550" y="18" text-anchor="end" font-size="11" fill="var(--muted)">{{ clean_audit.total | id_num }} baris</text>
+  </svg>
+  <div class="alert {% if clean_audit.dihapus > 0 or clean_audit.ekstrem > 0 %}alert--warn{% else %}alert--fit{% endif %}" role="status">
+    <p>{{ clean_audit.dihapus | id_num }} baris dihapus lewat daftar hapus dan {{ clean_audit.ekstrem | id_num }} baris dikecualikan sebagai ekstrem ({{ clean_audit.ekstrem_bawah | id_num }} bawah, {{ clean_audit.ekstrem_atas | id_num }} atas). {{ clean_audit.butir_dihapus | id_num }} butir dibuang sebelum penilaian.</p>
+  </div>
+  {% else %}
+  <div class="alert alert--info" role="status">
+    <p>Analisis ini dijalankan sebelum mesin mencatat kolom status, jadi rincian baris yang dipakai dan dibuang belum ada. Jalankan ulang analisis untuk melihatnya.</p>
+  </div>
+  {% endif %}
+  <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/explore?view=bandingkan">Bandingkan dengan versi arsip</a>
+</section>
 {% if n_item > 0 %}
 <section class="band">
   <h2>Butir Bermasalah</h2>
