@@ -650,6 +650,34 @@ h2,
   border-color: var(--accent);
 }
 
+/* A file input is drawn by the browser, not by us: give its button the house shape so the two
+   delete-list fields read as part of the form instead of a control borrowed from another system.
+   The button's own wording is the browser's locale; the shape, size and colours are ours. */
+.field-input[type="file"] {
+  display: flex;
+  align-items: center;
+  padding-block: var(--space-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.field-input[type="file"]::file-selector-button {
+  min-height: 32px;
+  margin-right: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--step-14);
+  cursor: pointer;
+}
+
+.field-input[type="file"]::file-selector-button:hover {
+  border-color: var(--accent);
+}
+
 .select-input {
   width: 100%;
   min-height: 44px;
