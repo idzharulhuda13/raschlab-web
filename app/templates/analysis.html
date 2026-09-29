@@ -64,6 +64,12 @@
       <span class="def-label">Desimal: </span>
       <span class="def-value mono">{{ params.get('digits', 2) if params else '2' }}</span>
     </div>
+    {% for lst in delete_lists %}
+    <div class="def-row">
+      <span class="def-label">{{ lst.label }}: </span>
+      <span class="def-value mono">{{ lst.name }} ({{ lst.rows | id_num }} baris, {{ lst.sha256_short }})</span>
+    </div>
+    {% endfor %}
   </div>
 </section>
 

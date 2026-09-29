@@ -14,7 +14,7 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -31,6 +31,7 @@ from app.analysis import (
     latest_done_analysis,
     load_tables,
     paginate,
+    parse_delete_list,
     parse_settings_form,
     retention_sweep,
     run_for_dataset,
@@ -137,6 +138,46 @@ def _infit_mnsq_column(item_rows: list[list[str]]) -> int:
     return -1
 
 
+DELETE_LIST_LABELS = (
+    ("pdfile", "Daftar hapus peserta"),
+    ("idfile", "Daftar hapus butir"),
+)
+
+
+def _delete_lists_from_params(params: Any) -> list[dict[str, Any]]:
+    """Read the delete lists a run recorded, tolerating anything older or malformed.
+
+    A legacy params_json without these keys, a None, or an entry that is not a readable
+    dict yields nothing for that key: the page says nothing rather than raising.
+    """
+    if not isinstance(params, dict):
+        return []
+    lists: list[dict[str, Any]] = []
+    for key, label in DELETE_LIST_LABELS:
+        entry = params.get(key)
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        sha = entry.get("sha256")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        if not isinstance(sha, str) or not sha.strip():
+            continue
+        try:
+            rows = int(entry.get("rows"))
+        except (TypeError, ValueError):
+            continue
+        lists.append(
+            {
+                "label": label,
+                "name": name,
+                "rows": rows,
+                "sha256_short": sha.strip()[:8].upper(),
+            }
+        )
+    return lists
+
+
 def _do_retention_sweep() -> None:
     with SessionLocal() as db:
         retention_sweep(db)
@@ -226,6 +267,8 @@ def post_dataset_analyze(
     misfit: str | None = Form(None),
     mode: str | None = Form(None),
     digits: str | None = Form(None),
+    pdfile: UploadFile | None = File(None),
+    idfile: UploadFile | None = File(None),
 ):
     if _gate_closed():
         return RedirectResponse("/", status_code=303)
@@ -240,16 +283,14 @@ def post_dataset_analyze(
     if dataset.status != "ready":
         return RedirectResponse(f"/datasets/{dataset.id}", status_code=303)
 
-    try:
-        params = parse_settings_form({"misfit": misfit, "mode": mode, "digits": digits})
-    except AnalysisError as exc:
+    def settings_error(message: str) -> HTMLResponse:
         context = _build_dataset_context(request, user, dataset)
         context.update(
             {
                 "params": dict(PARAMS_DEFAULT),
                 "misfit_input": f"{float(PARAMS_DEFAULT['misfit']):.2f}",
                 "submitted": {"misfit": misfit, "mode": mode, "digits": digits},
-                "error": str(exc),
+                "error": message,
                 "defaults": {
                     "misfit": format_threshold(MISFIT_THRESHOLD_DEFAULT),
                     "mode": MODE_CHOICES[0],
@@ -260,6 +301,23 @@ def post_dataset_analyze(
         return templates.TemplateResponse(
             request=request, name="analysis_settings.html", context=context, status_code=422
         )
+
+    try:
+        params = parse_settings_form({"misfit": misfit, "mode": mode, "digits": digits})
+    except AnalysisError as exc:
+        return settings_error(str(exc))
+
+    delete_lists: dict[str, dict] = {}
+    for key, upload in (("pdfile", pdfile), ("idfile", idfile)):
+        if upload is None:
+            continue
+        filename = (upload.filename or "").strip()
+        if not filename:
+            continue
+        try:
+            delete_lists[key] = parse_delete_list(filename, upload.file.read())
+        except AnalysisError as exc:
+            return settings_error(str(exc))
 
     allowed, retry_after = check_limit(
         f"analyze:{client_ip(request)}:{user.id}", 12, 3600
@@ -285,7 +343,7 @@ def post_dataset_analyze(
         return RedirectResponse(f"/analyses/{existing_running.id}?msg=analyzed", status_code=303)
 
     try:
-        analysis = run_for_dataset(db, dataset, params)
+        analysis = run_for_dataset(db, dataset, params, delete_lists=delete_lists)
     except AnalysisError as exc:
         context = _build_dataset_context(request, user, dataset, error=str(exc))
         context["latest_analysis"] = latest_done_analysis(db, dataset.id)
@@ -397,6 +455,7 @@ def get_analysis(
         "n_misfit": 0,
         "n_item": 0,
         "params": params,
+        "delete_lists": _delete_lists_from_params(params),
         "misfit_threshold": format_threshold(misfit_threshold),
         "anchors": anchors,
         "is_anchored": bool(anchors),

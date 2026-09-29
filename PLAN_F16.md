@@ -90,3 +90,67 @@ Run A reported three dead branches in section 2, all confirmed by reading the co
    all describe the same bytes.
 
 Three tests cover the three fixes. Suite after: 247 passed.
+
+
+## 6. Run B scope (frozen, 29 Sep 2026)
+
+Run A is committed (`412e98d`) and verified against the owner's real 206-row list: the engine deletes the
+same 205 people as the archived clean run, the audit row round-trips to the same bytes, and no text reaches
+`params_json`. Run B puts the upload on the screen and makes a run say which list it used.
+
+Files this run may write, and nothing else: `app/analyze.py`, `app/templates/analysis_settings.html`,
+`app/templates/analysis.html`, `tests/test_delete_list_settings.py` (new).
+
+### 6.1 Route (app/analyze.py, `post_dataset_analyze` at line 221)
+
+- Two new optional upload parameters with FastAPI's `File`: `pdfile: UploadFile | None = File(None)` and
+  `idfile: UploadFile | None = File(None)`. The handler stays a plain `def` and reads bytes through
+  `upload.file.read()`, matching the module's existing synchronous style.
+- An upload counts as supplied only when it has a filename after `strip()`. An empty file input (filename
+  `""`) is treated as absent, which is what a browser sends when the user picks nothing.
+- Each supplied upload goes through `parse_delete_list(upload.filename, blob)` BEFORE the rate limit and
+  before the engine. On `AnalysisError` the handler re-renders `analysis_settings.html` with status 422 and
+  the same context shape it already uses for a bad threshold, so the message lands in the same error block.
+- On success it calls `run_for_dataset(db, dataset, params, delete_lists=<only the supplied ones>)`.
+- `params_json` recording and the audit row are already run A's job: do not duplicate any of it here.
+
+### 6.2 Settings form (app/templates/analysis_settings.html)
+
+- The form gains `enctype="multipart/form-data"`; without it the browser posts only the filename and the
+  upload silently arrives empty.
+- After the Desimal field, two `field` blocks in the file's existing style, each a `label`, an
+  `input type="file"` with `accept=".txt,.csv,.dat"`, and a `field-hint`:
+  - `Daftar hapus peserta (opsional)` with hint `Nomor baris peserta yang dikeluarkan sebelum penilaian, dalam format daftar hapus mesin. Maksimal 2 MB. Isi berkasnya tidak disimpan di pengaturan; yang dicatat hanya nama, jumlah baris, dan sidik jarinya.`
+  - `Daftar hapus butir (opsional)` with the same hint, first word `butir`.
+- No new CSS class and no new colour: reuse `field`, `field-label`, `field-input`, `field-hint`.
+
+### 6.3 The run says what it used (app/analyze.py context + app/templates/analysis.html)
+
+- The analysis page context gains `delete_lists`: a list of `{"label", "name", "rows", "sha256_short"}`
+  for each of `pdfile` / `idfile` recorded in the run's `params_json`, read defensively (a legacy
+  `params_json` without these keys, or with `None`, yields an empty list; a malformed entry is skipped, never
+  raised). `label` is `Daftar hapus peserta` / `Daftar hapus butir`, `sha256_short` is the first 8 hex
+  characters of the recorded sha, uppercase.
+- `analysis.html` renders them in the existing metadata grid next to Versi Mesin / Waktu Eksekusi / Mode /
+  Desimal, one row per list, as plain label and value text reusing the grid's existing classes. Nothing is
+  rendered when `delete_lists` is empty: no empty row, no placeholder.
+- Number formatting follows the page: `rows` goes through the existing `id_num` filter.
+
+### 6.4 VERIFY (run B)
+
+    cd /root/projects/raschlab-web && .venv/bin/python -m pytest tests -q     # BEFORE: note baseline (expect 247)
+    cd /root/projects/raschlab-web && .venv/bin/python -m pytest tests -q     # AFTER: EXPECTED baseline + 6
+    cd /root/projects/raschlab-web && .venv/bin/python -m pytest tests/test_delete_list_settings.py -q
+
+Six tests in `tests/test_delete_list_settings.py`, monkeypatching `app.analysis.run_analyze` so no real
+engine run happens:
+
+1. a POST with a three-line `.txt` as `pdfile` returns 303, and the created analysis has
+   `params_json["pdfile"]` `{name, sha256, rows, bytes}` with `rows == 3` and `text` absent;
+2. the same POST leaves `params_json["idfile"]` as `None`;
+3. a POST with `x.exe` returns 422, the response body carries the extension sentence, and no new Analysis
+   row exists for that dataset;
+4. a POST with both inputs empty records `pdfile` and `idfile` as `None` and still creates the analysis;
+5. `GET /analyses/{id}` for a run whose `params_json` carries a pdfile shows the list's name, its row count
+   through `id_num`, and its 8-character uppercase sha prefix;
+6. the same GET for a run with no list shows none of those strings.
