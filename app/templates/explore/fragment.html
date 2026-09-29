@@ -277,10 +277,16 @@
     <option value="{{ o.id }}"{% if o.id == compare_ctx.to_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}</option>
     {% endfor %}
   </select>
+  <div class="field field--toggle">
+    <input type="checkbox" id="cmp-over-se" name="over_se" value="1"{% if compare_ctx.over_se_only %} checked{% endif %}>
+    <label class="field-label" for="cmp-over-se">Hanya butir yang bergeser lebih dari S.E. butir itu.</label>
+  </div>
   <div class="action-bar">
     <button type="submit" class="btn btn--primary">Tampilkan Perbandingan</button>
   </div>
 </form>
+
+<p id="cmp-over-se-count" aria-live="polite">{% if compare_ctx.over_se_only %}Menampilkan {{ compare_ctx.n_over_se | id_num }} dari {{ compare_ctx.n_pairs_total | id_num }} butir, yang bergeser lebih dari S.E.-nya.{% else %}Menampilkan {{ compare_ctx.n_pairs_total | id_num }} butir.{% endif %}</p>
 
 <p id="cmp-statement">{% if compare_ctx.statement %}{{ compare_ctx.statement }}{% else %}Pilih dua analisis untuk dibandingkan.{% endif %}</p>
 
@@ -323,7 +329,7 @@
 
 {% if not compare_ctx.pairs %}
 <div class="empty" id="cmp-empty">
-  <p class="empty-text">{{ compare_ctx.empty_reason if compare_ctx.empty_reason else 'Pilih dua analisis untuk dibandingkan.' }}</p>
+  <p class="empty-text">{% if compare_ctx.over_se_only %}Tidak ada butir yang bergeser lebih dari S.E.-nya. Matikan filter untuk melihat semua butir.{% else %}{{ compare_ctx.empty_reason if compare_ctx.empty_reason else 'Pilih dua analisis untuk dibandingkan.' }}{% endif %}</p>
 </div>
 {% endif %}
 

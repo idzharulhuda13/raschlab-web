@@ -168,7 +168,10 @@ def _compare_rows(db: Session, user, request: Request) -> list[list[str]] | None
         return None
     items_from = load_tables(from_analysis).get("item_table_15.1.csv", [])
     items_to = load_tables(to_analysis).get("item_table_15.1.csv", [])
-    pairs = build_compare_pairs(items_from, items_to)["pairs"]
+    cmp_result = build_compare_pairs(items_from, items_to)
+    pairs = cmp_result["pairs"]
+    if request.query_params.get("over_se") is not None:
+        pairs = [pair for pair, over in zip(pairs, cmp_result["over_se"]) if over]
     return [COMPARE_HEADER] + [[pair[0], pair[1], pair[2], pair[3], pair[4]] for pair in pairs]
 
 

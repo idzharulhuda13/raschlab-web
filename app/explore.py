@@ -153,6 +153,36 @@ def filter_rows(
     ]
 
 
+def _se_column_index(rows: list[list[str]]) -> int | None:
+    """Index of the S.E. column in the engine's two-row header, or None."""
+    if len(rows) < 2:
+        return None
+    for idx, cell in enumerate(rows[1]):
+        if str(cell).strip() == "S.E.":
+            return idx
+    return None
+
+
+def _row_se(row: list[str], index: int | None) -> float | None:
+    """The S.E. of one table row, or None when the cell is missing or unparseable."""
+    if index is None or index >= len(row):
+        return None
+    try:
+        return float(row[index])
+    except (TypeError, ValueError):
+        return None
+
+
+def _moved_over_se(m_from: str, m_to: str, se: float | None) -> bool:
+    """True only when the measure moved more than the item's own S.E."""
+    if se is None:
+        return False
+    try:
+        return abs(float(m_to) - float(m_from)) > se
+    except (TypeError, ValueError):
+        return False
+
+
 def build_compare_pairs(
     item_rows_from: list[list[str]],
     item_rows_to: list[list[str]],
@@ -185,11 +215,13 @@ def build_compare_pairs(
 
     from_data = _data_rows(item_rows_from)
     to_data = _data_rows(item_rows_to)
+    to_se_index = _se_column_index(item_rows_to)
 
     from_has_labels = any(len(r) > 13 and bool(r[13].strip()) for r in from_data)
     to_has_labels = any(len(r) > 13 and bool(r[13].strip()) for r in to_data)
 
     pairs: list[list[Any]] = []
+    pair_se: list[float | None] = []
     matched: int = 0
     unmatched_from: int = 0
     unmatched_to: int = 0
@@ -209,6 +241,7 @@ def build_compare_pairs(
                 from_items[lbl] = (entry, lbl, m)
 
         to_items: dict[str, tuple[int, str, str]] = {}
+        to_rows_by_label: dict[str, list[str]] = {}
         for r in to_data:
             lbl = r[13].strip() if len(r) > 13 else ""
             if not lbl:
@@ -217,18 +250,27 @@ def build_compare_pairs(
             m = r[3] if len(r) > 3 else ""
             if lbl not in to_items:
                 to_items[lbl] = (entry, lbl, m)
+                to_rows_by_label[lbl] = r
 
         from_keys = set(from_items.keys())
         to_keys = set(to_items.keys())
         common_labels = from_keys & to_keys
 
+        records: list[tuple[list[Any], float | None]] = []
         for lbl in common_labels:
             entry_from, _, m_from = from_items[lbl]
             _, _, m_to = to_items[lbl]
             delta_str = _calc_delta(m_from, m_to)
-            pairs.append([entry_from, lbl, m_from, m_to, delta_str])
+            records.append(
+                (
+                    [entry_from, lbl, m_from, m_to, delta_str],
+                    _row_se(to_rows_by_label[lbl], to_se_index),
+                )
+            )
 
-        pairs.sort(key=lambda p: p[0])
+        records.sort(key=lambda rec: rec[0][0])
+        pairs.extend(rec[0] for rec in records)
+        pair_se.extend(rec[1] for rec in records)
         matched = len(pairs)
         unmatched_from = len(from_keys - to_keys)
         unmatched_to = len(to_keys - from_keys)
@@ -245,24 +287,34 @@ def build_compare_pairs(
                 from_by_entry[entry] = (entry, lbl, m)
 
         to_by_entry: dict[int, tuple[int, str, str]] = {}
+        to_rows_by_entry: dict[int, list[str]] = {}
         for r in to_data:
             entry = int(r[0])
             lbl = r[13] if len(r) > 13 else ""
             m = r[3] if len(r) > 3 else ""
             if entry not in to_by_entry:
                 to_by_entry[entry] = (entry, lbl, m)
+                to_rows_by_entry[entry] = r
 
         from_keys_e = set(from_by_entry.keys())
         to_keys_e = set(to_by_entry.keys())
         common_entries = from_keys_e & to_keys_e
 
+        records = []
         for entry in common_entries:
             entry_from, lbl, m_from = from_by_entry[entry]
             _, _, m_to = to_by_entry[entry]
             delta_str = _calc_delta(m_from, m_to)
-            pairs.append([entry_from, lbl, m_from, m_to, delta_str])
+            records.append(
+                (
+                    [entry_from, lbl, m_from, m_to, delta_str],
+                    _row_se(to_rows_by_entry[entry], to_se_index),
+                )
+            )
 
-        pairs.sort(key=lambda p: p[0])
+        records.sort(key=lambda rec: rec[0][0])
+        pairs.extend(rec[0] for rec in records)
+        pair_se.extend(rec[1] for rec in records)
         matched = len(pairs)
         unmatched_from = len(from_keys_e - to_keys_e)
         unmatched_to = len(to_keys_e - from_keys_e)
@@ -276,6 +328,11 @@ def build_compare_pairs(
         key_used = None
         empty_reason = COMPARE_MISMATCH_REASON_MSG
 
+    over_se_flags = [
+        _moved_over_se(pair[2], pair[3], se_value)
+        for pair, se_value in zip(pairs, pair_se)
+    ]
+
     return {
         "pairs": pairs,
         "matched": matched,
@@ -283,6 +340,8 @@ def build_compare_pairs(
         "unmatched_to": unmatched_to,
         "key_used": key_used,
         "empty_reason": empty_reason,
+        "se": pair_se,
+        "over_se": over_se_flags,
     }
 
 
@@ -549,14 +608,21 @@ def get_explore(
                 "to": rekap_to.get("ITEM MEASURE MEAN", ""),
             }
 
+            over_se = request.query_params.get("over_se") is not None
             cmp_result = build_compare_pairs(items_from, items_to)
+            if over_se:
+                kept = [i for i, flag in enumerate(cmp_result["over_se"]) if flag]
+            else:
+                kept = list(range(len(cmp_result["pairs"])))
+            cmp_pairs = [cmp_result["pairs"][i] for i in kept]
             cmp_payload = {
                 "schema": 1,
                 "from_id": from_id,
                 "to_id": to_id,
                 "from_label": f"Analisis #{from_id} ({from_fn})",
                 "to_label": f"Analisis #{to_id} ({to_fn})",
-                "pairs": cmp_result["pairs"],
+                "over_se_only": over_se,
+                "pairs": cmp_pairs,
             }
             cmp_data_json = json.dumps(cmp_payload, separators=(",", ":")).replace("</", "<\\/")
 
@@ -574,7 +640,10 @@ def get_explore(
                 "key_used": cmp_result["key_used"],
                 "caveat": COMPARE_CAVEAT_MSG,
                 "empty_reason": empty_reason,
-                "pairs": cmp_result["pairs"],
+                "over_se_only": over_se,
+                "n_pairs_total": len(cmp_result["pairs"]),
+                "n_over_se": sum(1 for flag in cmp_result["over_se"] if flag),
+                "pairs": cmp_pairs,
                 "cmp_data_json": cmp_data_json,
             }
         else:
@@ -592,6 +661,9 @@ def get_explore(
                 "key_used": None,
                 "caveat": COMPARE_CAVEAT_MSG,
                 "empty_reason": empty_reason,
+                "over_se_only": False,
+                "n_pairs_total": 0,
+                "n_over_se": 0,
                 "pairs": [],
                 "cmp_data_json": None,
             }
