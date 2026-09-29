@@ -179,6 +179,45 @@ def _delete_lists_from_params(params: Any) -> list[dict[str, Any]]:
     return lists
 
 
+def _marked_ids(db: Session, user_id: int) -> dict[int, int]:
+    """Map each of a user's datasets to the id of the analysis marked as the version in use.
+
+    One query for a whole page, so listing rows never becomes a query per row. Defensive the same
+    way as app.analysis.marked_analysis_id: a store written before the mark kept its invariant can
+    carry two marked rows for one dataset, so the newest by primary_at then id answers for it, and a
+    store that cannot be read yields no marks instead of taking the page down.
+    """
+    try:
+        rows = db.execute(
+            select(Analysis.dataset_id, Analysis.id)
+            .join(Dataset, Analysis.dataset_id == Dataset.id)
+            .where(Dataset.user_id == user_id, Analysis.primary_at.isnot(None))
+            .order_by(Analysis.primary_at.desc(), Analysis.id.desc())
+        ).all()
+    except Exception:
+        logger.exception("Tanda versi dipakai tidak dapat dibaca.")
+        return {}
+
+    marks: dict[int, int] = {}
+    for dataset_id, analysis_id in rows:
+        marks.setdefault(dataset_id, analysis_id)
+    return marks
+
+
+def _mark_state(marks: dict[int, int], dataset_id: int, analysis_id: int) -> str:
+    """How one analysis stands against the dataset's version in use, in words the pages render.
+
+    dipakai: this analysis carries the mark. arsip: a sibling of the same dataset does. belum: the
+    dataset has no marked run, and no chip is drawn at all.
+    """
+    marked_id = marks.get(dataset_id)
+    if marked_id == analysis_id:
+        return "dipakai"
+    if marked_id is not None:
+        return "arsip"
+    return "belum"
+
+
 def _do_retention_sweep() -> None:
     with SessionLocal() as db:
         retention_sweep(db)
@@ -382,6 +421,7 @@ def get_analyses(
     )
     rows = db.execute(stmt).all()
 
+    marks = _marked_ids(db, user.id)
     analyses = [
         {
             "id": analysis.id,
@@ -395,6 +435,7 @@ def get_analyses(
             "n_items": dataset.n_items,
             "analysis": analysis,
             "dataset": dataset,
+            "mark_state": _mark_state(marks, dataset.id, analysis.id),
         }
         for analysis, dataset in rows
     ]
@@ -444,6 +485,7 @@ def get_analysis(
     params = json.loads(analysis.params_json) if analysis.params_json else {}
     misfit_threshold = float(params.get("misfit", MISFIT_THRESHOLD_DEFAULT))
     anchors = params.get("anchors")
+    marks = _marked_ids(db, user.id)
     context: dict[str, Any] = {
         "user": user,
         "dataset": dataset,
@@ -460,6 +502,8 @@ def get_analysis(
         "misfit_threshold": format_threshold(misfit_threshold),
         "anchors": anchors,
         "is_anchored": bool(anchors),
+        "mark_state": _mark_state(marks, dataset.id, analysis.id),
+        "can_mark": analysis.user_id == user.id,
     }
 
     if analysis.status == "done":

@@ -37,6 +37,11 @@
         <tr>
           <td>
             <a href="/datasets/{{ a.dataset_id }}" class="mono mono-link">{{ a.dataset_filename }}</a>
+            {% if a.mark_state == 'dipakai' %}
+            <span class="chip chip--accent">Dipakai</span>
+            {% elif a.mark_state == 'arsip' %}
+            <span class="chip chip--warn">Arsip</span>
+            {% endif %}
           </td>
           <td class="mono">
             {{ a.created_at }}
@@ -71,6 +76,11 @@
     <li class="file-card">
       <div>
         <a href="/datasets/{{ a.dataset_id }}" class="mono mono-link">{{ a.dataset_filename }}</a>
+        {% if a.mark_state == 'dipakai' %}
+        <span class="chip chip--accent">Dipakai</span>
+        {% elif a.mark_state == 'arsip' %}
+        <span class="chip chip--warn">Arsip</span>
+        {% endif %}
       </div>
       <div class="meta-line">
         <span class="mono">{{ a.created_at }}</span>

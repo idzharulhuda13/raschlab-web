@@ -76,3 +76,58 @@ Six tests in `tests/test_mark_primary.py`:
    `primary_at` when a legacy row somehow has two;
 6. the route refuses what it must: an anonymous POST redirects to `/login`, and a POST by a different user
    returns 404, both without changing any `primary_at`.
+
+
+## 7. Run B scope, frozen in detail (30 Sep 2026)
+
+Files this run may write, and nothing else: `app/analyze.py`, `app/explore.py`,
+`app/templates/analysis.html`, `app/templates/analyses.html`, `app/templates/explore/fragment.html`,
+`tests/test_mark_display.py` (new). Run A is committed (`405a8dc`): the column, the migration, the helpers
+`mark_analysis` / `marked_analysis_id` and `POST /analyses/{id}/mark` all exist and are tested. Do not
+re-implement any of them.
+
+### 7.1 Shared helpers (app/analyze.py)
+
+- `_marked_ids(db, user_id: int) -> dict[int, int]` mapping `dataset_id -> marked analysis id` for that
+  user's datasets. One query, no N+1, never raises.
+- Analysis page context gains `mark_state`: the string `"dipakai"` when this analysis is the marked one,
+  `"arsip"` when another analysis of the SAME dataset is marked, and `"belum"` when no analysis of that
+  dataset is marked. Also expose `can_mark` = True for the owner.
+
+### 7.2 Analysis page (app/templates/analysis.html)
+
+In the header band, next to the existing status chip:
+
+- `mark_state == "dipakai"`: `<span class="chip chip--accent">Dipakai</span>`
+- `mark_state == "arsip"`: `<span class="chip chip--warn">Arsip</span>`
+- `"belum"`: nothing at all, not even an empty chip row.
+- A form button in the header's action area, `method="post"` to `/analyses/{{ analysis.id }}/mark`, class
+  `btn btn--secondary`, containing a hidden input `primary` whose value is `1` when not marked and `0` when
+  marked. Label: `Tandai sebagai versi dipakai` / `Batalkan tanda dipakai`. No JavaScript.
+
+### 7.3 Analyses list (app/templates/analyses.html)
+
+Each row shows the same chip when the row's analysis is marked (`Dipakai`), or `Arsip` when another analysis
+of that same dataset is marked, and nothing when none is. Use the map from 7.1: one query for the page.
+
+### 7.4 Compare view (app/explore.py + app/templates/explore/fragment.html)
+
+- Each entry of `compare_ctx["options"]` gains `mark_label`: `"Dipakai"`, `"Arsip"`, or `""`.
+- Both selects render the suffix ` · Dipakai` / ` · Arsip` after the existing label text when
+  `mark_label` is non-empty. Nothing else about those selects changes, and the pairing logic, the S.E.
+  filter and the export stay exactly as they are.
+
+### 7.5 VERIFY (run B)
+
+    cd /root/projects/raschlab-web && .venv/bin/python -m pytest tests -q     # BEFORE: note baseline (261)
+    cd /root/projects/raschlab-web && .venv/bin/python -m pytest tests -q     # AFTER: EXPECTED baseline + 6
+    cd /root/projects/raschlab-web && .venv/bin/python -m pytest tests/test_mark_display.py -q
+
+Six tests in `tests/test_mark_display.py`:
+
+1. the analysis page of a marked run renders the `Dipakai` chip and a button whose hidden `primary` is `0`;
+2. the analysis page of an unmarked run whose sibling is marked renders `Arsip` and a hidden `primary` of `1`;
+3. the analysis page of a run whose dataset has no mark renders neither chip word;
+4. the analyses list page marks exactly the marked row and gives the sibling's row the `Arsip` chip;
+5. the compare view's options carry ` · Dipakai` on the marked run and ` · Arsip` on its sibling;
+6. the three pages stay free of an em dash.

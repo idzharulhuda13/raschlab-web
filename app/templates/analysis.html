@@ -36,6 +36,22 @@
     {% elif status == 'failed' %}
     <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
     {% endif %}
+    {% if mark_state == 'dipakai' %}
+    <span class="chip chip--accent">Dipakai</span>
+    {% elif mark_state == 'arsip' %}
+    <span class="chip chip--warn">Arsip</span>
+    {% endif %}
+    {% if can_mark %}
+    <form method="post" action="/analyses/{{ analysis.id }}/mark">
+      {% if mark_state == 'dipakai' %}
+      <input type="hidden" name="primary" value="0">
+      <button type="submit" class="btn btn--secondary">Batalkan tanda dipakai</button>
+      {% else %}
+      <input type="hidden" name="primary" value="1">
+      <button type="submit" class="btn btn--secondary">Tandai sebagai versi dipakai</button>
+      {% endif %}
+    </form>
+    {% endif %}
     {% if status == 'done' %}
     <div class="action-bar">
       <a href="/analyses/{{ analysis.id }}/explore" class="btn btn--primary">Buka dashboard hasil</a>

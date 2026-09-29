@@ -268,13 +268,13 @@
   <label class="field-label" for="cmp-from">Analisis pertama</label>
   <select id="cmp-from" name="from" class="select-input">
     {% for o in compare_ctx.options %}
-    <option value="{{ o.id }}"{% if o.id == compare_ctx.from_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}</option>
+    <option value="{{ o.id }}"{% if o.id == compare_ctx.from_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}{% if o.mark_label %} · {{ o.mark_label }}{% endif %}</option>
     {% endfor %}
   </select>
   <label class="field-label" for="cmp-to">Analisis kedua</label>
   <select id="cmp-to" name="to" class="select-input">
     {% for o in compare_ctx.options %}
-    <option value="{{ o.id }}"{% if o.id == compare_ctx.to_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}</option>
+    <option value="{{ o.id }}"{% if o.id == compare_ctx.to_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}{% if o.mark_label %} · {{ o.mark_label }}{% endif %}</option>
     {% endfor %}
   </select>
   <div class="field field--toggle">

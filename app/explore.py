@@ -19,6 +19,7 @@ from app.analysis import (
     load_tables,
     paginate,
 )
+from app.analyze import _mark_state, _marked_ids
 from app.auth import _current_user, _gate_closed, templates
 from app.db import get_session
 from app.models import Analysis, Dataset
@@ -552,18 +553,24 @@ def get_explore(
 
     elif render_view == "bandingkan":
         options_stmt = (
-            select(Analysis.id, Analysis.created_at, Dataset.filename)
+            select(Analysis.id, Analysis.dataset_id, Analysis.created_at, Dataset.filename)
             .join(Dataset, Analysis.dataset_id == Dataset.id)
             .where(Analysis.user_id == user.id, Analysis.status == "done")
             .order_by(Analysis.created_at.desc(), Analysis.id.desc())
         )
         done_analyses = db.execute(options_stmt).all()
+        marks = _marked_ids(db, user.id)
         options = [
             {
                 "id": row.id,
+                "dataset_id": row.dataset_id,
                 "dataset_filename": row.filename,
                 "created_at": row.created_at,
                 "created_at_label": datetime.datetime.fromtimestamp(row.created_at).strftime("%Y-%m-%d %H:%M"),
+                "mark_label": {
+                    "dipakai": "Dipakai",
+                    "arsip": "Arsip",
+                }.get(_mark_state(marks, row.dataset_id, row.id), ""),
             }
             for row in done_analyses
         ]
