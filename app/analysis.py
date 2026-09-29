@@ -61,6 +61,10 @@ MISFIT_MIN, MISFIT_MAX = 0.5, 5.0
 DIGITS_MIN, DIGITS_MAX = 1, 4
 MODE_CHOICES = ("compat", "exact")
 
+DELETE_LIST_MAX_BYTES = 2 * 1024 * 1024
+DELETE_LIST_EXTENSIONS = (".txt", ".csv", ".dat")
+DELETE_LIST_NAME_MAX = 120
+
 PARAMS_DEFAULT = {
     "misfit": MISFIT_THRESHOLD_DEFAULT,
     "mode": "compat",
@@ -69,6 +73,7 @@ PARAMS_DEFAULT = {
     "person_order": "misfit",
     "anchors": None,
     "pdfile": None,
+    "idfile": None,
 }
 
 
@@ -111,6 +116,55 @@ def parse_settings_form(form) -> dict:
             raise AnalysisError("Desimal harus berada antara 1 dan 4.")
         params["digits"] = digits
     return params
+
+
+def _looks_binary(text: str) -> bool:
+    """True when decoded text carries the fingerprints of a binary file.
+
+    latin-1 decodes every byte sequence, so the decode loop on its own can never reject a binary
+    upload. A NUL byte, or a run of control characters no numbering list contains, is what tells the
+    two apart.
+    """
+    if "\x00" in text:
+        return True
+    control = sum(1 for ch in text if ord(ch) < 32 and ch not in "\t\n\r\f")
+    return control > max(8, len(text) // 100)
+
+
+def parse_delete_list(filename: str, content: bytes) -> dict:
+    """Validate an uploaded delete list and return the metadata plus decoded text.
+
+    The text is handed to the engine only; it never reaches a log, an error message, or
+    params_json. Raises AnalysisError with Indonesian copy when the upload is unusable.
+    """
+    base = os.path.basename(str(filename).replace("\\", "/"))
+    if os.path.splitext(base)[1].lower() not in DELETE_LIST_EXTENSIONS:
+        raise AnalysisError("Daftar hapus harus berupa berkas teks (.txt, .csv, atau .dat).")
+    if len(content) > DELETE_LIST_MAX_BYTES:
+        raise AnalysisError("Daftar hapus terlalu besar (maksimal 2 MB).")
+
+    text = None
+    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            text = content.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None or _looks_binary(text):
+        raise AnalysisError("Daftar hapus harus berupa teks biasa, bukan berkas biner.")
+
+    rows = sum(1 for line in text.splitlines() if line.strip())
+    if rows == 0:
+        raise AnalysisError("Daftar hapus kosong.")
+
+    return {
+        "name": base[:DELETE_LIST_NAME_MAX],
+        "text": text,
+        "rows": rows,
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "bytes": len(content),
+        "content": content,
+    }
 
 
 class AnalysisError(Exception):
@@ -522,9 +576,29 @@ def ensure_matrix(db: Session, dataset: Dataset) -> bytes:
     return matrix_gzip
 
 
-def run_for_dataset(db: Session, dataset: Dataset, params: dict | None = None) -> Analysis:
-    """Execute analysis for dataset using the in-process engine and persist outputs."""
+def run_for_dataset(
+    db: Session,
+    dataset: Dataset,
+    params: dict | None = None,
+    delete_lists: dict | None = None,
+) -> Analysis:
+    """Execute analysis for dataset using the in-process engine and persist outputs.
+
+    delete_lists optionally carries the parsed pdfile/idfile uploads (see parse_delete_list).
+    Each supplied list is written into the run's temp dir, passed to the engine, and stored as
+    an extra AnalysisFile row; only its metadata is recorded in params_json, never its text.
+    """
     merged = {**PARAMS_DEFAULT, **(params or {})}
+    lists = delete_lists or {}
+    for key in ("pdfile", "idfile"):
+        entry = lists.get(key)
+        if entry is not None:
+            merged[key] = {
+                "name": entry["name"],
+                "sha256": entry["sha256"],
+                "rows": entry["rows"],
+                "bytes": entry["bytes"],
+            }
     matrix_gzip = ensure_matrix(db, dataset)
 
     created = now_epoch()
@@ -551,6 +625,19 @@ def run_for_dataset(db: Session, dataset: Dataset, params: dict | None = None) -
             con_path, prn_path = write_inputs(td, dataset, matrix_gzip)
             del matrix_gzip
 
+            list_paths: dict[str, str] = {}
+            for key, dest_name in (
+                ("pdfile", "pdfile_input.TXT"),
+                ("idfile", "idfile_input.TXT"),
+            ):
+                entry = lists.get(key)
+                if entry is None:
+                    continue
+                dest_path = os.path.join(td, dest_name)
+                with open(dest_path, "wb") as f:
+                    f.write(entry.get("content") or entry["text"].encode("utf-8"))
+                list_paths[key] = os.path.abspath(dest_path)
+
             stdout_buf = io.StringIO()
             stderr_buf = io.StringIO()
             try:
@@ -564,6 +651,8 @@ def run_for_dataset(db: Session, dataset: Dataset, params: dict | None = None) -
                         digits=merged["digits"],
                         lconv=merged.get("lconv"),
                         person_order=merged.get("person_order") or "misfit",
+                        pdfile_path=list_paths.get("pdfile"),
+                        idfile_path=list_paths.get("idfile"),
                     )
             except (SystemExit, Exception) as exc:
                 err_text = stderr_buf.getvalue()
@@ -591,6 +680,25 @@ def run_for_dataset(db: Session, dataset: Dataset, params: dict | None = None) -
                         content_gzip=compressed,
                         sha256=sha,
                         bytes=len(raw_file_bytes),
+                    )
+                )
+
+            for key, stored_name in (
+                ("pdfile", "input_pdfile.TXT"),
+                ("idfile", "input_idfile.TXT"),
+            ):
+                list_path = list_paths.get(key)
+                if list_path is None:
+                    continue
+                with open(list_path, "rb") as f:
+                    raw_list_bytes = f.read()
+                files_to_insert.append(
+                    AnalysisFile(
+                        analysis_id=analysis.id,
+                        filename=stored_name,
+                        content_gzip=gzip.compress(raw_list_bytes, mtime=0.0),
+                        sha256=hashlib.sha256(raw_list_bytes).hexdigest(),
+                        bytes=len(raw_list_bytes),
                     )
                 )
 
