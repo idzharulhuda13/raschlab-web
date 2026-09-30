@@ -99,7 +99,9 @@ def main() -> int:
             )
             return 1
 
-        dataset_id = int(upload_resp.headers["location"].split("/")[-1])
+        # The app appends ?msg=... to its write redirects, so the id has to be
+        # read before the query string, not from the whole tail.
+        dataset_id = int(upload_resp.headers["location"].split("/")[-1].split("?")[0])
 
         commit_resp = client.post(
             f"/datasets/{dataset_id}/commit",
@@ -131,7 +133,7 @@ def main() -> int:
             return 1
 
         location = post_resp.headers["location"]
-        analysis_id = int(location.split("/")[-1])
+        analysis_id = int(location.split("/")[-1].split("?")[0])
 
         get_resp = client.get(location)
         if get_resp.status_code != 200:
