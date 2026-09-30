@@ -33,9 +33,12 @@ from app.export import (
     TABLE_NUMERIC,
     XLSX_MEDIA_TYPE,
     build_xlsx,
+    build_workbook_bytes,
+    place_by_header,
 )
 from app.models import Analysis, AnalysisFile, Dataset, SessionRow, User
 from app.parsers import parse_delimited
+from raschlab.report import ITEM_HEADER_ROW_1, ITEM_HEADER_ROW_2
 from app.ratelimit import _COUNTS
 from app.security import hash_password, hash_token, new_token, now_epoch
 
@@ -572,4 +575,71 @@ def test_export_frekuensi_route(client):
     items_cell = ws.cell(row=10, column=7)
     assert isinstance(nr_person_cell.value, int)
     assert isinstance(items_cell.value, str)
+
+
+def test_place_by_header_keeps_repeated_names_apart():
+    """INFIT/OUTFIT share the labels MNSQ and ZSTD, so order decides, not the name."""
+    engine = ["ENTRY", "TOTAL", "TOTAL", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "ITEM"]
+    stored = ["ENTRY", "TOTAL", "TOTAL", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "ITEM"]
+    row = ["1", "70", "258", "1.00", "-0.01", "1.04", "0.49", "01tbskda26a01"]
+    placed = place_by_header(stored, row, engine)
+    assert placed == dict(enumerate(row))
+    assert placed[3] == "1.00" and placed[5] == "1.04"
+
+
+def test_combined_workbook_places_old_item_columns_by_name():
+    """A stored item table from before SUBSUBTES must not slide under the new header.
+
+    Real case: every analysis stored while the engine pinned 8acd8c9 has 15 item
+    columns with STATUS last. Writing those values positionally under the 16-column
+    header the engine now emits put "kept"/"deleted" under SUBSUBTES.
+    """
+    cut = ITEM_HEADER_ROW_2.index("SUBSUBTES")
+    old_header_1 = [c for i, c in enumerate(ITEM_HEADER_ROW_1) if i != cut]
+    old_header_2 = [c for i, c in enumerate(ITEM_HEADER_ROW_2) if i != cut]
+    old_row = ["1"] * 13 + ["01tbskda26a01", "deleted"]
+
+    old_tables = {"item_table_15.1.csv": [old_header_1, old_header_2, old_row]}
+    wb = openpyxl.load_workbook(io.BytesIO(build_workbook_bytes(None, tables=old_tables)))
+    ws = wb["15.1"]
+    assert [c.value for c in ws[2]][13:16] == ["ITEM", "SUBSUBTES", "STATUS"]
+    assert [c.value for c in ws[3]][13:16] == ["01tbskda26a01", None, "deleted"]
+
+    new_row = ["1"] * 13 + ["01tbskda26a01", "Deretan Bilangan", "kept"]
+    new_tables = {"item_table_15.1.csv": [ITEM_HEADER_ROW_1, ITEM_HEADER_ROW_2, new_row]}
+    wb_new = openpyxl.load_workbook(io.BytesIO(build_workbook_bytes(None, tables=new_tables)))
+    ws_new = wb_new["15.1"]
+    assert [c.value for c in ws_new[3]][13:16] == [
+        "01tbskda26a01", "Deretan Bilangan", "kept",
+    ]
+
+
+def test_place_by_header_falls_back_when_there_is_no_header_row():
+    """No stored header to match means the old positional write, not emptied cells."""
+    row = ["1", "70", "258", "0.42", "0.11"]
+    assert place_by_header([], row, ["ENTRY", "TOTAL", "TOTAL", "MNSQ", "ZSTD"]) == dict(
+        enumerate(row)
+    )
+
+
+def test_export_all_of_an_analysis_stored_before_subsubtes(client):
+    """The whole-workbook route keeps an older file's columns apart too."""
+    user_id, token = _create_user_with_token(client, email="bump-lama@example.test")
+    client.cookies.set(COOKIE_NAME, token)
+
+    cut = ITEM_HEADER_ROW_2.index("SUBSUBTES")
+    old_header_1 = [c for i, c in enumerate(ITEM_HEADER_ROW_1) if i != cut]
+    old_header_2 = [c for i, c in enumerate(ITEM_HEADER_ROW_2) if i != cut]
+    row = ["1"] * 13 + ["01tbskda26a01", "deleted"]
+    item_csv = "".join(",".join(r) + "\r\n" for r in (old_header_1, old_header_2, row))
+    analysis_id = _seed_done(
+        user_id=user_id,
+        filename="butir_lama.csv",
+        files={"item_table_15.1.csv": item_csv},
+    )
+
+    resp = client.get(f"/analyses/{analysis_id}/export?table=semua")
+    assert resp.status_code == 200
+    ws = openpyxl.load_workbook(io.BytesIO(resp.content))["15.1"]
+    assert [c.value for c in ws[3]][13:16] == ["01tbskda26a01", None, "deleted"]
 

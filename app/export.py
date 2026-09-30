@@ -19,6 +19,7 @@ from app.explore import (
 from app.models import Analysis, Dataset
 from app.ratelimit import check_limit, client_ip
 from raschlab.report import (
+    ITEM_HEADER_ROW_2,
     coerce_cell,
     number_format_for_header,
     summary_value_format,
@@ -84,6 +85,38 @@ def build_xlsx(sheet_title: str, rows: list[list[str]], header_rows: int, numeri
     return buf.getvalue()
 
 
+def place_by_header(stored_names: list[str], row: list[str], engine_names: list[str]) -> dict[int, str]:
+    """Map one stored row onto the engine's own column positions, by header name.
+
+    The combined workbook lets the engine write its own item header, and the engine
+    appends rows as ``list(row.values())``, so the dict order IS the column order and
+    every engine column has to be present. Reading positions instead breaks the
+    moment a column is added: after the engine gained SUBSUBTES, an analysis stored
+    before that bump still has STATUS at index 14, and the positional write put
+    "kept"/"deleted" under the SUBSUBTES header. Matching names (repeated names in
+    order, so INFIT/OUTFIT MNSQ stay apart) keeps an older file readable, leaves a
+    column the file does not have empty, and is the identity for a file written by
+    the current engine.
+    """
+    if not stored_names:
+        # No header row to match against: keep the old positional behaviour rather
+        # than dropping every value of the file.
+        return dict(enumerate(row))
+    placed: dict[int, str] = {idx: "" for idx in range(len(engine_names))}
+    used: set[int] = set()
+    for pos, name in enumerate(stored_names):
+        if pos >= len(row):
+            break
+        key = str(name).strip()
+        for idx, engine_name in enumerate(engine_names):
+            if idx in used or engine_name != key:
+                continue
+            placed[idx] = row[pos]
+            used.add(idx)
+            break
+    return placed
+
+
 def build_workbook_bytes(analysis: Analysis, tables: dict[str, list[list[str]]] | None = None) -> bytes:
     """Build the combined 6-sheet XLSX workbook and return its bytes."""
     if tables is None:
@@ -105,7 +138,13 @@ def build_workbook_bytes(analysis: Analysis, tables: dict[str, list[list[str]]] 
     wright_stored = _get_stored("wright")
     freq_stored = _get_stored("frekuensi")
 
-    item_rows = [dict(enumerate(r)) for r in item_stored[HEADER_ROWS["butir"]:]] if item_stored else []
+    # The engine writes its own item header, so the stored values are placed by
+    # header name: an analysis stored before a column was added stays aligned.
+    item_names = item_stored[1] if item_stored and len(item_stored) > 1 else []
+    item_rows = [
+        place_by_header(item_names, r, ITEM_HEADER_ROW_2)
+        for r in (item_stored[HEADER_ROWS["butir"]:] if item_stored else [])
+    ]
     person_rows = [dict(enumerate(r)) for r in person_stored[HEADER_ROWS["responden"]:]] if person_stored else []
     option_rows = [dict(enumerate(r)) for r in option_stored[HEADER_ROWS["opsi"]:]] if option_stored else []
 
