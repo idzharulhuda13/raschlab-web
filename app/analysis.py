@@ -41,7 +41,7 @@ from raschlab.cli import run_analyze
 
 logger = logging.getLogger("app.analysis")
 
-ENGINE_REF = "c41c396"
+ENGINE_REF = "51cbdf7"
 RETENTION_DAYS = 180
 NOTICE_DAYS = 14
 STALE_RUN_S = 900
