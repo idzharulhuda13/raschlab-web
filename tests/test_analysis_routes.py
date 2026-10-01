@@ -3,7 +3,7 @@
 Covers:
 - Upload + commit sample -> POST analyze -> 303 -> GET result page 200.
 - Result page rendering: table headers, misfit order label, decimal comma in measure cells, id_num-formatted thousands.
-- Database state: status == 'done', elapsed_ms > 0, 6 analysis_files rows, engine header prefixes, sha256 validation, 180-day retention window.
+- Database state: status == 'done', elapsed_ms > 0, len(OUTPUT_FILES) analysis_files rows, engine header prefixes, sha256 validation, 180-day retention window.
 - Multi-user isolation: foreign user receives 404 for analysis read and run.
 - Engine failure handling: SystemExit(2) during analysis yields status == 'failed', zero files, and misfit alert with Indonesian error message.
 - Loading state: running row presentation and duplicate run prevention.
@@ -138,7 +138,7 @@ def test_analyze_flow_and_result_page_contract(client: TestClient):
                 select(AnalysisFile).where(AnalysisFile.analysis_id == analysis_id)
             ).all()
         )
-        assert len(files) == 6
+        assert len(files) == len(OUTPUT_FILES)
         file_map = {f.filename: f for f in files}
         assert set(file_map.keys()) == set(OUTPUT_FILES)
 
@@ -149,6 +149,7 @@ def test_analyze_flow_and_result_page_contract(client: TestClient):
             "summary_table.csv": b"SECTION,STATISTIC,VALUE",
             "wright_map_measure.csv": b"MEASURE,NR_PERSON",
             "wright_map_frequency.csv": b"MEASURE,NR_PERSON",
+            "subsubtes_summary.csv": b"SUBSUBTES,ITEMS,ANCHOR_ITEMS",
         }
 
         for filename, expected_header in expected_headers.items():

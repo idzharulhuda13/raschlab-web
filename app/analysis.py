@@ -54,6 +54,7 @@ OUTPUT_FILES = (
     "summary_table.csv",
     "wright_map_measure.csv",
     "wright_map_frequency.csv",
+    "subsubtes_summary.csv",
 )
 
 MISFIT_THRESHOLD_DEFAULT = 1.5
@@ -720,7 +721,7 @@ def run_for_dataset(
 
 
 def load_tables(analysis: Analysis) -> dict[str, list[list[str]]]:
-    """Decompress and parse all six engine CSV output files into table rows."""
+    """Decompress and parse every engine CSV listed in OUTPUT_FILES into table rows."""
     session = object_session(analysis)
     close_session = False
     if session is None:

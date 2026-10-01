@@ -107,7 +107,7 @@ def test_byte_identity_sample_300x40(client: TestClient, tmp_path: Path) -> None
                 select(AnalysisFile).where(AnalysisFile.analysis_id == analysis_id)
             ).all()
         )
-        assert len(files) == 6
+        assert len(files) == len(OUTPUT_FILES)
         platform_files = {f.filename: f for f in files}
         assert set(platform_files.keys()) == set(OUTPUT_FILES)
 
@@ -144,7 +144,7 @@ def test_byte_identity_sample_300x40(client: TestClient, tmp_path: Path) -> None
     ]
     subprocess.run(cmd, check=True)
 
-    # 4. Assert for all six output files that gzip.decompress(platform_bytes) == cli_bytes
+    # 4. Assert for every output file that gzip.decompress(platform_bytes) == cli_bytes
     #    byte-for-byte and that the sha256 values match.
     for filename in OUTPUT_FILES:
         cli_file_path = out_dir / filename

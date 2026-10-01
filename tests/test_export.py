@@ -29,6 +29,7 @@ from app.export import (
     EXPORT_TABLE_NOT_FOUND_MSG,
     HEADER_ROWS,
     SHEET_TITLES,
+    SUBSUBTES_NUMERIC,
     TABLE_KEYS,
     TABLE_NUMERIC,
     XLSX_MEDIA_TYPE,
@@ -642,4 +643,134 @@ def test_export_all_of_an_analysis_stored_before_subsubtes(client):
     assert resp.status_code == 200
     ws = openpyxl.load_workbook(io.BytesIO(resp.content))["15.1"]
     assert [c.value for c in ws[3]][13:16] == ["01tbskda26a01", None, "deleted"]
+
+
+_SUBSUBTES_HEADER = ["SUBSUBTES", "ITEMS", "ANCHOR_ITEMS", "NEW_ITEMS", "MEAN_MEASURE", "S.SD_MEASURE", "MEAN_INFIT", "MAX_INFIT", "MISFIT_ITEMS"]
+_SUBSUBTES_DATA = [
+    ["Deretan Bilangan", "20", "0", "20", "0.42", "0.15", "1.02", "1.60", "1"],
+    ["Logis", "20", "20", "0", "-0.50", "0.10", "0.95", "0.98", "0"],
+]
+
+
+def _files(subsubtes: bool = True) -> dict[str, str]:
+    files = {
+        "item_table_15.1.csv": _csv([
+            _ITEM_HEADER_ROW0,
+            _ITEM_HEADER_ROW1,
+            ["1", "10", "20", "0.10", "0.20", "1.00", "0.0", "1.00", "0.0", "0.50", "0.45", "75.0", "70.0", "Item1"],
+            ["2", "15", "20", "-0.25", "0.22", "0.95", "-0.2", "0.98", "-0.1", "0.45", "0.40", "80.0", "72.0", "Item2"],
+        ]),
+        "person_table.csv": _csv([
+            _PERSON_HEADER_ROW0,
+            _PERSON_HEADER_ROW1,
+            ["1", "10", "12", "0.50", "0.20", "1.00", "0.0", "1.00", "0.0", "0.40", "0.35", "70.0", "65.0", "Person_1"],
+            ["2", "11", "12", "0.60", "0.21", "0.95", "-0.1", "0.98", "-0.1", "0.42", "0.36", "75.0", "68.0", "Person_2"],
+        ]),
+        "option_table_15.3.csv": _csv([
+            ["ENTRY", "DATA", "SCORE", "DATA", "", "ABILITY", "", "S.E.", "INFT", "OUTF", "PTMA", ""],
+            ["NUMBER", "CODE", "VALUE", "COUNT", "%", "ABILITY MEAN", "ABILITY PSD", "SE MEAN", "INFT MNSQ", "OUTF MNSQ", "PTMA CORR", "ITEM"],
+            ["1", "0", "0", "5", "25.0", "-0.40", "0.30", "0.20", "1.05", "1.02", "-0.30", "Item1"],
+            ["1", "1", "1", "15", "75.0", "0.50", "0.35", "0.21", "0.98", "0.96", "0.50", "Item1"],
+        ]),
+        "summary_table.csv": _csv([
+            ["SECTION", "STATISTIC", "VALUE"],
+            ["", "", ""],
+            ["ITEM", "COUNT", "2"],
+            ["ITEM", "MEASURE MEAN", "-0.08"],
+            ["PERSON", "COUNT", "2"],
+            ["PERSON", "MEASURE MEAN", "0.55"],
+        ]),
+        "wright_map_measure.csv": _csv([
+            ["MEASURE", "NR_PERSON", "PERSON_HIST", "NR_ITEM", "ITEMS", "ITEM_HIST", "PERSON_ENTRIES", "ITEM_ENTRIES"],
+            ["", "", "", "", "", "", "PERSON_ENTRIES", "ITEM_ENTRIES"],
+            ["1.00", "1", "#", "0", "", "", "2", ""],
+            ["0.50", "1", "#", "0", "", "", "1", ""],
+            ["0.00", "0", "", "1", "Item1", "#", "", "1"],
+            ["-0.50", "0", "", "1", "Item2", "#", "", "2"],
+        ]),
+        "wright_map_frequency.csv": _csv([
+            ["MEASURE", "NR_PERSON", "NR_PERSON_PRESENT", "PERSON_HIST", "PERSON_FREQ_HIST", "NR_ITEM", "ITEMS", "ITEM_HIST", "PERSON_ENTRIES", "ITEM_ENTRIES"],
+            ["", "", "", "", "", "", "", "", "PERSON_ENTRIES", "ITEM_ENTRIES"],
+            ["1.00", "1", "1", "#", "#", "0", "", "", "2", ""],
+            ["0.50", "1", "1", "#", "#", "0", "", "", "1", ""],
+            ["0.00", "0", "0", "", "", "1", "Item1", "#", "", "1"],
+            ["-0.50", "0", "0", "", "", "1", "Item2", "#", "", "2"],
+        ]),
+    }
+    if subsubtes:
+        files["subsubtes_summary.csv"] = _csv([_SUBSUBTES_HEADER] + _SUBSUBTES_DATA)
+    return files
+
+
+def test_single_sheet_export_of_stored_subsubtes(client: TestClient):
+    user_id, token = _create_user_with_token(client, email="subsubtes_single@example.test")
+    client.cookies.set(COOKIE_NAME, token)
+    analysis_id = _seed_done(user_id=user_id, filename="data_subsubtes.csv", files=_files(subsubtes=True))
+
+    resp = client.get(f"/analyses/{analysis_id}/export?table=subsubtes")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == XLSX_MEDIA_TYPE
+
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    assert wb.sheetnames == ["subsubtes"]
+    ws = wb["subsubtes"]
+
+    assert [cell.value for cell in ws[1]] == _SUBSUBTES_HEADER
+
+    row2 = list(ws[2])
+    assert [c.value for c in row2[:4]] == ["Deretan Bilangan", 20, 0, 20]
+    assert isinstance(row2[0].value, str)
+    assert isinstance(row2[1].value, int)
+    assert isinstance(row2[2].value, int)
+    assert isinstance(row2[3].value, int)
+
+    mean_measure_idx = _SUBSUBTES_HEADER.index("MEAN_MEASURE")
+    mean_measure_cell = row2[mean_measure_idx]
+    assert isinstance(mean_measure_cell.value, float)
+    assert mean_measure_cell.value == 0.42
+
+
+def test_combined_workbook_appends_subsubtes_sheet(client: TestClient):
+    user_id, token = _create_user_with_token(client, email="subsubtes_comb@example.test")
+    client.cookies.set(COOKIE_NAME, token)
+    analysis_id = _seed_done(user_id=user_id, filename="data_subsubtes_comb.csv", files=_files(subsubtes=True))
+
+    resp = client.get(f"/analyses/{analysis_id}/export?table=semua")
+    assert resp.status_code == 200
+
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    assert wb.sheetnames == [
+        "15.1",
+        "person",
+        "15.3",
+        "summary",
+        "wright_measure",
+        "wright_frequency",
+        "subsubtes",
+    ]
+
+    ws = wb["subsubtes"]
+    assert ws.max_row == 3
+    assert ws.cell(row=2, column=1).value == "Deretan Bilangan"
+
+
+def test_combined_workbook_omits_subsubtes_sheet_without_the_file(client: TestClient):
+    user_id, token = _create_user_with_token(client, email="subsubtes_omit@example.test")
+    client.cookies.set(COOKIE_NAME, token)
+    analysis_id = _seed_done(user_id=user_id, filename="data_subsubtes_omit.csv", files=_files(subsubtes=False))
+
+    resp = client.get(f"/analyses/{analysis_id}/export?table=semua")
+    assert resp.status_code == 200
+
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    assert "subsubtes" not in wb.sheetnames
+    assert len(wb.sheetnames) == 6
+    assert wb.sheetnames == [
+        "15.1",
+        "person",
+        "15.3",
+        "summary",
+        "wright_measure",
+        "wright_frequency",
+    ]
 

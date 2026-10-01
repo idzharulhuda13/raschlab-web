@@ -239,8 +239,8 @@ def main() -> int:
 
             print(f"{filename}: platform {platform_sha256}  cli {cli_sha256}  {status}")
 
-        if all_match and len(platform_files) == 6:
-            print("ALL 6 FILES BYTE-IDENTICAL")
+        if all_match and len(platform_files) == len(OUTPUT_FILES):
+            print(f"ALL {len(OUTPUT_FILES)} FILES BYTE-IDENTICAL")
             return 0
         return 1
 

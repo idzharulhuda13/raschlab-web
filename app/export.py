@@ -19,6 +19,7 @@ from app.explore import (
 from app.models import Analysis, Dataset
 from app.ratelimit import check_limit, client_ip
 from raschlab.report import (
+    SUBSUBTES_SUMMARY_COLUMNS,
     ITEM_HEADER_ROW_2,
     coerce_cell,
     number_format_for_header,
@@ -27,15 +28,18 @@ from raschlab.report import (
 )
 from raschlab.wright import FREQ_HEADER_ROW_1, MEASURE_HEADER_ROW_1
 
-TABLE_KEYS = {"butir": "item_table_15.1.csv", "opsi": "option_table_15.3.csv", "responden": "person_table.csv", "ringkasan": "summary_table.csv", "wright": "wright_map_measure.csv", "frekuensi": "wright_map_frequency.csv"}
-HEADER_ROWS = {"butir": 2, "opsi": 2, "responden": 2, "ringkasan": 1, "wright": 2, "bandingkan": 1, "frekuensi": 2}
-SHEET_TITLES = {"butir": "butir", "opsi": "opsi", "responden": "responden", "ringkasan": "ringkasan", "wright": "wright", "bandingkan": "bandingkan", "frekuensi": "frekuensi"}
+TABLE_KEYS = {"butir": "item_table_15.1.csv", "opsi": "option_table_15.3.csv", "responden": "person_table.csv", "ringkasan": "summary_table.csv", "wright": "wright_map_measure.csv", "frekuensi": "wright_map_frequency.csv", "subsubtes": "subsubtes_summary.csv"}
+HEADER_ROWS = {"butir": 2, "opsi": 2, "responden": 2, "ringkasan": 1, "wright": 2, "bandingkan": 1, "frekuensi": 2, "subsubtes": 1}
+SHEET_TITLES = {"butir": "butir", "opsi": "opsi", "responden": "responden", "ringkasan": "ringkasan", "wright": "wright", "bandingkan": "bandingkan", "frekuensi": "frekuensi", "subsubtes": "subsubtes"}
 COMPARE_HEADER = ["Nomor", "Butir", "Measure analisis pertama", "Measure analisis kedua", "Selisih (kedua − pertama)"]
 COMPARE_NUMERIC = {0: "int", 2: "float", 3: "float", 4: "float"}
 SUMMARY_NUMERIC = {2: "summary"}
 WRIGHT_NUMERIC = {0: "raw", 1: "raw", 3: "raw"}
 FREQ_NUMERIC = {0: "float", 1: "int", 2: "int", 5: "int"}
-TABLE_NUMERIC = {"ringkasan": SUMMARY_NUMERIC, "wright": WRIGHT_NUMERIC, "frekuensi": FREQ_NUMERIC}
+# The engine types its own subsubtes sheet from the values, so the same
+# value-driven mode is used here: integers, floats and blanks all survive.
+SUBSUBTES_NUMERIC = {i: "summary" for i in range(len(SUBSUBTES_SUMMARY_COLUMNS))}
+TABLE_NUMERIC = {"ringkasan": SUMMARY_NUMERIC, "wright": WRIGHT_NUMERIC, "frekuensi": FREQ_NUMERIC, "subsubtes": SUBSUBTES_NUMERIC}
 EXPORT_MAX_ROWS = 1_048_000
 EXPORT_MAX_CELLS = 2_500_000
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -118,7 +122,7 @@ def place_by_header(stored_names: list[str], row: list[str], engine_names: list[
 
 
 def build_workbook_bytes(analysis: Analysis, tables: dict[str, list[list[str]]] | None = None) -> bytes:
-    """Build the combined 6-sheet XLSX workbook and return its bytes."""
+    """Build the combined XLSX workbook and return its bytes (plus subsubtes when stored)."""
     if tables is None:
         tables = load_tables(analysis)
 
@@ -137,6 +141,7 @@ def build_workbook_bytes(analysis: Analysis, tables: dict[str, list[list[str]]] 
     summary_stored = _get_stored("ringkasan")
     wright_stored = _get_stored("wright")
     freq_stored = _get_stored("frekuensi")
+    subsubtes_stored = _get_stored("subsubtes")
 
     # The engine writes its own item header, so the stored values are placed by
     # header name: an analysis stored before a column was added stays aligned.
@@ -177,6 +182,7 @@ def build_workbook_bytes(analysis: Analysis, tables: dict[str, list[list[str]]] 
         summary_rows,
         wright_measure_rows=wright_measure_rows,
         wright_frequency_rows=wright_frequency_rows,
+        subsubtes_rows=(subsubtes_stored[HEADER_ROWS["subsubtes"]:] if subsubtes_stored else None),
     )
     return buf.getvalue()
 

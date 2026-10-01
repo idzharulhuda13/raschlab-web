@@ -164,7 +164,7 @@
   <h2>Rekap Responden</h2>
   <div class="action-bar">
     <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=ringkasan" aria-label="Unduh Excel rekap ringkasan">Unduh Excel</a>
-    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=semua" aria-label="Unduh semua tabel analisis {{ analysis.id }} {{ dataset.filename }} (satu berkas, 6 sheet)">Unduh semua (satu berkas, 6 sheet)</a>
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=semua" aria-label="Unduh semua tabel analisis {{ analysis.id }} {{ dataset.filename }} (satu berkas, semua sheet)">Unduh semua (satu berkas, semua sheet)</a>
   </div>
   <div class="header-pairs">
     <div class="def-row">
@@ -196,6 +196,50 @@
       <span class="def-value mono">{{ rekap.get('COUNTS DELETED', '-') | id_num }}</span>
     </div>
   </div>
+</section>
+<section class="band" id="subsubtes">
+  <h2>Ringkasan Sub-Subtes</h2>
+  {% if subsubtes_rows %}
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=subsubtes" aria-label="Unduh Excel ringkasan sub-subtes">Unduh Excel</a>
+  </div>
+  <div class="table-scroll">
+    <table class="data-table">
+      <caption class="table-caption">Ringkasan {{ subsubtes_rows | length | id_num }} sub-subtes, sesuai urutan kemunculan pada butir.</caption>
+      <thead>
+        <tr>
+          {% for col in subsubtes_headers[0] %}
+          <th scope="col" class="mono">{{ col }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in subsubtes_rows %}
+        <tr>
+          {% for cell in row %}
+          {% if loop.index0 == 0 %}
+          <td class="mono">{{ cell }}</td>
+          {% else %}
+          <td class="num-col mono">{{ cell | id_num }}</td>
+          {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif subsubtes_headers %}
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=subsubtes" aria-label="Unduh Excel ringkasan sub-subtes">Unduh Excel</a>
+  </div>
+  <div class="alert alert--info" role="status">
+    <p>Data ini tidak memuat kode sub-subtes pada label butir, jadi ringkasan per sub-subtes kosong. Analisis tetap lengkap; tabel ini terisi otomatis bila label butir memuat kode sub-subtes.</p>
+  </div>
+  {% else %}
+  <div class="alert alert--info" role="status">
+    <p>Analisis ini dijalankan sebelum mesin menulis ringkasan sub-subtes, jadi rinciannya belum tersimpan. Jalankan ulang analisis untuk melihatnya.</p>
+  </div>
+  {% endif %}
 </section>
 
 <section class="band">

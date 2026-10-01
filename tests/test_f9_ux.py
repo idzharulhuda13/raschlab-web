@@ -80,6 +80,7 @@ def _build_test_files(item_rows_extra: list[list[str]] | None = None) -> dict[st
         "summary_table.csv": _csv([["PERSON", "COUNT", "30"], ["ITEM", "COUNT", "3"]]),
         "wright_map_measure.csv": _csv([_WRIGHT_HEADER_ROW0, _WRIGHT_HEADER_ROW1] + _WRIGHT_DATA_ROWS),
         "wright_map_frequency.csv": _csv([_WRIGHT_HEADER_ROW0, _WRIGHT_HEADER_ROW1] + _WRIGHT_DATA_ROWS),
+        "subsubtes_summary.csv": _csv([["SUBSUBTES", "ITEMS", "ANCHOR_ITEMS", "NEW_ITEMS", "MEAN_MEASURE", "S.SD_MEASURE", "MEAN_INFIT", "MAX_INFIT", "MISFIT_ITEMS"]]),
     }
 
 def _seed_f9(

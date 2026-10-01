@@ -281,8 +281,8 @@ when it is a single character present in the effective alphabet: the honoured `C
 generated `analyze.CON`, so the engine's validity and our check cannot disagree. Cells outside it stay missing.
 
 **`GET /analyses/{id}/export` accepts one more table key: `semua`**, a single XLSX whose sheets are named like
-the engine's own workbook (`15.1`, `person`, `15.3`, `summary`, `wright_measure`, `wright_frequency`). It obeys
-the same caps (`EXPORT_MAX_ROWS`, `EXPORT_MAX_CELLS`, measured as the sum over the six tables) and the same rate
+the engine's own workbook (`15.1`, `person`, `15.3`, `summary`, `wright_measure`, `wright_frequency`), plus `subsubtes` when the run stored it. It obeys
+the same caps (`EXPORT_MAX_ROWS`, `EXPORT_MAX_CELLS`, measured as the sum over the sheets actually written) and the same rate
 limit: 413 with the real numbers, 429 with `Retry-After`. Any other unknown key keeps the 404, and every
 existing per-table key and its output are unchanged.
 
@@ -341,7 +341,7 @@ Table constraints: `UNIQUE (analysis_id, filename)`.
 
 ### Output files (`OUTPUT_FILES`)
 
-The engine produces six authoritative output files stored verbatim as deterministic gzip bytes:
+The engine produces these authoritative output files stored verbatim as deterministic gzip bytes:
 
 ```python
 OUTPUT_FILES = (
@@ -351,6 +351,7 @@ OUTPUT_FILES = (
     "summary_table.csv",
     "wright_map_measure.csv",
     "wright_map_frequency.csv",
+    "subsubtes_summary.csv",
 )
 ```
 
@@ -665,6 +666,7 @@ itself to the current search or page would be a silent truncation, and the store
 | `wright` | `wright_map_measure.csv` | `wright` | 2 |
 | `frekuensi` | `wright_map_frequency.csv` | `frekuensi` | 2 |
 | `bandingkan` | derived from two `item_table_15.1.csv` | `bandingkan` | 1 |
+| `subsubtes` | `subsubtes_summary.csv` | `subsubtes` | 1 |
 
 `frekuensi` is the one key whose table no page renders: it is the engine's equal-frequency view of the same map,
 stored for every run and reachable nowhere else, so the download is the only way it leaves the web. The wright panel

@@ -553,6 +553,9 @@ def get_analysis(
                 k = f"{row[0]} {row[1]}".strip()
                 rekap[k] = row[2]
 
+        stored_subsubtes = tables.get("subsubtes_summary.csv", [])
+        # ponytail: ceiling is one row per sub-subtes (7 known codes); the upgrade path is paginate() if labels ever yield more groups than RENDER_PAGE.
+
         context.update(
             {
                 "n_misfit": n_misfit,
@@ -571,6 +574,9 @@ def get_analysis(
                 "summary_headers": summary_headers,
                 "summary_rows": summary_rows,
                 "rekap": rekap,
+                "subsubtes_headers": stored_subsubtes[:1],
+                "subsubtes_rows": stored_subsubtes[1:],
+                "subsubtes_missing": not stored_subsubtes,
                 "page_item": item_paged.page,
                 "page_option": option_paged.page,
                 "page_person": person_paged.page,
