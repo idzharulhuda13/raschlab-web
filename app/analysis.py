@@ -66,6 +66,9 @@ DELETE_LIST_MAX_BYTES = 2 * 1024 * 1024
 DELETE_LIST_EXTENSIONS = (".txt", ".csv", ".dat")
 DELETE_LIST_NAME_MAX = 120
 
+ANCHOR_MAX_BYTES = 64 * 1024
+ANCHOR_MAX_LINES = 5000
+
 PARAMS_DEFAULT = {
     "misfit": MISFIT_THRESHOLD_DEFAULT,
     "mode": "compat",
@@ -165,6 +168,94 @@ def parse_delete_list(filename: str, content: bytes) -> dict:
         "sha256": hashlib.sha256(content).hexdigest(),
         "bytes": len(content),
         "content": content,
+    }
+
+
+def parse_anchors(filename: str, content: bytes, item_labels: list[str]) -> dict:
+    """Validate an uploaded anchor file and return the anchor map.
+
+    Accepted lines, mixed freely in one file:
+      - "<nomor_butir> <nilai>": 1-based item position in the built matrix;
+      - "<nama_butir> <nilai>": item label as it appears in the dataset columns.
+    Blank lines and lines starting with # are skipped. Extra tokens after the value are ignored
+    (engine parity). A line whose first token is an integer is always read as a position.
+    Precedence: label lines are applied first, then position lines, so a position line wins when both
+    name the same item; within one form the LAST line wins. Values must be finite numbers.
+    The returned map is the record used to rebuild the engine anchor file for a re-run, so the anchor
+    values are stored together with the analysis. Raises AnalysisError with Indonesian copy when the
+    upload is unusable.
+    """
+    base = os.path.basename(str(filename).replace("\\", "/"))
+    if len(content) > ANCHOR_MAX_BYTES:
+        raise AnalysisError("Berkas jangkar terlalu besar (maksimal 64 KB).")
+
+    text = None
+    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            text = content.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None or _looks_binary(text):
+        raise AnalysisError("Berkas jangkar harus berupa teks biasa, bukan berkas biner.")
+    if not text.strip():
+        raise AnalysisError("Berkas jangkar kosong.")
+    if len(text.splitlines()) > ANCHOR_MAX_LINES:
+        raise AnalysisError("Berkas jangkar terlalu banyak baris (maksimal 5000 baris).")
+
+    n_items = len(item_labels)
+    by_label: dict[int, float] = {}
+    by_position: dict[int, float] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            raise AnalysisError(
+                f"Baris jangkar '{line}' tidak lengkap: butuh nomor atau nama butir lalu nilai jangkar."
+            )
+        is_position = re.fullmatch(r"[+-]?\d+", parts[0]) is not None
+        if is_position:
+            position = int(parts[0])
+            if position < 1 or position > n_items:
+                raise AnalysisError(f"Nomor butir {position} di luar rentang 1 sampai {n_items}.")
+            value_token = parts[1]
+        else:
+            label = None
+            for width in range(len(parts) - 1, 0, -1):
+                candidate = " ".join(parts[:width])
+                if candidate in item_labels:
+                    label, value_token = candidate, parts[width]
+                    break
+            if label is None:
+                raise AnalysisError(
+                    f"Nama butir '{' '.join(parts[:-1])}' tidak ada pada kolom butir dataset."
+                )
+            if item_labels.count(label) > 1:
+                raise AnalysisError(f"Nama butir '{label}' ganda pada kolom butir; pakai nomor butir.")
+            position = item_labels.index(label) + 1
+        try:
+            value = float(value_token)
+        except ValueError:
+            raise AnalysisError(f"Nilai jangkar '{value_token}' pada baris '{line}' bukan angka.")
+        if not math.isfinite(value):
+            raise AnalysisError(f"Nilai jangkar '{value_token}' pada baris '{line}' bukan angka.")
+        if is_position:
+            by_position[position] = value
+        else:
+            by_label[position] = value
+
+    anchors = {**by_label, **by_position}
+    if not anchors:
+        raise AnalysisError("Tidak ada baris jangkar yang dapat dibaca.")
+    from_position = sum(1 for position in by_position if position in anchors)
+    return {
+        "name": base[:DELETE_LIST_NAME_MAX],
+        "requested": len(anchors),
+        "anchors": anchors,
+        "by_position": from_position,
+        "by_label": len(anchors) - from_position,
     }
 
 
@@ -462,6 +553,25 @@ def build_matrix_gzip(
     return gzip.compress(json.dumps(container).encode("utf-8"), mtime=0.0)
 
 
+def effective_item_labels(dataset: Dataset) -> list[str]:
+    """Return the item labels the engine will see, one entry per item column.
+
+    The order is the dataset item-column order and the list always holds exactly
+    dataset.n_items entries; a missing or blank label falls back to I<nn>.
+    """
+    raw_labels = json.loads(dataset.item_labels_json) if dataset.item_labels_json else []
+    lbl_lines = []
+    for i in range(dataset.n_items):
+        if i < len(raw_labels) and raw_labels[i] is not None:
+            lbl = str(raw_labels[i]).replace("\r\n", " ").replace("\n", " ").replace("\r", " ").strip()
+        else:
+            lbl = f"I{i+1:02d}"
+        if not lbl:
+            lbl = f"I{i+1:02d}"
+        lbl_lines.append(lbl)
+    return lbl_lines
+
+
 def write_inputs(
     tmp_dir: str | os.PathLike, dataset: Dataset, matrix_gzip: bytes
 ) -> tuple[str, str]:
@@ -476,16 +586,7 @@ def write_inputs(
     with open(data_path, "w", encoding="utf-8") as f:
         f.write(f"{prn_text}\n")
 
-    raw_labels = json.loads(dataset.item_labels_json) if dataset.item_labels_json else []
-    lbl_lines = []
-    for i in range(dataset.n_items):
-        if i < len(raw_labels) and raw_labels[i] is not None:
-            lbl = str(raw_labels[i]).replace("\r\n", " ").replace("\n", " ").replace("\r", " ").strip()
-        else:
-            lbl = f"I{i+1:02d}"
-        if not lbl:
-            lbl = f"I{i+1:02d}"
-        lbl_lines.append(lbl)
+    lbl_lines = effective_item_labels(dataset)
 
     lbl_path = os.path.join(tmp_dir, "items.lbl")
     with open(lbl_path, "w", encoding="utf-8") as f:
@@ -588,6 +689,10 @@ def run_for_dataset(
     delete_lists optionally carries the parsed pdfile/idfile uploads (see parse_delete_list).
     Each supplied list is written into the run's temp dir, passed to the engine, and stored as
     an extra AnalysisFile row; only its metadata is recorded in params_json, never its text.
+    params may carry an "anchors" entry (see parse_anchors): it is validated here, written into
+    the run's temp dir, handed to the engine, and its requested/used counts are recorded in
+    params_json. Anchors deleted by the item delete list are dropped by the engine, so "used"
+    counts only the anchors the engine really applies.
     """
     merged = {**PARAMS_DEFAULT, **(params or {})}
     lists = delete_lists or {}
@@ -600,6 +705,39 @@ def run_for_dataset(
                 "rows": entry["rows"],
                 "bytes": entry["bytes"],
             }
+    anchors_map: dict[int, float] = {}
+    stored_anchors = merged.get("anchors")
+    if stored_anchors is not None:
+        invalid = "Struktur jangkar tersimpan tidak valid. Jalankan ulang tanpa jangkar."
+        if not isinstance(stored_anchors, dict) or not isinstance(stored_anchors.get("anchors"), dict):
+            raise AnalysisError(invalid)
+        for raw_position, raw_value in stored_anchors["anchors"].items():
+            try:
+                position = int(raw_position)
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                raise AnalysisError(invalid)
+            if position < 1 or position > dataset.n_items:
+                raise AnalysisError(invalid)
+            if not math.isfinite(value):
+                raise AnalysisError(invalid)
+            anchors_map[position] = value
+        if not anchors_map:
+            stored_anchors = None
+        else:
+            deleted_items = set()
+            idfile_entry = lists.get("idfile")
+            if idfile_entry is not None:
+                for token in str(idfile_entry.get("text") or "").split():
+                    if re.fullmatch(r"[+-]?\d+", token):
+                        deleted_items.add(int(token))
+            stored_anchors = {
+                **stored_anchors,
+                "requested": len(anchors_map),
+                "used": sum(1 for position in anchors_map if position not in deleted_items),
+            }
+        merged["anchors"] = stored_anchors
+
     matrix_gzip = ensure_matrix(db, dataset)
 
     created = now_epoch()
@@ -639,6 +777,14 @@ def run_for_dataset(
                     f.write(entry.get("content") or entry["text"].encode("utf-8"))
                 list_paths[key] = os.path.abspath(dest_path)
 
+            anchors_path = None
+            if anchors_map:
+                anchors_dest = os.path.join(td, "anchors_input.TXT")
+                with open(anchors_dest, "w", encoding="utf-8") as f:
+                    for position in sorted(anchors_map):
+                        f.write(f"{position} {anchors_map[position]}\n")
+                anchors_path = os.path.abspath(anchors_dest)
+
             stdout_buf = io.StringIO()
             stderr_buf = io.StringIO()
             try:
@@ -654,6 +800,7 @@ def run_for_dataset(
                         person_order=merged.get("person_order") or "misfit",
                         pdfile_path=list_paths.get("pdfile"),
                         idfile_path=list_paths.get("idfile"),
+                        anchors_path=anchors_path,
                     )
             except (SystemExit, Exception) as exc:
                 err_text = stderr_buf.getvalue()

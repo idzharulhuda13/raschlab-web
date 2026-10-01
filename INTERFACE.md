@@ -316,7 +316,7 @@ for the honoured-directives block, `chip` and `chip-row` for the presets.
 | `user_id` | INTEGER | Foreign key referencing users(id) with CASCADE deletion, indexed (`ix_analyses_user_id`) (FROZEN). |
 | `dataset_id` | INTEGER | Foreign key referencing datasets(id) with CASCADE deletion, indexed (`ix_analyses_dataset_id`) (FROZEN). |
 | `status` | TEXT | Analysis execution state: `queued`, `running`, `done`, or `failed` (FROZEN). |
-| `params_json` | TEXT | JSON object of analysis parameters (`mode`, `digits`, `lconv`, `person_order`, `anchors`, `pdfile`, and from F12 `misfit` = the INFIT MNSQ threshold that flags a misfitting item) (FROZEN). |
+| `params_json` | TEXT | JSON object of analysis parameters (`mode`, `digits`, `lconv`, `person_order`, `anchors`, `pdfile`, and from F12 `misfit` = the INFIT MNSQ threshold that flags a misfitting item; from F19 `anchors` = `{name, requested, used, anchors {position: value}, by_position, by_label}` for the optional item-anchor upload, where `used` counts the anchors the engine really applied after the item delete list dropped some) (FROZEN). |
 | `engine_ref` | TEXT | Git commit hash reference of the pinned raschlab engine (FROZEN). |
 | `error` | TEXT | Indonesian error message string if analysis execution failed, nullable (FROZEN). |
 | `elapsed_ms` | INTEGER | Total engine execution time in milliseconds, nullable (FROZEN). |

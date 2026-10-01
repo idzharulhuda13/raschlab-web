@@ -64,6 +64,20 @@
       <p class="field-hint">Nomor baris butir yang dikeluarkan sebelum penilaian, dalam format daftar hapus mesin. Maksimal 2 MB. Isi berkasnya tidak disimpan di pengaturan; yang dicatat hanya nama, jumlah baris, dan sidik jarinya.</p>
     </div>
 
+    <div class="field">
+      <label for="anchors" class="field-label">Jangkar butir (opsional)</label>
+      <input type="file" id="anchors" name="anchors" accept=".txt,.csv,.dat" class="field-input">
+      <p class="field-hint">Satu baris per butir: nomor butir (1 sampai jumlah butir) atau nama kolom butir, lalu nilai jangkarnya berupa angka. Boleh dicampur dalam satu berkas. Maksimal 64 KB dan 5000 baris. Berbeda dengan daftar hapus, nilai jangkarnya disimpan bersama analisis ini supaya bisa dipakai ulang tanpa mengunggah ulang.</p>
+    </div>
+
+    {% if inherit_anchors_id %}
+    <div class="field field--toggle">
+      <input type="checkbox" id="inherit_anchors" name="inherit_anchors" value="{{ inherit_anchors_id }}" checked>
+      <label class="field-label" for="inherit_anchors">Bawa jangkar dari analisis sebelumnya</label>
+      <p class="field-hint">Berkas jangkar: <span class="mono">{{ params.anchors.name }}</span> ({{ params.anchors.requested | id_num }} butir). Hilangkan centang untuk analisis tanpa jangkar; mengunggah berkas baru menimpa pilihan ini.</p>
+    </div>
+    {% endif %}
+
     <button type="submit" class="btn btn--primary">Jalankan Analisis</button>
   </form>
 

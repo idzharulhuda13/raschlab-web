@@ -105,6 +105,7 @@
     <input type="hidden" name="misfit" value="{{ params.get('misfit', 1.5) }}">
     <input type="hidden" name="mode" value="{{ params.get('mode', 'compat') }}">
     <input type="hidden" name="digits" value="{{ params.get('digits', 2) }}">
+    {% if anchor_band %}<input type="hidden" name="inherit_anchors" value="{{ analysis.id }}">{% endif %}
     <button type="submit" class="btn btn--primary">Jalankan Ulang</button>
   </form>
 </section>
@@ -114,6 +115,21 @@
   <div class="alert alert--warn" role="status">
     <strong>Hasil Tanpa Jangkar (Unanchored)</strong>
     <p>Analisis untuk berkas <span class="mono">{{ dataset.filename }}</span> berjalan tanpa jangkar, jadi titik nol skala dihitung dari data Anda sendiri, bukan dari acuan luar. Sebagai gambaran selisihnya: dibandingkan acuan Winsteps tersimpan pada matriks TBS 147 butir, measure tanpa jangkar berbeda rata-rata {{ '0.0013' | id_num }} dan maksimum {{ '0.0105' | id_num }} logit setelah titik nol disamakan. Angka itu berlaku untuk matriks pembanding tersebut, bukan jaminan untuk setiap data.</p>
+  </div>
+</section>
+{% endif %}
+{% if anchor_band and anchor_band.used == 0 %}
+<section class="band">
+  <div class="alert alert--warn" role="status">
+    <p>Berkas jangkar <span class="mono">{{ anchor_band.name }}</span>: {{ anchor_band.requested | id_num }} diminta, {{ anchor_band.used | id_num }} dipakai, karena semua butir jangkarnya ikut terhapus dari matriks lewat daftar hapus butir. Analisis ini berjalan tanpa jangkar.</p>
+  </div>
+</section>
+{% endif %}
+{% if anchor_band and anchor_band.used > 0 %}
+<section class="band">
+  <div class="alert alert--info" role="status">
+    <strong>Jangkar Aktif (Anchored)</strong>
+    <p>Analisis untuk berkas <span class="mono">{{ dataset.filename }}</span> berjalan dengan jangkar: {{ anchor_band.used | id_num }} butir dikunci pada nilai dari berkas <span class="mono">{{ anchor_band.name }}</span>.{% if anchor_band.used < anchor_band.requested %} Dari {{ anchor_band.requested | id_num }} jangkar yang diminta, {{ anchor_band.used | id_num }} dipakai; sisanya gugur karena butirnya ikut terhapus dari matriks lewat daftar hapus butir.{% endif %}</p>
   </div>
 </section>
 {% endif %}

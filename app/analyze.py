@@ -26,12 +26,14 @@ from app.analysis import (
     RETENTION_DAYS,
     STALE_RUN_S,
     AnalysisError,
+    effective_item_labels,
     format_threshold,
     id_num,
     latest_done_analysis,
     load_tables,
     mark_analysis,
     paginate,
+    parse_anchors,
     parse_delete_list,
     parse_settings_form,
     retention_sweep,
@@ -179,6 +181,56 @@ def _delete_lists_from_params(params: Any) -> list[dict[str, Any]]:
     return lists
 
 
+def _inherited_anchors(db: Session, dataset: Dataset, raw_id: str | None) -> dict | None:
+    """Read the anchor block of an earlier analysis of the same dataset, when it is usable.
+
+    Anything unexpected (missing row, foreign dataset, unreadable params, no anchor map) yields
+    None, so a run without an explicit anchor upload stays unanchored exactly as before.
+    """
+    if raw_id is None:
+        return None
+    try:
+        earlier_id = int(str(raw_id).strip())
+    except (TypeError, ValueError):
+        return None
+    earlier = db.scalar(
+        select(Analysis).where(Analysis.id == earlier_id, Analysis.dataset_id == dataset.id)
+    )
+    if earlier is None or not earlier.params_json:
+        return None
+    try:
+        params = json.loads(earlier.params_json)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(params, dict):
+        return None
+    entry = params.get("anchors")
+    if isinstance(entry, dict) and isinstance(entry.get("anchors"), dict) and entry["anchors"]:
+        return entry
+    return None
+
+
+def _anchor_band(anchors: Any) -> dict | None:
+    """Shape the stored anchor block for the result page, or None when there is nothing to show.
+
+    A legacy row without the key, a None, or a malformed entry yields None so the page stays as it
+    was; the count of anchors that survived the run is clamped to the requested count.
+    """
+    if not isinstance(anchors, dict):
+        return None
+    name = anchors.get("name")
+    if not isinstance(name, str) or not name.strip():
+        return None
+    try:
+        requested = int(anchors.get("requested"))
+        used = int(anchors.get("used", requested))
+    except (TypeError, ValueError):
+        return None
+    if requested < 1:
+        return None
+    return {"name": name, "requested": requested, "used": min(max(used, 0), requested)}
+
+
 def _marked_ids(db: Session, user_id: int) -> dict[int, int]:
     """Map each of a user's datasets to the id of the analysis marked as the version in use.
 
@@ -281,10 +333,16 @@ def get_analysis_settings(
             if isinstance(stored, dict):
                 params.update({k: v for k, v in stored.items() if v is not None})
 
+    inherit_anchors_id = None
+    inherited_entry = params.get("anchors")
+    if newest is not None and isinstance(inherited_entry, dict) and inherited_entry.get("anchors"):
+        inherit_anchors_id = newest.id
+
     context = _build_dataset_context(request, user, dataset)
     context.update(
         {
             "params": params,
+            "inherit_anchors_id": inherit_anchors_id,
             "misfit_input": f"{float(params['misfit']):.2f}",
             "submitted": None,
             "defaults": {
@@ -309,6 +367,8 @@ def post_dataset_analyze(
     digits: str | None = Form(None),
     pdfile: UploadFile | None = File(None),
     idfile: UploadFile | None = File(None),
+    anchors: UploadFile | None = File(None),
+    inherit_anchors: str | None = Form(None),
 ):
     if _gate_closed():
         return RedirectResponse("/", status_code=303)
@@ -358,6 +418,21 @@ def post_dataset_analyze(
             delete_lists[key] = parse_delete_list(filename, upload.file.read())
         except AnalysisError as exc:
             return settings_error(str(exc))
+
+    anchors_entry = None
+    if anchors is not None:
+        anchor_name = (anchors.filename or "").strip()
+        if anchor_name:
+            try:
+                anchors_entry = parse_anchors(
+                    anchor_name, anchors.file.read(), effective_item_labels(dataset)
+                )
+            except AnalysisError as exc:
+                return settings_error(str(exc))
+    if anchors_entry is None and inherit_anchors:
+        anchors_entry = _inherited_anchors(db, dataset, inherit_anchors)
+    if anchors_entry is not None:
+        params["anchors"] = anchors_entry
 
     allowed, retry_after = check_limit(
         f"analyze:{client_ip(request)}:{user.id}", 12, 3600
@@ -485,6 +560,7 @@ def get_analysis(
     params = json.loads(analysis.params_json) if analysis.params_json else {}
     misfit_threshold = float(params.get("misfit", MISFIT_THRESHOLD_DEFAULT))
     anchors = params.get("anchors")
+    anchor_band = _anchor_band(anchors)
     marks = _marked_ids(db, user.id)
     context: dict[str, Any] = {
         "user": user,
@@ -501,7 +577,9 @@ def get_analysis(
         "delete_lists": _delete_lists_from_params(params),
         "misfit_threshold": format_threshold(misfit_threshold),
         "anchors": anchors,
-        "is_anchored": bool(anchors),
+        "anchor_band": anchor_band,
+        "is_anchored": bool(anchors)
+        and not (anchor_band is not None and anchor_band["used"] == 0),
         "mark_state": _mark_state(marks, dataset.id, analysis.id),
         "can_mark": analysis.user_id == user.id,
     }
