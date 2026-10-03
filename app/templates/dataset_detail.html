@@ -406,7 +406,7 @@
   <a href="/datasets/{{ dataset.id }}/analysis-settings" class="btn btn--primary">Jalankan Analisis Rasch</a>
   {% if latest_analysis %}
   <p>
-    <a href="/analyses/{{ latest_analysis.id }}" class="btn btn--secondary">Lihat hasil analisis terakhir</a>
+    <a href="/analyses/{{ latest_analysis.id }}/explore" class="btn btn--secondary">Lihat hasil analisis terakhir</a>
     {% if latest_analysis.status == 'done' %}
     <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
     {% elif latest_analysis.status in ('running', 'queued') %}

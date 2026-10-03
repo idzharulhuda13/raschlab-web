@@ -120,11 +120,13 @@ def test_large_dataset_analysis_pages_stay_inside_the_byte_budget(client: TestCl
 
     for path in (
         f"/analyses/{analysis_id}",
-        f"/analyses/{analysis_id}?page_person=2",
         f"/analyses/{analysis_id}/explore?view=wright",
         f"/analyses/{analysis_id}/explore?view=butir",
         f"/analyses/{analysis_id}/explore?view=partisipan",
         f"/analyses/{analysis_id}/explore?view=ringkasan",
+        f"/analyses/{analysis_id}/explore?view=opsi",
+        f"/analyses/{analysis_id}/explore?view=subsubtes",
+        f"/analyses/{analysis_id}/explore?view=tabulasi",
     ):
         resp = client.get(path)
         assert resp.status_code == 200, path
@@ -133,8 +135,8 @@ def test_large_dataset_analysis_pages_stay_inside_the_byte_budget(client: TestCl
     # Server-side pagination stays the mechanism: every page of the person table is
     # rendered on demand, and no page can approach the byte budget.
     for page_no in (1, 2):
-        page = client.get(f"/analyses/{analysis_id}?page_person={page_no}")
+        page = client.get(f"/analyses/{analysis_id}/explore?view=partisipan&page_person={page_no}")
         assert page.status_code == 200
         assert len(page.content) < PAGE_BYTE_BUDGET
-    first = client.get(f"/analyses/{analysis_id}?page_person=1").text
+    first = client.get(f"/analyses/{analysis_id}/explore?view=partisipan&page_person=1").text
     assert f"page_person=2" in first, "pagination control missing for a multi-page person table"

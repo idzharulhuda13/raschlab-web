@@ -214,7 +214,7 @@ APP_ENV=prod .venv/bin/python -c "from app.main import app; print([r.path for r 
 | `/analyses` | GET | Lists user's finished analyses (newest first). Unauthenticated redirects to `/login` (303); renders `analyses.html` (200). |
 | `/datasets/{id}/analyze` | POST | Triggers Rasch analysis on a ready dataset. Closed gate redirects to `/` (303); unauthenticated redirects to `/login` (303); non-owner returns 404; dataset status not ready redirects to `/datasets/{id}` (303); rate-limited to 12 per hour per IP/user (429 with `Retry-After`); double-submit guard redirects to active running analysis (303) if started within `STALE_RUN_S` (900 s); synchronous thread execution runs engine; on `AnalysisError` before analysis record creation, renders `dataset_detail.html` (422) with Indonesian error message; on success, redirects to `/analyses/{id}` (303). **F12 form fields** `misfit`, `mode`, `digits` (all optional: an absent or empty field means the default) are validated by `parse_settings_form` **before** the rate limit is consulted; invalid input re-renders `analysis_settings.html` (422) with the submitted values and the Indonesian error copy. |
 | `/datasets/{id}/analysis-settings` | GET | The settings step (F12). Same gate/user/owner checks as the POST; a dataset whose status is not `ready` redirects to `/datasets/{id}` (303); renders `analysis_settings.html` (200) prefilled from the dataset's newest analysis row merged over the defaults, so a user who has never configured anything sees pure defaults. |
-| `/analyses/{id}` | GET | Displays analysis view or progress state. Closed gate or unauthenticated returns 404; non-owner returns 404; stale running or queued analyses older than `STALE_RUN_S` (900 s) flip to `failed` status with retry option; renders `analysis.html` (200) for running (in-progress notice), failed (error alert with retry form), and done (four output tables, respondent recap, metadata) states. |
+| `/analyses/{id}` | GET | Displays analysis view or progress state. Closed gate or unauthenticated returns 404; non-owner returns 404; stale running or queued analyses older than `STALE_RUN_S` (900 s) flip to `failed` status with retry option; status `done` returns a **303 redirect to `/analyses/{id}/explore`** with the query string preserved (F20: the dashboard is the single reading surface), so this route renders `analysis.html` (200) only for running (in-progress notice) and failed (error alert with retry form) states. |
 
 ### Analysis settings (F12, FROZEN)
 
@@ -402,8 +402,8 @@ Reading this as: an analysis explorer for a psychometrician reviewing one finish
 
 | Parameter | Values | Behaviour |
 |---|---|---|
-| `view` | `wright`, `butir`, `partisipan`, `ringkasan`, `bandingkan` | Selects the active panel. Absent → `wright`. Unknown → `wright`. |
-| `fragment` | `butir`, `partisipan`, `ringkasan`, `bandingkan` | Absent → full page. Present → panel fragment only. `wright` or any unknown value → 404 (the Wright panel is always server-rendered with its payload). |
+| `view` | `wright`, `butir`, `partisipan`, `ringkasan`, `opsi`, `subsubtes`, `tabulasi`, `bandingkan` | Selects the active panel. Absent → `wright`. Unknown → `wright`. |
+| `fragment` | `butir`, `partisipan`, `ringkasan`, `opsi`, `subsubtes`, `tabulasi`, `bandingkan` | Absent → full page. Present → panel fragment only. `wright` or any unknown value → 404 (the Wright panel is always server-rendered with its payload). |
 | `q_item` | free text | Case-insensitive substring over the item table's ENTRY and ITEM label. Absent/empty → no filter. |
 | `q_person` | free text | Case-insensitive substring over the person table's identifier and entry columns. Absent/empty → no filter. |
 | `page_item` | positive integer | Item table page, default 1, via the existing `paginate()` / `RENDER_PAGE` contract. |
@@ -740,11 +740,46 @@ Measured through this writer path: 687.540 cells -> 10,3 s / 76,5 MiB / 2,29 MB;
 
 | page | keys and anchors |
 |---|---|
-| `/analyses/{id}` | `ringkasan` under `Rekap Responden`, `butir` under `Tabel Butir (15.1)`, `opsi` under `Tabel Opsi dan Distraktor (15.3)`, `responden` under `Tabel Responden` |
 | `/analyses/{id}/explore` view `wright` | `wright`, inside `#panel-wright` after `#wright-meta` |
-| `/analyses/{id}/explore` views `butir`, `partisipan`, `ringkasan`, `bandingkan` | `butir`, `responden`, `ringkasan`, `bandingkan` (the last only when both ids are set), from one `render_view` chain at the top of `explore/fragment.html` |
+| `/analyses/{id}/explore` view `butir` | `butir`, inside `#panel-butir` |
+| `/analyses/{id}/explore` view `partisipan` | `responden`, inside `#panel-partisipan` |
+| `/analyses/{id}/explore` view `ringkasan` | `ringkasan`, inside `#rekap` (the tab also carries the `#kebersihan` and `#bermasalah` sections moved from the old result page) |
+| `/analyses/{id}/explore` view `opsi` | `opsi`, inside `#panel-opsi` |
+| `/analyses/{id}/explore` view `subsubtes` | `subsubtes`, inside `#panel-subsubtes` |
+| `/analyses/{id}/explore` view `tabulasi` | `tabulasi` (summary) and `tabulasi_butir` (per item), inside `#panel-tabulasi` |
+| `/analyses/{id}/explore` view `bandingkan` | `bandingkan` (only when both ids are set), inside `#panel-bandingkan` |
 | `/analyses` | per row and per mobile card: `butir`, `opsi`, `responden`, `ringkasan` |
 
 Markup reuses existing classes only (`.action-bar`, `.btn .btn--secondary`, `.text-link`): F11 adds no class, so
 the class-count pins in `tests/test_ui_contract.py` stay 145 / 159. Visible text is `Unduh Excel` with an
 `aria-label` that names the table. No JS, no CSS, no pagination change.
+
+## F20: Single analysis reading surface (3 Oct 2026)
+
+Consolidation of analysis results into a single reading surface (`/analyses/{id}/explore`).
+
+### HTTP routes and redirects
+- `GET /analyses/{id}`: returns HTTP 303 redirect to `/analyses/{id}/explore` for `status=done` with the query string preserved (e.g. `?msg=analyzed`). Still renders `analysis.html` (HTTP 200) for `queued`, `running`, and `failed`.
+- Both back-links point at the dataset (`/datasets/{dataset.id}`). The back-link "Kembali ke Hasil Analisis" is removed.
+
+### Explorer views and fragment lists
+- The `view` and `fragment` value lists become the 8 names: `wright`, `ringkasan`, `butir`, `partisipan`, `opsi`, `subsubtes`, `tabulasi`, `bandingkan`. (`wright` fragment still returns 404 because the Wright panel is always server-rendered with its payload).
+
+### Query parameters
+- New query params: `q_tab` (search filter for tabulasi per-item table), `page_tab` (page number for tabulasi per-item table), `page_option` (page number for opsi table).
+
+### Frozen element IDs
+- Tab and panel IDs: `tab-opsi`, `panel-opsi`, `tab-subsubtes`, `panel-subsubtes`, `tab-tabulasi`, `panel-tabulasi`.
+- Section IDs: `kebersihan`, `bermasalah`, `rekap`, `subsubtes`, `tabulasi`, `opsi`.
+- Tabulasi filter, count, and empty-state IDs: `tab-search`, `tabulasi-count`, `tabulasi-empty`.
+
+### Noscript copy
+- Old frozen noscript copy retired (`Halaman penjelajah ini membutuhkan JavaScript. Buka halaman hasil analisis untuk melihat tabel lengkap.`).
+- New frozen noscript copy: `Halaman ini membutuhkan JavaScript untuk tampilan interaktif. Tanpa JavaScript, setiap tab tetap dapat dibuka lewat tautannya dan tabel dapat diunduh lewat Unduh Excel.`
+
+### Per-view export keys
+- Per-view export keys: `opsi`, `subsubtes`, `tabulasi`, `tabulasi_butir`, `ringkasan`, `butir`, `responden`, `bandingkan`, and on the wright panel `wright` (`Unduh measure`), `frekuensi` (`Unduh frekuensi`), and `semua` (`Unduh semua`).
+
+### Dashboard header
+- Header now carries mark controls, anchor blocks, Urutan Responden, and delete-list rows.
+

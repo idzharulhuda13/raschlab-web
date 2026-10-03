@@ -2,7 +2,9 @@
 {% extends "base.html" %}
 
 {% set view_labels = {'wright': 'Peta Wright', 'butir': 'Butir', 'partisipan': 'Partisipan',
-                      'ringkasan': 'Ringkasan', 'bandingkan': 'Bandingkan'} %}
+                      'ringkasan': 'Ringkasan', 'opsi': 'Opsi & Distraktor',
+                      'subsubtes': 'Sub-Subtes', 'tabulasi': 'Tabulasi',
+                      'bandingkan': 'Bandingkan'} %}
 {% set view_label = view_labels.get(active_view, active_view) %}
 {% block title %}{{ view_label }}: {{ dataset.filename }}: RaschLab{% endblock %}
 
@@ -12,11 +14,32 @@
 {% endblock %}
 
 {% block content %}
+{% if request.query_params.get('msg') == 'analyzed' %}
+<div class="alert alert--fit" role="status">
+  Analisis selesai. Semua tabel hasil ada di tab di bawah.
+</div>
+{% endif %}
 <section class="band band--header">
-  <a href="/analyses/{{ analysis.id }}" class="back-link">Kembali ke Hasil Analisis</a>
+  <a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a>
   <h1 class="detail-title">{{ view_label }}: <span class="mono">{{ dataset.filename }}</span></h1>
   <div class="header-actions">
     <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
+    {% if mark_state == 'dipakai' %}
+    <span class="chip chip--accent">Dipakai</span>
+    {% elif mark_state == 'arsip' %}
+    <span class="chip chip--warn">Arsip</span>
+    {% endif %}
+    {% if can_mark %}
+    <form method="post" action="/analyses/{{ analysis.id }}/mark">
+      {% if mark_state == 'dipakai' %}
+      <input type="hidden" name="primary" value="0">
+      <button type="submit" class="btn btn--secondary">Batalkan tanda dipakai</button>
+      {% else %}
+      <input type="hidden" name="primary" value="1">
+      <button type="submit" class="btn btn--secondary">Tandai sebagai versi dipakai</button>
+      {% endif %}
+    </form>
+    {% endif %}
   </div>
   <p class="field-hint">Hasil analisis disimpan selama {{ retention_days }} hari.</p>
   <div class="header-pairs">
@@ -29,6 +52,10 @@
       <span class="def-value mono">{% if elapsed_ms is not none %}{{ elapsed_ms | id_num }} ms{% else %}-{% endif %}</span>
     </div>
     <div class="def-row">
+      <span class="def-label">Urutan Responden: </span>
+      <span class="def-value mono">misfit (outfit MNSQ menurun)</span>
+    </div>
+    <div class="def-row">
       <span class="def-label">Mode: </span>
       <span class="def-value mono">{{ params.get('mode', 'compat') if params else 'compat' }}</span>
     </div>
@@ -36,12 +63,42 @@
       <span class="def-label">Desimal: </span>
       <span class="def-value mono">{{ params.get('digits', 2) if params else '2' }}</span>
     </div>
+    {% for lst in delete_lists %}
+    <div class="def-row">
+      <span class="def-label">{{ lst.label }}: </span>
+      <span class="def-value mono">{{ lst.name }} ({{ lst.rows | id_num }} baris, {{ lst.sha256_short }})</span>
+    </div>
+    {% endfor %}
   </div>
 </section>
 
+{% if not is_anchored %}
+<section class="band">
+  <div class="alert alert--warn" role="status">
+    <strong>Hasil Tanpa Jangkar (Unanchored)</strong>
+    <p>Analisis untuk berkas <span class="mono">{{ dataset.filename }}</span> berjalan tanpa jangkar, jadi titik nol skala dihitung dari data Anda sendiri, bukan dari acuan luar. Sebagai gambaran selisihnya: dibandingkan acuan Winsteps tersimpan pada matriks TBS 147 butir, measure tanpa jangkar berbeda rata-rata {{ '0.0013' | id_num }} dan maksimum {{ '0.0105' | id_num }} logit setelah titik nol disamakan. Angka itu berlaku untuk matriks pembanding tersebut, bukan jaminan untuk setiap data.</p>
+  </div>
+</section>
+{% endif %}
+{% if anchor_band and anchor_band.used == 0 %}
+<section class="band">
+  <div class="alert alert--warn" role="status">
+    <p>Berkas jangkar <span class="mono">{{ anchor_band.name }}</span>: {{ anchor_band.requested | id_num }} diminta, {{ anchor_band.used | id_num }} dipakai, karena semua butir jangkarnya ikut terhapus dari matriks lewat daftar hapus butir. Analisis ini berjalan tanpa jangkar.</p>
+  </div>
+</section>
+{% endif %}
+{% if anchor_band and anchor_band.used > 0 %}
+<section class="band">
+  <div class="alert alert--info" role="status">
+    <strong>Jangkar Aktif (Anchored)</strong>
+    <p>Analisis untuk berkas <span class="mono">{{ dataset.filename }}</span> berjalan dengan jangkar: {{ anchor_band.used | id_num }} butir dikunci pada nilai dari berkas <span class="mono">{{ anchor_band.name }}</span>.{% if anchor_band.used < anchor_band.requested %} Dari {{ anchor_band.requested | id_num }} jangkar yang diminta, {{ anchor_band.used | id_num }} dipakai; sisanya gugur karena butirnya ikut terhapus dari matriks lewat daftar hapus butir.{% endif %}</p>
+  </div>
+</section>
+{% endif %}
+
 <noscript>
   <div class="alert alert--warn" role="alert">
-    Halaman ini membutuhkan JavaScript untuk tampilan interaktif. Untuk melihat tabel lengkap, <a href="/analyses/{{ analysis.id }}">buka halaman hasil analisis</a>.
+    Halaman ini membutuhkan JavaScript untuk tampilan interaktif. Tanpa JavaScript, setiap tab tetap dapat dibuka lewat tautannya dan tabel dapat diunduh lewat Unduh Excel.
   </div>
 </noscript>
 
@@ -50,6 +107,9 @@
   <a id="tab-butir" href="?view=butir{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'butir' %} is-active{% endif %}" role="tab" aria-controls="panel-butir" aria-selected="{{ 'true' if active_view == 'butir' else 'false' }}">Butir</a>
   <a id="tab-partisipan" href="?view=partisipan{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'partisipan' %} is-active{% endif %}" role="tab" aria-controls="panel-partisipan" aria-selected="{{ 'true' if active_view == 'partisipan' else 'false' }}">Partisipan</a>
   <a id="tab-ringkasan" href="?view=ringkasan{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'ringkasan' %} is-active{% endif %}" role="tab" aria-controls="panel-ringkasan" aria-selected="{{ 'true' if active_view == 'ringkasan' else 'false' }}">Ringkasan</a>
+  <a id="tab-opsi" href="?view=opsi{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'opsi' %} is-active{% endif %}" role="tab" aria-controls="panel-opsi" aria-selected="{{ 'true' if active_view == 'opsi' else 'false' }}">Opsi &amp; Distraktor</a>
+  <a id="tab-subsubtes" href="?view=subsubtes{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'subsubtes' %} is-active{% endif %}" role="tab" aria-controls="panel-subsubtes" aria-selected="{{ 'true' if active_view == 'subsubtes' else 'false' }}">Sub-Subtes</a>
+  <a id="tab-tabulasi" href="?view=tabulasi{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'tabulasi' %} is-active{% endif %}" role="tab" aria-controls="panel-tabulasi" aria-selected="{{ 'true' if active_view == 'tabulasi' else 'false' }}">Tabulasi</a>
   <a id="tab-bandingkan" href="?view=bandingkan{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'bandingkan' %} is-active{% endif %}" role="tab" aria-controls="panel-bandingkan" aria-selected="{{ 'true' if active_view == 'bandingkan' else 'false' }}">Bandingkan</a>
 </div>
 
@@ -103,6 +163,39 @@
   {% endif %}
 </div>
 
+<div id="panel-opsi" class="explorer-panel{% if active_view == 'opsi' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-opsi">
+  {% if active_view == 'opsi' %}
+    {% set render_view = active_view %}
+    {% include 'explore/fragment.html' %}
+  {% else %}
+    <div class="empty">
+      <p class="empty-text">Memuat data...</p>
+    </div>
+  {% endif %}
+</div>
+
+<div id="panel-subsubtes" class="explorer-panel{% if active_view == 'subsubtes' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-subsubtes">
+  {% if active_view == 'subsubtes' %}
+    {% set render_view = active_view %}
+    {% include 'explore/fragment.html' %}
+  {% else %}
+    <div class="empty">
+      <p class="empty-text">Memuat data...</p>
+    </div>
+  {% endif %}
+</div>
+
+<div id="panel-tabulasi" class="explorer-panel{% if active_view == 'tabulasi' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-tabulasi">
+  {% if active_view == 'tabulasi' %}
+    {% set render_view = active_view %}
+    {% include 'explore/fragment.html' %}
+  {% else %}
+    <div class="empty">
+      <p class="empty-text">Memuat data...</p>
+    </div>
+  {% endif %}
+</div>
+
 <div id="panel-bandingkan" class="explorer-panel{% if active_view == 'bandingkan' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-bandingkan">
   {% if active_view == 'bandingkan' %}
     {% set render_view = active_view %}
@@ -114,7 +207,7 @@
   {% endif %}
 </div>
 
-<div class="page-exit"><a href="/analyses/{{ analysis.id }}" class="back-link">Kembali ke Hasil Analisis</a></div>
+<div class="page-exit"><a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a></div>
 
 {% if payload_json %}<script type="application/json" id="explorer-data">{{ payload_json | safe }}</script>{% endif %}
 

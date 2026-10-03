@@ -104,13 +104,16 @@ def test_analyze_flow_and_result_page_contract(client: TestClient):
     assert get_resp.status_code == 200
     html = get_resp.text
 
-    assert "Tabel Butir (15.1)" in html
     assert "Hasil Tanpa Jangkar" in html
     assert "0,0013" in html and "0,0105" in html
     assert "bukan jaminan untuk setiap data" in html
     assert "misfit (outfit MNSQ menurun)" in html
     assert "Urutan Responden:" in html
-    assert '<td class="num-col mono">-0,02</td>' in html
+
+    butir_resp = client.get(f"/analyses/{analysis_id}/explore?view=butir")
+    assert butir_resp.status_code == 200
+    assert "Memuat estimasi measure, S.E., dan statistik kecocokan" in butir_resp.text
+    assert '<td class="num-col mono">-0,02</td>' in butir_resp.text
 
     # Verify id_num formatting on thousands via elapsed_ms >= 1000
     with SessionLocal() as db:
@@ -158,6 +161,27 @@ def test_analyze_flow_and_result_page_contract(client: TestClient):
             assert len(raw_decompressed) == af.bytes
             assert hashlib.sha256(raw_decompressed).hexdigest() == af.sha256
             assert raw_decompressed.startswith(expected_header)
+
+
+def test_done_analysis_redirects_to_dashboard(client: TestClient):
+    user_id = _create_authenticated_user(client)
+    dataset_id = _upload_and_commit_sample(client)
+
+    post_resp = client.post(f"/datasets/{dataset_id}/analyze", follow_redirects=False)
+    assert post_resp.status_code == 303
+    aid = int(post_resp.headers["location"].split("/")[-1].split("?")[0])
+
+    resp = client.get(f"/analyses/{aid}", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == f"/analyses/{aid}/explore"
+
+    resp_msg = client.get(f"/analyses/{aid}?msg=analyzed", follow_redirects=False)
+    assert resp_msg.status_code == 303
+    assert resp_msg.headers["location"] == f"/analyses/{aid}/explore?msg=analyzed"
+
+    follow = client.get(resp_msg.headers["location"])
+    assert follow.status_code == 200
+    assert 'id="tablist"' in follow.text
 
 
 def test_analysis_user_isolation_blocks_foreign_read_and_run(client: TestClient):
@@ -212,6 +236,11 @@ def test_analysis_engine_failure_produces_failed_status_and_misfit_alert(
     assert "Analisis Gagal" in html
     assert "Analisis gagal dijalankan mesin:" in html
     assert "Jalankan Ulang" in html
+
+    follow = client.get(f"/analyses/{analysis_id}", follow_redirects=False)
+    assert follow.status_code == 200
+    assert "Analisis Gagal" in follow.text and "Jalankan Ulang" in follow.text
+    assert 'id="tablist"' not in follow.text
 
 
 def test_analysis_loading_state_rendering_and_in_flight_redirect(client: TestClient):
@@ -294,7 +323,7 @@ def test_dataset_detail_shows_latest_analysis_link(client: TestClient):
 
     detail_after = client.get(f"/datasets/{dataset_id}")
     assert detail_after.status_code == 200
-    assert f'href="/analyses/{analysis_id}"' in detail_after.text
+    assert f'href="/analyses/{analysis_id}/explore"' in detail_after.text
     assert "Lihat hasil analisis terakhir" in detail_after.text
 
 

@@ -136,7 +136,7 @@ def test_engine_run_stores_tabulasi_files(client: TestClient) -> None:
     assert row_summary is not None
     assert row_item is not None
 
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=tabulasi")
     section = _band_section(resp.text)
     assert "Ringkasan Tabulasi" in section
     assert "SUBTES" in section
@@ -156,7 +156,7 @@ def test_band_renders_summary_rows_and_download_links(client: TestClient) -> Non
             tabulasi_item=_csv_table([_TABULASI_ITEM_HEADER] + _TABULASI_ITEM_ROWS),
         ),
     )
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=tabulasi")
     section = _band_section(resp.text)
 
     for col in _TABULASI_HEADER:
@@ -179,7 +179,7 @@ def test_band_notes_old_run_without_tabulasi_file(client: TestClient) -> None:
         "tbs_ringkas.csv",
         _stored_files(tabulasi_summary=None, tabulasi_item=None),
     )
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=tabulasi")
     section = _band_section(resp.text)
 
     assert _OLD_RUN_NOTE in section
@@ -197,7 +197,7 @@ def test_band_notes_header_only_file(client: TestClient) -> None:
             tabulasi_item=_csv_table([_TABULASI_ITEM_HEADER] + _TABULASI_ITEM_ROWS),
         ),
     )
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=tabulasi")
     section = _band_section(resp.text)
 
     assert _HEADER_ONLY_NOTE in section
@@ -215,13 +215,10 @@ def test_band_sits_after_subsubtes_band(client: TestClient) -> None:
             tabulasi_item=_csv_table([_TABULASI_ITEM_HEADER] + _TABULASI_ITEM_ROWS),
         ),
     )
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore")
     text = resp.text
 
-    idx_subsubtes = text.index('id="subsubtes"')
-    idx_tabulasi = text.index('id="tabulasi"')
-    idx_tabel_butir = text.index("Tabel Butir (15.1)")
-    assert idx_subsubtes < idx_tabulasi < idx_tabel_butir
+    assert text.index('id="tab-subsubtes"') < text.index('id="tab-tabulasi"')
 
 
 def test_export_tabulasi_returns_workbook_with_sheet(client: TestClient) -> None:

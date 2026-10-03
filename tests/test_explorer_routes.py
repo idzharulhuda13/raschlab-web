@@ -3,7 +3,7 @@
 Covers:
 - Auth and gate guards: anonymous, foreign owner, gate closed.
 - Status-based redirects: running and failed analyses redirect to /analyses/{id}.
-- Full-page render: shell structure, tablist, five tabs and panels, is-active state,
+- Full-page render: shell structure, tablist, eight tabs and panels, is-active state,
   embedded #explorer-data JSON with schema 1, noscript block.
 - View parameter: view=butir activates the butir panel; unknown view falls back to wright.
 - Wright payload reconciliation: bins equal seeded rows, NR_PERSON and NR_ITEM sums match.
@@ -23,8 +23,7 @@ Covers:
   id all return 404.
 - Malformed Wright data: status 200, #explorer-error with frozen reason, no #explorer-data,
   butir fragment still returns 200.
-- Results page link: done analysis page carries link to /analyses/{id}/explore with label
-  "Buka dashboard hasil".
+- Done analysis redirects: 303 to /analyses/{id}/explore, query preserved.
 - Cross-dataset compare pairing keys: label-based pairing, entry-based pairing, unpairable
   case with frozen reason sentence.
 """
@@ -361,12 +360,30 @@ def test_explore_done_renders_shell_and_payload(client: TestClient):
     # Tablist present.
     assert 'id="tablist"' in html
 
-    # Five tabs.
-    for tab_id in ("tab-wright", "tab-butir", "tab-partisipan", "tab-ringkasan", "tab-bandingkan"):
+    # Eight tabs.
+    for tab_id in (
+        "tab-wright",
+        "tab-butir",
+        "tab-partisipan",
+        "tab-ringkasan",
+        "tab-opsi",
+        "tab-subsubtes",
+        "tab-tabulasi",
+        "tab-bandingkan",
+    ):
         assert f'id="{tab_id}"' in html
 
-    # Five panels.
-    for panel_id in ("panel-wright", "panel-butir", "panel-partisipan", "panel-ringkasan", "panel-bandingkan"):
+    # Eight panels.
+    for panel_id in (
+        "panel-wright",
+        "panel-butir",
+        "panel-partisipan",
+        "panel-ringkasan",
+        "panel-opsi",
+        "panel-subsubtes",
+        "panel-tabulasi",
+        "panel-bandingkan",
+    ):
         assert f'id="{panel_id}"' in html
 
     # Exactly one panel carries is-active (the wright panel by default).
@@ -821,7 +838,7 @@ def test_explore_malformed_wright_renders_error_state(client: TestClient):
 
 
 # ---------------------------------------------------------------------------
-# (20) Results page links to explore with label "Buka dashboard hasil"
+# (20) Done analysis redirects: 303 to /analyses/{id}/explore, query preserved
 # ---------------------------------------------------------------------------
 
 def test_results_page_links_to_explore(client: TestClient):
@@ -829,12 +846,14 @@ def test_results_page_links_to_explore(client: TestClient):
     files = _build_standard_files()
     analysis_id = _seed_done(user_id, "sample.csv", files)
 
-    resp = client.get(f"/analyses/{analysis_id}")
-    assert resp.status_code == 200
-    html = resp.text
+    resp = client.get(f"/analyses/{analysis_id}", follow_redirects=False)
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    assert location == f"/analyses/{analysis_id}/explore"
 
-    assert f'href="/analyses/{analysis_id}/explore"' in html
-    assert "Buka dashboard hasil" in html
+    follow_resp = client.get(location)
+    assert follow_resp.status_code == 200
+    assert 'id="tablist"' in follow_resp.text
 
 
 # ---------------------------------------------------------------------------

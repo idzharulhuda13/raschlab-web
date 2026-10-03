@@ -15,6 +15,9 @@
     butir: 'tab-butir',
     partisipan: 'tab-partisipan',
     ringkasan: 'tab-ringkasan',
+    opsi: 'tab-opsi',
+    subsubtes: 'tab-subsubtes',
+    tabulasi: 'tab-tabulasi',
     bandingkan: 'tab-bandingkan'
   };
 
@@ -23,10 +26,13 @@
     butir: 'panel-butir',
     partisipan: 'panel-partisipan',
     ringkasan: 'panel-ringkasan',
+    opsi: 'panel-opsi',
+    subsubtes: 'panel-subsubtes',
+    tabulasi: 'panel-tabulasi',
     bandingkan: 'panel-bandingkan'
   };
 
-  var TAB_ORDER = ['wright', 'butir', 'partisipan', 'ringkasan', 'bandingkan'];
+  var TAB_ORDER = ['wright', 'butir', 'partisipan', 'ringkasan', 'opsi', 'subsubtes', 'tabulasi', 'bandingkan'];
 
   /**
    * JavaScript mirror of Python id_num Jinja filter.
@@ -243,7 +249,9 @@
         e.preventDefault();
         var searchInput = (view === 'butir')
           ? document.getElementById('butir-search')
-          : document.getElementById('partisipan-search');
+          : (view === 'partisipan')
+            ? document.getElementById('partisipan-search')
+            : document.getElementById('tab-search');
         var queryVal = searchInput ? searchInput.value.trim() : '';
 
         var params = {};
@@ -253,6 +261,9 @@
         } else if (view === 'partisipan') {
           params.q_person = queryVal;
           params.page_person = '1';
+        } else if (view === 'tabulasi') {
+          params.q_tab = queryVal;
+          params.page_tab = '1';
         }
 
         var prevHtml = panel.innerHTML;
@@ -278,6 +289,13 @@
               currentUrl.searchParams.delete('q_person');
             }
             currentUrl.searchParams.set('page_person', '1');
+          } else if (view === 'tabulasi') {
+            if (queryVal) {
+              currentUrl.searchParams.set('q_tab', queryVal);
+            } else {
+              currentUrl.searchParams.delete('q_tab');
+            }
+            currentUrl.searchParams.set('page_tab', '1');
           }
           window.history.replaceState(null, '', currentUrl.toString());
 
@@ -285,7 +303,9 @@
 
           var newInput = (view === 'butir')
             ? document.getElementById('butir-search')
-            : document.getElementById('partisipan-search');
+            : (view === 'partisipan')
+              ? document.getElementById('partisipan-search')
+              : document.getElementById('tab-search');
           if (newInput) {
             newInput.focus();
           }
@@ -314,7 +334,7 @@
 
         var targetUrl = new URL(href, window.location.href);
         var targetParams = {};
-        ['view', 'q_item', 'q_person', 'page_item', 'page_person', 'from', 'to'].forEach(function (key) {
+        ['view', 'q_item', 'q_person', 'page_item', 'page_person', 'from', 'to', 'q_tab', 'page_tab', 'page_option'].forEach(function (key) {
           if (targetUrl.searchParams.has(key)) {
             targetParams[key] = targetUrl.searchParams.get(key);
           }
@@ -449,7 +469,7 @@
 
         var params = {};
         var currentParams = new URLSearchParams(window.location.search);
-        ['q_item', 'q_person', 'page_item', 'page_person', 'from', 'to'].forEach(function (key) {
+        ['q_item', 'q_person', 'page_item', 'page_person', 'from', 'to', 'q_tab', 'page_tab', 'page_option'].forEach(function (key) {
           if (currentParams.has(key)) {
             params[key] = currentParams.get(key);
           }

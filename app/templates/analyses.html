@@ -27,7 +27,6 @@
           <th scope="col">Nama Berkas</th>
           <th scope="col">Waktu Selesai</th>
           <th scope="col">Dimensi Data</th>
-          <th scope="col">Hasil</th>
           <th scope="col">Eksplorasi</th>
           <th scope="col">Unduh Excel</th>
         </tr>
@@ -50,9 +49,6 @@
             {% if a.n_persons is not none and a.n_items is not none %}
             {{ a.n_persons | id_num }} responden x {{ a.n_items | id_num }} butir
             {% endif %}
-          </td>
-          <td>
-            <a href="/analyses/{{ a.id }}" class="btn btn--secondary">Buka hasil</a>
           </td>
           <td>
             <a href="/analyses/{{ a.id }}/explore" class="btn btn--secondary">Buka dashboard</a>
@@ -89,7 +85,6 @@
         {% endif %}
       </div>
       <div class="action-bar">
-        <a href="/analyses/{{ a.id }}" class="btn btn--secondary">Buka hasil</a>
         <a href="/analyses/{{ a.id }}/explore" class="btn btn--secondary">Buka dashboard</a>
       </div>
       <div class="action-bar">

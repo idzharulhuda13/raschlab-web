@@ -165,8 +165,8 @@ def test_analyses_list_chips_the_marked_row_and_the_sibling(client: TestClient):
     table = resp.text[resp.text.index("<table"): resp.text.index("</table>")]
 
     rows = table.split("<tr>")
-    marked_row = next(r for r in rows if f'href="/analyses/{marked_id}"' in r)
-    sibling_row = next(r for r in rows if f'href="/analyses/{sibling_id}"' in r)
+    marked_row = next(r for r in rows if f'href="/analyses/{marked_id}/explore"' in r)
+    sibling_row = next(r for r in rows if f'href="/analyses/{sibling_id}/explore"' in r)
 
     assert DIPAKAI_CHIP in marked_row
     assert ">Arsip<" not in marked_row

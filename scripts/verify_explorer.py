@@ -3,7 +3,7 @@
 
 Boots the real app on a temporary SQLite database, seeds crafted data,
 drives a real Chromium via Playwright, and prints a per-group PASS/FAIL
-table. Exactly 206 checks in 12 groups. Exit 0 only when all 206 pass.
+table. Exactly 207 checks in 12 groups. Exit 0 only when all 207 pass.
 """
 
 from __future__ import annotations
@@ -425,7 +425,7 @@ def group_a_responsive(page: Any, base_url: str, analysis1_id: int,
                         res: Results) -> None:
     """51 checks: 50 responsive matrix + 1 mobile touch target check."""
     print("\n[A] Responsive")
-    views = ["wright", "butir", "partisipan", "ringkasan", "bandingkan"]
+    views = ["wright", "butir", "partisipan", "ringkasan", "opsi", "subsubtes", "tabulasi", "bandingkan"]
     viewports = [360, 390, 414, 768, 1440]
     themes = ["light", "dark"]
 
@@ -508,8 +508,8 @@ def group_b_shell(page: Any, base_url: str, analysis1_id: int,
         Array.from(document.querySelectorAll('.tab[role="tab"]'))
              .filter(t => t.getAttribute('aria-controls')).length
     """)
-    res.record("shell: five tabs with aria-controls", tabs_with_controls,
-               tabs_with_controls == 5)
+    res.record("shell: eight tabs with aria-controls", tabs_with_controls,
+               tabs_with_controls == 8)
 
     selected_count = page.evaluate(
         "document.querySelectorAll('[role=\"tab\"][aria-selected=\"true\"]').length"
@@ -909,7 +909,7 @@ def group_c_contrast(page: Any, base_url: str, analysis1_id: int,
 def group_d_dom_reconciliation(page: Any, base_url: str,
                                analysis1_id: int, analysis2_id: int,
                                res: Results) -> None:
-    """12 checks against the seeded CSV data."""
+    """13 checks against the seeded CSV data."""
     print("\n[D] DOM reconciliation")
 
     # D1 + D2: wright-meta person/item counts
@@ -927,24 +927,42 @@ def group_d_dom_reconciliation(page: Any, base_url: str,
                f"expect={item_fmt} found={bool(meta) and item_fmt in meta}",
                bool(meta) and item_fmt in meta)
 
-    # D13: analysis page misfit band number equals explorer wright-meta misfit count
-    goto(page, f"{base_url}/analyses/{analysis1_id}")
-    band_txt = page.evaluate("""() => {
-        const heads = Array.from(document.querySelectorAll('h2'));
-        const head = heads.find(h => h.textContent.includes('Butir Bermasalah'));
-        const band = head ? head.closest('section') : null;
-        const el = band ? band.querySelector('.alert p') : null;
-        return el ? el.textContent : '';
+    # D13a: ringkasan headings document order
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=ringkasan")
+    ringkasan_heads = page.evaluate("""() => {
+        return Array.from(document.querySelectorAll('h2'))
+            .map(h => h.textContent.trim())
+            .filter(t => ['Kebersihan Data', 'Butir Bermasalah', 'Rekap Responden'].includes(t));
     }""")
-    m_band = re.search(r"(\d+)\s+dari", band_txt)
-    band_n = m_band.group(1) if m_band else "0"
-    m_meta = re.search(r"Butir misfit \(INFIT MNSQ [≥>=]+ 1,50\):\s*(\d+)", meta)
-    meta_n = m_meta.group(1) if m_meta else "0"
-    d13_ok = bool(m_band and m_meta and band_n == meta_n)
+    expected_heads = ["Kebersihan Data", "Butir Bermasalah", "Rekap Responden"]
+    d13a_ok = (ringkasan_heads == expected_heads)
     res.record(
-        "dom: analysis misfit band equals explorer wright-meta count",
-        f"band={band_n} meta={meta_n}",
-        d13_ok,
+        "dom: ringkasan headings document order",
+        f"heads={ringkasan_heads}",
+        d13a_ok,
+    )
+
+    # D13b: tablist order of the eight tabs
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore")
+    tab_ids = page.evaluate("""() => {
+        return Array.from(document.querySelectorAll('#tablist [role="tab"]'))
+            .map(el => el.id);
+    }""")
+    expected_tab_ids = [
+        "tab-wright",
+        "tab-butir",
+        "tab-partisipan",
+        "tab-ringkasan",
+        "tab-opsi",
+        "tab-subsubtes",
+        "tab-tabulasi",
+        "tab-bandingkan",
+    ]
+    d13b_ok = (tab_ids == expected_tab_ids)
+    res.record(
+        "dom: tablist order matches expected eight tabs",
+        f"tabs={tab_ids}",
+        d13b_ok,
     )
 
     # D3: number of item rows
@@ -1082,10 +1100,10 @@ def group_e_interactive(page: Any, base_url: str,
     wright_url = base_explore + "?view=wright"
     butir_url = base_explore + "?view=butir"
 
-    # E1-E5: Five tabs each activates its panel
+    # E1-E8: each of the eight tabs activates its panel
     goto(page, base_explore + "?view=wright")
 
-    for view in ["wright", "butir", "partisipan", "ringkasan", "bandingkan"]:
+    for view in ["wright", "butir", "partisipan", "ringkasan", "opsi", "subsubtes", "tabulasi", "bandingkan"]:
         tab_el = page.query_selector(f"#tab-{view}")
         if tab_el:
             tab_el.click()
@@ -1981,7 +1999,7 @@ def group_l_export(page: Any, base_url: str, analysis1_id: int,
         )
 
     # 1. butir table against /analyses/<id>
-    goto(page, f"{base_url}/analyses/{analysis1_id}")
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=butir")
     dom_item_data = page.evaluate("""() => {
         const tbl = document.querySelectorAll('table.data-table')[0];
         if (!tbl) return null;
@@ -2012,8 +2030,9 @@ def group_l_export(page: Any, base_url: str, analysis1_id: int,
                c1_ok)
 
     # 2. opsi table against /analyses/<id>
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=opsi")
     dom_option_data = page.evaluate("""() => {
-        const tbl = document.querySelectorAll('table.data-table')[1];
+        const tbl = document.querySelectorAll('table.data-table')[0];
         if (!tbl) return null;
         const theadRows = Array.from(tbl.querySelectorAll('thead tr')).map(tr =>
             Array.from(tr.querySelectorAll('th')).map(th => th.textContent.trim())
@@ -2041,8 +2060,9 @@ def group_l_export(page: Any, base_url: str, analysis1_id: int,
                c2_ok)
 
     # 3. responden table against /analyses/<id>
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=partisipan")
     dom_person_data = page.evaluate("""() => {
-        const tbl = document.querySelectorAll('table.data-table')[2];
+        const tbl = document.querySelectorAll('table.data-table')[0];
         if (!tbl) return null;
         const theadRows = Array.from(tbl.querySelectorAll('thead tr')).map(tr =>
             Array.from(tr.querySelectorAll('th')).map(th => th.textContent.trim())
@@ -2070,10 +2090,12 @@ def group_l_export(page: Any, base_url: str, analysis1_id: int,
                c3_ok)
 
     # 4. ringkasan table against /analyses/<id>
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=ringkasan")
     rekap_numbers = page.evaluate("""() => {
-        const rekapHeader = Array.from(document.querySelectorAll('h2')).find(h => h.textContent.includes('Rekap'));
-        const band = rekapHeader ? rekapHeader.closest('section') : null;
+        const band = document.querySelector('#rekap');
         if (!band) return [];
+        const h2 = band.querySelector('h2');
+        if (!h2 || !h2.textContent.includes('Rekap Responden')) return [];
         return Array.from(band.querySelectorAll('.def-value'))
             .map(el => el.textContent.trim())
             .filter(t => t && t !== '-' && t !== 'None');
@@ -2445,7 +2467,7 @@ def main() -> int:
         print(f"TOTAL: {total} checks  |  {passed} PASS  |  {failed} FAIL")
         print(f"{'=' * 72}")
 
-        EXPECTED_TOTAL = 206
+        EXPECTED_TOTAL = 207
         if total != EXPECTED_TOTAL:
             print(
                 f"\nERROR: Expected {EXPECTED_TOTAL} checks, got {total}. "

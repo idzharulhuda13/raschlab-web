@@ -516,7 +516,7 @@ def test_account_populated_state_shows_counts_limits_and_last_analysis(client: T
     assert expected_date in html
     assert "matriks_ujian.csv" in html
     assert "Selesai" in html
-    assert f'href="/analyses/{analysis_id}"' in html
+    assert f'href="/analyses/{analysis_id}/explore"' in html
 
 
 def test_account_avatar_renders_two_initials(client: TestClient):

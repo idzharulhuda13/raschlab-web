@@ -145,7 +145,7 @@ def test_engine_run_stores_subsubtes_summary(client: TestClient) -> None:
     assert parsed[2][:4] == ["Logis", "20", "20", "0"]
     assert all(float(parsed[1][i]) == float(parsed[1][i]) for i in (4, 5, 6, 7))
 
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=subsubtes")
     section = _band_section(resp.text)
     assert "Deretan Bilangan" in section
     assert "Logis" in section
@@ -157,7 +157,7 @@ def test_band_renders_stored_summary_rows(client: TestClient) -> None:
         email="rendered_rows@example.test",
         with_subsubtes=_csv([_SUBSUBTES_HEADER] + _SUBSUBTES_ROWS),
     )
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=subsubtes")
     section = _band_section(resp.text)
 
     assert "Ringkasan Sub-Subtes" in section
@@ -178,7 +178,7 @@ def test_band_renders_stored_summary_rows(client: TestClient) -> None:
 
 def test_band_notes_an_old_run_without_the_file(client: TestClient) -> None:
     analysis_id = _seed_run(client, email="old_run@example.test", with_subsubtes=None)
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=subsubtes")
     section = _band_section(resp.text)
 
     assert _OLD_RUN_NOTE in section
@@ -192,7 +192,7 @@ def test_band_header_only_means_no_subsubtes_in_this_data(client: TestClient) ->
         email="header_only@example.test",
         with_subsubtes=_csv([_SUBSUBTES_HEADER]),
     )
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=subsubtes")
     section = _band_section(resp.text)
 
     assert _HEADER_ONLY_NOTE in section
@@ -207,13 +207,10 @@ def test_band_sits_between_rekap_and_tabel_butir(client: TestClient) -> None:
         email="band_order@example.test",
         with_subsubtes=_csv([_SUBSUBTES_HEADER] + _SUBSUBTES_ROWS),
     )
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore")
     text = resp.text
 
-    idx_rekap = text.index("Rekap Responden")
-    idx_subsubtes = text.index('id="subsubtes"')
-    idx_tabel_butir = text.index("Tabel Butir (15.1)")
-    assert idx_rekap < idx_subsubtes < idx_tabel_butir
+    assert text.index('id="tab-ringkasan"') < text.index('id="tab-subsubtes"')
 
 
 def test_unduh_semua_copy_carries_no_sheet_count(client: TestClient) -> None:

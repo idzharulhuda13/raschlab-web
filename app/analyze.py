@@ -30,9 +30,7 @@ from app.analysis import (
     format_threshold,
     id_num,
     latest_done_analysis,
-    load_tables,
     mark_analysis,
-    paginate,
     parse_anchors,
     parse_delete_list,
     parse_settings_form,
@@ -557,6 +555,12 @@ def get_analysis(
         analysis.finished_at = now
         db.commit()
 
+    if analysis.status == "done":
+        target = f"/analyses/{analysis.id}/explore"
+        if request.url.query:
+            target = f"{target}?{request.url.query}"
+        return RedirectResponse(target, status_code=303)
+
     params = json.loads(analysis.params_json) if analysis.params_json else {}
     misfit_threshold = float(params.get("misfit", MISFIT_THRESHOLD_DEFAULT))
     anchors = params.get("anchors")
@@ -583,89 +587,6 @@ def get_analysis(
         "mark_state": _mark_state(marks, dataset.id, analysis.id),
         "can_mark": analysis.user_id == user.id,
     }
-
-    if analysis.status == "done":
-        tables = load_tables(analysis)
-        item_rows = tables.get("item_table_15.1.csv", [])
-        option_rows = tables.get("option_table_15.3.csv", [])
-        person_rows = tables.get("person_table.csv", [])
-        summary_rows = tables.get("summary_table.csv", [])
-
-        n_misfit = 0
-        n_item = 0
-        if len(item_rows) >= 3:
-            long_headers = [str(h).strip().upper() for h in item_rows[0]]
-            infit_idx = _infit_mnsq_column(item_rows)
-
-            if infit_idx != -1:
-                item_data_rows = item_rows[2:]
-                n_item = len(item_data_rows)
-                for r in item_data_rows:
-                    if infit_idx < len(r):
-                        try:
-                            if float(r[infit_idx]) >= misfit_threshold:
-                                n_misfit += 1
-                        except (ValueError, TypeError):
-                            pass
-
-        item_headers = item_rows[:2] if len(item_rows) >= 2 else []
-        item_data = item_rows[2:] if len(item_rows) >= 2 else []
-        page_item = request.query_params.get("page_item", 1)
-        item_paged = paginate(item_data, page_item)
-
-        option_headers = option_rows[:2] if len(option_rows) >= 2 else []
-        option_data = option_rows[2:] if len(option_rows) >= 2 else []
-        page_option = request.query_params.get("page_option", 1)
-        option_paged = paginate(option_data, page_option)
-
-        person_headers = person_rows[:2] if len(person_rows) >= 2 else []
-        person_data = person_rows[2:] if len(person_rows) >= 2 else []
-        page_person = request.query_params.get("page_person", 1)
-        person_paged = paginate(person_data, page_person)
-
-        summary_headers = summary_rows[:1] if summary_rows else []
-
-        rekap: dict[str, str] = {}
-        for row in summary_rows:
-            if len(row) >= 3:
-                k = f"{row[0]} {row[1]}".strip()
-                rekap[k] = row[2]
-
-        stored_subsubtes = tables.get("subsubtes_summary.csv", [])
-        # ponytail: ceiling is 7 sub-subtes x 3 tingkat kesukaran = 21 rows; paginate() is the upgrade path if it ever grows.
-        stored_tabulasi = tables.get("tabulasi_summary.csv", [])
-        # ponytail: ceiling is one row per sub-subtes (7 known codes); the upgrade path is paginate() if labels ever yield more groups than RENDER_PAGE.
-
-        context.update(
-            {
-                "n_misfit": n_misfit,
-                "n_item": n_item,
-                "clean_audit": _clean_audit(person_rows, rekap),
-                "tables": tables,
-                "item_headers": item_headers,
-                "item_paged": item_paged,
-                "item_rows": item_paged,
-                "option_headers": option_headers,
-                "option_paged": option_paged,
-                "option_rows": option_paged,
-                "person_headers": person_headers,
-                "person_paged": person_paged,
-                "person_rows": person_paged,
-                "summary_headers": summary_headers,
-                "summary_rows": summary_rows,
-                "rekap": rekap,
-                "subsubtes_headers": stored_subsubtes[:1],
-                "subsubtes_rows": stored_subsubtes[1:],
-                "subsubtes_missing": not stored_subsubtes,
-                "tabulasi_headers": stored_tabulasi[:1],
-                "tabulasi_rows": stored_tabulasi[1:],
-                "tabulasi_missing": not stored_tabulasi,
-                "page_item": item_paged.page,
-                "page_option": option_paged.page,
-                "page_person": person_paged.page,
-            }
-        )
-
     return templates.TemplateResponse(
         request=request,
         name="analysis.html",

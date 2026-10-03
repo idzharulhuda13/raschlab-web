@@ -245,9 +245,9 @@ redirect into a profile page is a design bug even when that page is flawless.
 invisible for `I`, `l`, `J`, which is what `idzharul.huda@gmail.com` rendered (a thin stroke on a 28px
 tinted disc reads as a broken image). Minimum 44px on mobile, no border, no glow.
 
-### The five explorer views (each its own shape, RHYTHM 3)
+### The eight explorer views (each its own shape, RHYTHM 3)
 
-One route, five views, and they must not read as the same page with different words. Each view is defined
+One route, eight views, and they must not read as the same page with different words. Each view is defined
 by the *shape* of its composition, measured after render:
 
 | view | shape | focal point |
@@ -256,6 +256,9 @@ by the *shape* of its composition, measured after render:
 | Butir | search strip, then a dense table that scrolls with a pinned header | the table |
 | Partisipan | score histogram over a search strip and a paged table, all inside one scroll region | the count |
 | Ringkasan | labelled figure grid, 2-4 columns at `≥720px`, each figure on a top rule | the figures |
+| Opsi & Distraktor | two-row header then a paged table | the table |
+| Sub-Subtes | one caption line over a compact summary table | the counts |
+| Tabulasi | summary table first then a search strip over the per-item table | the per-item table |
 | Bandingkan | control strip of two paired selects first, then the delta chart, then the paired table | the delta |
 
 **Ringkasan is the view most at risk of the banned card wall.** Its figures are one grid, each a label
@@ -304,7 +307,7 @@ Blue was the previous e-mail link colour (`#0B6C8F`); it exists in no token bloc
 - **Toast**: confirmed actions only (upload accepted, file discarded), dismissible, `aria-live="polite"`.
 
 - **Export control (F11, 26 Sep 2026)**: downloading how a table looks on screen. Wrapper `.action-bar`, control
-  `.btn .btn--secondary`, label `Unduh Excel`, and a mandatory `aria-label` naming the table (five controls with
+  `.btn .btn--secondary`, label `Unduh Excel`, and a mandatory `aria-label` naming the table (six controls with
   the same visible word are unusable with a screen reader). On the list page the four keys are `.text-link`
   anchors, not buttons, so a row does not become four buttons wide. **Zero new classes**: the pins in
   `tests/test_ui_contract.py` (145 used / 159 defined) do not move for this feature. An export is an accent-free

@@ -313,7 +313,7 @@ def test_misfit_band_reads_both_header_layouts(client: TestClient):
                 ))
             db.commit()
 
-        page = client.get(f"/analyses/{analysis_id}")
+        page = client.get(f"/analyses/{analysis_id}/explore?view=ringkasan")
         assert page.status_code == 200, label
         assert "Butir Bermasalah" in page.text, f"misfit band missing for {label}"
         assert "1 dari 2 butir melewati ambang misfit INFIT MNSQ ≥ 1,50" in page.text, f"wrong count for {label}"

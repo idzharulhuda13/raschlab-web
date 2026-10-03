@@ -19,7 +19,14 @@ from app.analysis import (
     load_tables,
     paginate,
 )
-from app.analyze import _mark_state, _marked_ids
+from app.analyze import (
+    _anchor_band,
+    _clean_audit,
+    _delete_lists_from_params,
+    _infit_mnsq_column,
+    _mark_state,
+    _marked_ids,
+)
 from app.auth import _current_user, _gate_closed, templates
 from app.db import get_session
 from app.models import Analysis, Dataset
@@ -44,8 +51,8 @@ COMPARE_MISMATCH_REASON_MSG = (
     "Butir tidak dapat dipasangkan: berkas tanpa label butir hanya dapat dibandingkan bila jumlah butirnya sama."
 )
 
-VIEWS = ("wright", "butir", "partisipan", "ringkasan", "bandingkan")
-FRAGMENT_VIEWS = ("butir", "partisipan", "ringkasan", "bandingkan")
+VIEWS = ("wright", "butir", "partisipan", "ringkasan", "opsi", "subsubtes", "tabulasi", "bandingkan")
+FRAGMENT_VIEWS = tuple(v for v in VIEWS if v != "wright")
 TWO_DECIMALS = Decimal("0.01")
 
 
@@ -406,6 +413,9 @@ def get_explore(
 
     page_item_req = _to_positive_int(request.query_params.get("page_item", 1))
     page_person_req = _to_positive_int(request.query_params.get("page_person", 1))
+    q_tab = request.query_params.get("q_tab", "")
+    page_tab_req = _to_positive_int(request.query_params.get("page_tab", 1))
+    page_option_req = _to_positive_int(request.query_params.get("page_option", 1))
 
     from_val = request.query_params.get("from")
     to_val = request.query_params.get("to")
@@ -439,6 +449,10 @@ def get_explore(
     person_rows = tables.get("person_table.csv", [])
     summary_rows = tables.get("summary_table.csv", [])
     wright_rows = tables.get("wright_map_measure.csv", [])
+    option_raw = tables.get("option_table_15.3.csv", [])
+    stored_subsubtes = tables.get("subsubtes_summary.csv", [])
+    stored_tabulasi = tables.get("tabulasi_summary.csv", [])
+    tab_item_raw = tables.get("tabulasi_item.csv", [])
 
     rekap: dict[str, str] = {}
     for row in summary_rows:
@@ -454,6 +468,9 @@ def get_explore(
         misfit_val = 1.5
     misfit_threshold = format_threshold(misfit_val)
     misfit_value = float(misfit_val)
+    anchors = params.get("anchors")
+    anchor_band = _anchor_band(anchors)
+    marks = _marked_ids(db, user.id)
 
     context: dict[str, Any] = {
         "user": user,
@@ -487,6 +504,26 @@ def get_explore(
         "sum_headers": [],
         "sum_data": [],
         "compare_ctx": None,
+        "q_tab": q_tab,
+        "page_tab": page_tab_req,
+        "page_option": page_option_req,
+        "option_headers": [],
+        "option_paged": None,
+        "subsubtes_headers": [],
+        "subsubtes_rows": [],
+        "subsubtes_missing": True,
+        "tabulasi_headers": [],
+        "tabulasi_rows": [],
+        "tabulasi_missing": True,
+        "tab_item_ctx": None,
+        "clean_audit": None,
+        "n_misfit": 0,
+        "n_item": 0,
+        "mark_state": _mark_state(marks, dataset.id, analysis.id),
+        "can_mark": analysis.user_id == user.id,
+        "anchor_band": anchor_band,
+        "is_anchored": bool(anchors) and not (anchor_band is not None and anchor_band["used"] == 0),
+        "delete_lists": _delete_lists_from_params(params),
     }
 
     if fragment is None:
@@ -550,6 +587,50 @@ def get_explore(
         context["summary_rows"] = summary_rows
         context["sum_headers"] = sum_headers
         context["sum_data"] = sum_data
+        clean_audit = _clean_audit(person_rows, rekap)
+        n_misfit = 0
+        n_item = 0
+        if len(item_rows) >= 3:
+            infit_idx = _infit_mnsq_column(item_rows)
+            if infit_idx != -1:
+                item_data_rows = item_rows[2:]
+                n_item = len(item_data_rows)
+                for r in item_data_rows:
+                    if infit_idx < len(r):
+                        try:
+                            if float(r[infit_idx]) >= misfit_value:
+                                n_misfit += 1
+                        except (ValueError, TypeError):
+                            pass
+        context["clean_audit"] = clean_audit
+        context["n_misfit"] = n_misfit
+        context["n_item"] = n_item
+
+    elif render_view == "opsi":
+        option_headers = option_raw[:2] if len(option_raw) >= 2 else []
+        option_data = option_raw[2:] if len(option_raw) >= 2 else []
+        context["option_headers"] = option_headers
+        context["option_paged"] = paginate(option_data, page_option_req)
+
+    elif render_view == "subsubtes":
+        context["subsubtes_headers"] = stored_subsubtes[:1]
+        context["subsubtes_rows"] = stored_subsubtes[1:]
+        context["subsubtes_missing"] = not stored_subsubtes
+
+    elif render_view == "tabulasi":
+        context["tabulasi_headers"] = stored_tabulasi[:1]
+        context["tabulasi_rows"] = stored_tabulasi[1:]
+        context["tabulasi_missing"] = not stored_tabulasi
+        item_data = tab_item_raw[1:] if tab_item_raw else []
+        filtered = filter_rows(item_data, q_tab, (0, 1, 3, 4, 5))
+        paged = paginate(filtered, page_tab_req)
+        context["tab_item_ctx"] = {
+            "headers": tab_item_raw[:1] if tab_item_raw else [],
+            "rows": paged.rows,
+            "count": len(filtered),
+            "paged": paged,
+        }
+        context["page_tab"] = paged.page
 
     elif render_view == "bandingkan":
         options_stmt = (
@@ -559,7 +640,6 @@ def get_explore(
             .order_by(Analysis.created_at.desc(), Analysis.id.desc())
         )
         done_analyses = db.execute(options_stmt).all()
-        marks = _marked_ids(db, user.id)
         options = [
             {
                 "id": row.id,

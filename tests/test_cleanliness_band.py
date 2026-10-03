@@ -99,7 +99,7 @@ def _band_section(html: str) -> str:
 def test_completed_analysis_renders_counts_and_context_geometry(client: TestClient):
     analysis_id = _seed_completed(client, "kebersihan_bersih@example.test")
 
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=ringkasan")
     assert resp.status_code == 200
     section = _band_section(resp.text)
 
@@ -137,7 +137,7 @@ def test_completed_analysis_renders_counts_and_context_geometry(client: TestClie
 def test_band_carries_no_em_dash(client: TestClient):
     analysis_id = _seed_completed(client, "kebersihan_dash@example.test")
 
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=ringkasan")
     assert resp.status_code == 200
     assert "\u2014" not in resp.text
 
@@ -147,7 +147,7 @@ def test_without_status_header_renders_honest_note_and_no_chips(client: TestClie
         client, "kebersihan_tanpa_status@example.test", with_status=False
     )
 
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=ringkasan")
     assert resp.status_code == 200
     section = _band_section(resp.text)
 
@@ -177,7 +177,7 @@ def test_running_analysis_renders_no_band_and_no_note(client: TestClient):
 def test_band_aria_label_carries_the_three_counts_as_words(client: TestClient):
     analysis_id = _seed_completed(client, "kebersihan_aria@example.test")
 
-    resp = client.get(f"/analyses/{analysis_id}")
+    resp = client.get(f"/analyses/{analysis_id}/explore?view=ringkasan")
     assert resp.status_code == 200
     section = _band_section(resp.text)
 

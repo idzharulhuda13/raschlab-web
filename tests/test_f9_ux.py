@@ -120,8 +120,7 @@ def test_analyses_signed_in_lists_finished_analysis(client: TestClient):
     resp = client.get("/analyses")
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
     assert "ujian_matematika.csv" in resp.text, "Dataset filename 'ujian_matematika.csv' not found in response text"
-    assert f'href="/analyses/{aid}"' in resp.text, f"Result link href='/analyses/{aid}' not found in response text"
-    assert f'href="/analyses/{aid}/explore"' in resp.text, f"Explorer link href='/analyses/{aid}/explore' not found in response text"
+    assert f'href="/analyses/{aid}/explore"' in resp.text, f"Explore link href='/analyses/{aid}/explore' not found in response text"
 
 
 # ---------------------------------------------------------------------------
@@ -291,7 +290,10 @@ def test_analyze_landing_page_shows_sentence(client: TestClient):
     location = ana_resp.headers.get("location", "")
     landing = client.get(location)
     assert landing.status_code == 200, f"Expected 200 on analyze landing, got {landing.status_code}"
-    expected_sentence = "Analisis berhasil dimulai. Tunggu hingga berstatus Selesai, lalu buka dashboard hasilnya."
+    if 'id="tablist"' in landing.text:
+        expected_sentence = "Analisis selesai. Semua tabel hasil ada di tab di bawah."
+    else:
+        expected_sentence = "Analisis berhasil dimulai. Tunggu hingga berstatus Selesai, lalu buka dashboard hasilnya."
     assert expected_sentence in landing.text, f"Analyze sentence not found in landing page text: {landing.text[:400]}"
 
 
@@ -378,7 +380,7 @@ def test_misfit_band_count_equals_recomputation(client: TestClient):
             if infit_idx < len(r) and float(r[infit_idx]) >= 1.50:
                 recomputed_misfit += 1
 
-    resp = client.get(f"/analyses/{aid}")
+    resp = client.get(f"/analyses/{aid}/explore?view=ringkasan")
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
 
     # Extract misfit band number from rendered text: "X dari Y butir melewati ambang misfit INFIT MNSQ ≥ 1,50."
@@ -441,28 +443,31 @@ def test_analysis_page_section_order(client: TestClient):
     user_id = _create_authenticated_user(client, email="user_f9_order_sec@example.test")
     aid = _seed_f9(user_id, "sections_test.csv", _build_test_files())
 
-    resp = client.get(f"/analyses/{aid}")
-    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
-    html = resp.text
+    resp_ringkasan = client.get(f"/analyses/{aid}/explore?view=ringkasan")
+    assert resp_ringkasan.status_code == 200, f"Expected 200, got {resp_ringkasan.status_code}"
+    html_ringkasan = resp_ringkasan.text
 
-    idx_misfit = html.find("Butir Bermasalah")
-    idx_rekap = html.find("Rekap Responden")
-    idx_butir = html.find("Tabel Butir (15.1)")
-    idx_opsi = html.find("Tabel Opsi dan Distraktor (15.3)")
-    idx_responden = html.find("Tabel Responden")
+    assert (
+        html_ringkasan.index("Kebersihan Data")
+        < html_ringkasan.index("Butir Bermasalah")
+        < html_ringkasan.index("Rekap Responden")
+    )
+    assert "Tabel Ringkasan" not in html_ringkasan, "'Tabel Ringkasan' must be absent from ringkasan view"
 
-    assert idx_misfit != -1, f"'Butir Bermasalah' not found in HTML"
-    assert idx_rekap != -1, f"'Rekap Responden' not found in HTML"
-    assert idx_butir != -1, f"'Tabel Butir (15.1)' not found in HTML"
-    assert idx_opsi != -1, f"'Tabel Opsi dan Distraktor (15.3)' not found in HTML"
-    assert idx_responden != -1, f"'Tabel Responden' not found in HTML"
+    resp_explore = client.get(f"/analyses/{aid}/explore")
+    assert resp_explore.status_code == 200, f"Expected 200, got {resp_explore.status_code}"
+    html_explore = resp_explore.text
 
-    assert idx_misfit < idx_rekap, f"Expected 'Butir Bermasalah' ({idx_misfit}) < 'Rekap Responden' ({idx_rekap})"
-    assert idx_rekap < idx_butir, f"Expected 'Rekap Responden' ({idx_rekap}) < 'Tabel Butir (15.1)' ({idx_butir})"
-    assert idx_butir < idx_opsi, f"Expected 'Tabel Butir (15.1)' ({idx_butir}) < 'Tabel Opsi dan Distraktor (15.3)' ({idx_opsi})"
-    assert idx_opsi < idx_responden, f"Expected 'Tabel Opsi dan Distraktor (15.3)' ({idx_opsi}) < 'Tabel Responden' ({idx_responden})"
-
-    assert "Tabel Ringkasan" not in html, "'Tabel Ringkasan' must be absent from analysis page"
+    assert (
+        html_explore.index('id="tab-wright"')
+        < html_explore.index('id="tab-butir"')
+        < html_explore.index('id="tab-partisipan"')
+        < html_explore.index('id="tab-ringkasan"')
+        < html_explore.index('id="tab-opsi"')
+        < html_explore.index('id="tab-subsubtes"')
+        < html_explore.index('id="tab-tabulasi"')
+        < html_explore.index('id="tab-bandingkan"')
+    )
 
 
 # ---------------------------------------------------------------------------
