@@ -41,7 +41,7 @@ from raschlab.cli import run_analyze
 
 logger = logging.getLogger("app.analysis")
 
-ENGINE_REF = "51cbdf7"
+ENGINE_REF = "b9c3919"
 RETENTION_DAYS = 180
 NOTICE_DAYS = 14
 STALE_RUN_S = 900
@@ -55,6 +55,8 @@ OUTPUT_FILES = (
     "wright_map_measure.csv",
     "wright_map_frequency.csv",
     "subsubtes_summary.csv",
+    "tabulasi_summary.csv",
+    "tabulasi_item.csv",
 )
 
 MISFIT_THRESHOLD_DEFAULT = 1.5

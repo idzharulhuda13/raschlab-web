@@ -632,6 +632,8 @@ def get_analysis(
                 rekap[k] = row[2]
 
         stored_subsubtes = tables.get("subsubtes_summary.csv", [])
+        # ponytail: ceiling is 7 sub-subtes x 3 tingkat kesukaran = 21 rows; paginate() is the upgrade path if it ever grows.
+        stored_tabulasi = tables.get("tabulasi_summary.csv", [])
         # ponytail: ceiling is one row per sub-subtes (7 known codes); the upgrade path is paginate() if labels ever yield more groups than RENDER_PAGE.
 
         context.update(
@@ -655,6 +657,9 @@ def get_analysis(
                 "subsubtes_headers": stored_subsubtes[:1],
                 "subsubtes_rows": stored_subsubtes[1:],
                 "subsubtes_missing": not stored_subsubtes,
+                "tabulasi_headers": stored_tabulasi[:1],
+                "tabulasi_rows": stored_tabulasi[1:],
+                "tabulasi_missing": not stored_tabulasi,
                 "page_item": item_paged.page,
                 "page_option": option_paged.page,
                 "page_person": person_paged.page,

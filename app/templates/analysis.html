@@ -258,6 +258,53 @@
   {% endif %}
 </section>
 
+<section class="band" id="tabulasi">
+  <h2>Ringkasan Tabulasi</h2>
+  {% if tabulasi_rows %}
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi" aria-label="Unduh Excel ringkasan tabulasi">Unduh Excel ringkasan</a>
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi_butir" aria-label="Unduh Excel tabulasi per butir">Unduh Excel butir</a>
+  </div>
+  <div class="table-scroll">
+    <table class="data-table">
+      <caption class="table-caption">{{ tabulasi_rows | length | id_num }} baris: Subtes, Sub-subtes dan tingkat kesukaran, dihitung dari opsi kunci tiap butir. Kesukaran dari DATA% (sulit sampai 29%, sedang 30 sampai 69%, mudah 70% ke atas), daya beda dari PTMA CORR (rendah di bawah 0,20, tinggi 0,20 ke atas). NOMOR_TINGGI dan NOMOR_RENDAH memuat nomor butir.</caption>
+      <thead>
+        <tr>
+          {% for col in tabulasi_headers[0] %}
+          <th scope="col" class="mono">{{ col }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in tabulasi_rows %}
+        <tr>
+          {% for cell in row %}
+          {% if loop.index0 in (3, 5, 7) %}
+          <td class="num-col mono">{{ cell | id_num }}</td>
+          {% else %}
+          <td class="mono">{{ cell }}</td>
+          {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif tabulasi_headers %}
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi" aria-label="Unduh Excel ringkasan tabulasi">Unduh Excel ringkasan</a>
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi_butir" aria-label="Unduh Excel tabulasi per butir">Unduh Excel butir</a>
+  </div>
+  <div class="alert alert--info" role="status">
+    <p>Data ini tidak memuat kode sub-subtes pada label butir, jadi ringkasan tabulasi kosong. Analisis tetap lengkap; tabel ini terisi otomatis bila label butir memuat kode sub-subtes.</p>
+  </div>
+  {% else %}
+  <div class="alert alert--info" role="status">
+    <p>Analisis ini dijalankan sebelum mesin menulis ringkasan tabulasi, jadi rinciannya belum tersimpan. Jalankan ulang analisis untuk melihatnya.</p>
+  </div>
+  {% endif %}
+</section>
+
 <section class="band">
   <h2>Tabel Butir (15.1)</h2>
   <div class="action-bar">

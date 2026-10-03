@@ -81,6 +81,15 @@ def _build_test_files(item_rows_extra: list[list[str]] | None = None) -> dict[st
         "wright_map_measure.csv": _csv([_WRIGHT_HEADER_ROW0, _WRIGHT_HEADER_ROW1] + _WRIGHT_DATA_ROWS),
         "wright_map_frequency.csv": _csv([_WRIGHT_HEADER_ROW0, _WRIGHT_HEADER_ROW1] + _WRIGHT_DATA_ROWS),
         "subsubtes_summary.csv": _csv([["SUBSUBTES", "ITEMS", "ANCHOR_ITEMS", "NEW_ITEMS", "MEAN_MEASURE", "S.SD_MEASURE", "MEAN_INFIT", "MAX_INFIT", "MISFIT_ITEMS"]]),
+        # The fixture labels carry no sub-subtes code, so the grouped summary is
+        # header-only, exactly as the engine would write it for these labels.
+        "tabulasi_summary.csv": _csv([["SUBTES", "SUBSUBTES", "KESUKARAN", "TINGGI", "NOMOR_TINGGI", "RENDAH", "NOMOR_RENDAH", "JUMLAH"]]),
+        "tabulasi_item.csv": _csv([
+            ["SUBTES", "SUBSUBTES", "ENTRY", "ITEM", "KESUKARAN", "DAYA_BEDA", "DATA_PCT", "PTMA_CORR"],
+            ["", "", "1", "Item1", "mudah", "tinggi", "70", "0.45"],
+            ["", "", "2", "Item2", "sedang", "tinggi", "60", "0.40"],
+            ["", "", "3", "Item3", "mudah", "tinggi", "75", "0.50"],
+        ]),
     }
 
 def _seed_f9(
