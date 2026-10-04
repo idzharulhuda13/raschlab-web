@@ -71,7 +71,7 @@ def test_no_style_blocks_in_any_template():
         assert "<style" not in content, f"<style tag found in {html_file}"
 
     page_templates = list(templates_dir.glob("*.html"))
-    assert len(page_templates) == 13, f"Expected 13 page templates directly under app/templates, found {len(page_templates)}"  # 13 pages since F12 added analysis_settings.html
+    assert len(page_templates) == 14, f"Expected 13 page templates directly under app/templates, found {len(page_templates)}"  # 13 pages since F12 added analysis_settings.html
     for html_file in page_templates:
         content = html_file.read_text()
         assert 'style="' not in content, f'style=" attribute found in page template {html_file}'

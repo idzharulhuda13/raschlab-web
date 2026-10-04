@@ -29,7 +29,7 @@ from app.analyze import (
 )
 from app.auth import _current_user, _gate_closed, templates
 from app.db import get_session
-from app.models import Analysis, Dataset
+from app.models import Analysis, AnalysisShare, Dataset, User
 from app.security import now_epoch
 
 templates.env.filters["id_num"] = id_num
@@ -50,10 +50,53 @@ COMPARE_EMPTY_REASON_MSG = (
 COMPARE_MISMATCH_REASON_MSG = (
     "Butir tidak dapat dipasangkan: berkas tanpa label butir hanya dapat dibandingkan bila jumlah butirnya sama."
 )
+COMPARE_SHARED_MSG = "Perbandingan dengan analisis lain tidak tersedia pada hasil yang dibagikan."
+IDENTITY_HEADERS = ("PERSON", "NAME")
 
 VIEWS = ("wright", "butir", "partisipan", "ringkasan", "opsi", "subsubtes", "tabulasi", "bandingkan")
 FRAGMENT_VIEWS = tuple(v for v in VIEWS if v != "wright")
 TWO_DECIMALS = Decimal("0.01")
+
+
+def redact_person_rows(rows: list[list[str]]) -> tuple[list[list[str]], list[int]]:
+    """Drop respondent-identity columns from a table whose first two rows are headers.
+
+    Columns are found by header NAME, never by a fixed position. When no identity column can be
+    identified the function fails closed: the real data rows are dropped entirely.
+    """
+    if len(rows) < 2:
+        return rows, []
+    found = sorted(
+        {
+            idx
+            for header_row in rows[:2]
+            for idx, cell in enumerate(header_row)
+            if str(cell).strip().upper() in IDENTITY_HEADERS
+        }
+    )
+    if not found:
+        return rows[:2], []
+    width = max(len(row) for row in rows)
+    keep = [idx for idx in range(width) if idx not in found]
+    return [[row[idx] if idx < len(row) else "" for idx in keep] for row in rows], found
+
+
+def owner_share_info(db: Session, analysis_id: int) -> dict[str, str] | None:
+    """Expiry label of the newest open share link for an analysis, or None when there is none."""
+    row = (
+        db.execute(
+            select(AnalysisShare)
+            .where(AnalysisShare.analysis_id == analysis_id, AnalysisShare.revoked_at.is_(None))
+            .order_by(AnalysisShare.id.desc())
+        )
+        .scalars()
+        .first()
+    )
+    if row is None:
+        return None
+    if row.expires_at <= now_epoch():
+        return {"expires_label": "kedaluwarsa"}
+    return {"expires_label": datetime.datetime.fromtimestamp(row.expires_at).strftime("%Y-%m-%d %H:%M")}
 
 
 class ExplorerDataError(Exception):
@@ -397,8 +440,22 @@ def get_explore(
     if analysis.status != "done":
         return RedirectResponse(f"/analyses/{analysis.id}", status_code=303)
 
+    return render_explore(request, db, analysis, dataset, user=user)
+
+
+def render_explore(
+    request: Request,
+    db: Session,
+    analysis: Analysis,
+    dataset: Dataset,
+    *,
+    user: User | None,
+    share: dict[str, str] | None = None,
+    extra: dict[str, Any] | None = None,
+) -> HTMLResponse:
     raw_view = request.query_params.get("view", "wright")
     active_view = raw_view if raw_view in VIEWS else "wright"
+    shared = share is not None
 
     fragment = request.query_params.get("fragment")
     if fragment is not None:
@@ -424,7 +481,9 @@ def get_explore(
     from_id = None
     to_id = None
 
-    if from_val is not None or to_val is not None:
+    if shared and (from_val is not None or to_val is not None):
+        raise HTTPException(status_code=404, detail=PAGE_NOT_FOUND_MSG)
+    if not shared and (from_val is not None or to_val is not None):
         if from_val is None or to_val is None:
             raise HTTPException(status_code=404, detail=ANALYSIS_NOT_FOUND_MSG)
         try:
@@ -470,10 +529,10 @@ def get_explore(
     misfit_value = float(misfit_val)
     anchors = params.get("anchors")
     anchor_band = _anchor_band(anchors)
-    marks = _marked_ids(db, user.id)
+    marks = {} if shared else _marked_ids(db, user.id)
 
     context: dict[str, Any] = {
-        "user": user,
+        "user": None if shared else user,
         "dataset": dataset,
         "analysis": analysis,
         "status": analysis.status,
@@ -519,12 +578,15 @@ def get_explore(
         "clean_audit": None,
         "n_misfit": 0,
         "n_item": 0,
-        "mark_state": _mark_state(marks, dataset.id, analysis.id),
-        "can_mark": analysis.user_id == user.id,
+        "mark_state": None if shared else _mark_state(marks, dataset.id, analysis.id),
+        "can_mark": False if shared else analysis.user_id == user.id,
         "anchor_band": anchor_band,
         "is_anchored": bool(anchors) and not (anchor_band is not None and anchor_band["used"] == 0),
         "delete_lists": _delete_lists_from_params(params),
     }
+    context["explore_path"] = (
+        f"/s/{share['token']}" if shared else f"/analyses/{analysis.id}/explore"
+    )
 
     if fragment is None:
         try:
@@ -549,9 +611,10 @@ def get_explore(
         context["page_item"] = item_paged.page
 
     elif render_view == "partisipan":
-        person_headers = person_rows[:2] if len(person_rows) >= 2 else []
-        person_data = person_rows[2:] if len(person_rows) >= 2 else []
-        filtered_persons = filter_rows(person_data, q_person, (0, 13))
+        visible_persons, _dropped = redact_person_rows(person_rows) if shared else (person_rows, [])
+        person_headers = visible_persons[:2] if len(visible_persons) >= 2 else []
+        person_data = visible_persons[2:] if len(visible_persons) >= 2 else []
+        filtered_persons = filter_rows(person_data, q_person, (0,) if shared else (0, 13))
         person_paged = paginate(filtered_persons, page_person_req)
         context["person_ctx"] = {
             "headers": person_headers,
@@ -636,7 +699,7 @@ def get_explore(
         options_stmt = (
             select(Analysis.id, Analysis.dataset_id, Analysis.created_at, Dataset.filename)
             .join(Dataset, Analysis.dataset_id == Dataset.id)
-            .where(Analysis.user_id == user.id, Analysis.status == "done")
+            .where(Analysis.user_id == (user.id if user is not None else -1), Analysis.status == "done")
             .order_by(Analysis.created_at.desc(), Analysis.id.desc())
         )
         done_analyses = db.execute(options_stmt).all()
@@ -654,7 +717,11 @@ def get_explore(
             }
             for row in done_analyses
         ]
-        empty_reason = COMPARE_EMPTY_REASON_MSG if len(options) < 2 else None
+        if shared:
+            options = []
+            empty_reason = COMPARE_SHARED_MSG
+        else:
+            empty_reason = COMPARE_EMPTY_REASON_MSG if len(options) < 2 else None
 
         if from_analysis is not None and to_analysis is not None:
             from_dataset = db.scalar(select(Dataset).where(Dataset.id == from_analysis.dataset_id))
@@ -754,6 +821,14 @@ def get_explore(
                 "pairs": [],
                 "cmp_data_json": None,
             }
+
+    context["share_mode"] = shared
+    context["share"] = share
+    context["owner_share"] = None if shared else owner_share_info(db, analysis.id)
+    context.setdefault("share_new_url", None)
+    context.setdefault("share_error", None)
+    if extra:
+        context.update(extra)
 
     template_name = "explore/fragment.html" if fragment is not None else "explore.html"
     return templates.TemplateResponse(

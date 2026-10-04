@@ -14,16 +14,21 @@
 {% endblock %}
 
 {% block content %}
+{% if not share_mode %}
 {% if request.query_params.get('msg') == 'analyzed' %}
 <div class="alert alert--fit" role="status">
   Analisis selesai. Semua tabel hasil ada di tab di bawah.
 </div>
 {% endif %}
+{% endif %}
 <section class="band band--header">
-  <a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a>
+  {% if not share_mode %}<a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a>{% endif %}
   <h1 class="detail-title">{{ view_label }}: <span class="mono">{{ dataset.filename }}</span></h1>
   <div class="header-actions">
     <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
+    {% if share_mode %}
+    <span class="chip chip--accent">Hasil dibagikan</span>
+    {% endif %}
     {% if mark_state == 'dipakai' %}
     <span class="chip chip--accent">Dipakai</span>
     {% elif mark_state == 'arsip' %}
@@ -41,6 +46,32 @@
     </form>
     {% endif %}
   </div>
+  {% if not share_mode %}
+  <div class="action-bar">
+    {% if share_new_url %}
+    <input id="share-url" type="text" value="{{ share_new_url }}" readonly class="field-input mono">
+    <button type="button" class="btn btn--secondary" data-copy-target="share-url">Salin tautan</button>
+    <span class="field-hint">Tautan hanya tampil sekali.</span>
+    {% elif owner_share %}
+    <span class="field-hint">Tautan aktif sampai {{ owner_share.expires_label }}.</span>
+    <form method="post" action="/analyses/{{ analysis.id }}/share/revoke">
+      <button type="submit" class="btn btn--secondary">Cabut tautan</button>
+    </form>
+    {% else %}
+    <form method="post" action="/analyses/{{ analysis.id }}/share">
+      <div class="field">
+        <label for="share-password" class="field-label">Password tautan</label>
+        <input type="password" id="share-password" name="password" minlength="10" required autocomplete="new-password" class="field-input">
+      </div>
+      <span class="field-hint">Berlaku 7 hari. Penerima melihat 8 tab hasil tanpa unduhan dan tanpa nama responden.</span>
+      <button type="submit" class="btn btn--secondary">Buat tautan bagikan</button>
+    </form>
+    {% endif %}
+    {% if share_error %}
+    <div class="alert alert--misfit" role="alert">{{ share_error }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
   <p class="field-hint">Hasil analisis disimpan selama {{ retention_days }} hari.</p>
   <div class="header-pairs">
     <div class="def-row">
@@ -96,11 +127,19 @@
 </section>
 {% endif %}
 
+{% if share_mode %}
+<noscript>
+  <div class="alert alert--warn" role="alert">
+    Halaman ini membutuhkan JavaScript untuk tampilan interaktif. Tanpa JavaScript, setiap tab tetap dapat dibuka lewat tautannya.
+  </div>
+</noscript>
+{% else %}
 <noscript>
   <div class="alert alert--warn" role="alert">
     Halaman ini membutuhkan JavaScript untuk tampilan interaktif. Tanpa JavaScript, setiap tab tetap dapat dibuka lewat tautannya dan tabel dapat diunduh lewat Unduh Excel.
   </div>
 </noscript>
+{% endif %}
 
 <div id="tablist" class="tabs band" role="tablist">
   <a id="tab-wright" href="?view=wright{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'wright' %} is-active{% endif %}" role="tab" aria-controls="panel-wright" aria-selected="{{ 'true' if active_view == 'wright' else 'false' }}">Peta Wright</a>
@@ -117,10 +156,13 @@
   {% set person_incl = rekap.get('PERSON EXTREME INCL COUNT') | int if ('PERSON EXTREME INCL COUNT' in rekap and rekap.get('PERSON EXTREME INCL COUNT') is not none) else none %}
   {% set person_count = rekap.get('PERSON COUNT') | int if ('PERSON COUNT' in rekap and rekap.get('PERSON COUNT') is not none) else none %}
   <p id="wright-meta">Partisipan: {{ rekap.get('PERSON COUNT', '-') | id_num }} · Butir: {{ rekap.get('ITEM COUNT', '-') | id_num }} · Dikecualikan (skor sempurna/nol): {% if person_incl is not none and person_count is not none %}{{ (person_incl - person_count) | id_num }}{% else %}-{% endif %}</p>
+  {% if not share_mode %}
   <div class="action-bar">
     <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=wright" aria-label="Unduh Excel peta Wright sisi measure">Unduh measure</a>
     <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=frekuensi" aria-label="Unduh Excel peta Wright sisi frekuensi">Unduh frekuensi</a>
     <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=semua" aria-label="Unduh semua tabel analisis {{ analysis.id }} {{ dataset.filename }} (satu berkas, semua sheet)">Unduh semua (satu berkas, semua sheet)</a>
+  </div>
+  {% endif %}
   </div>
   <div id="wright-scale" class="chart-scroll"></div>
   <p id="wright-readout" class="readout">Fokus pada butir di peta untuk melihat rincian.</p>
@@ -207,7 +249,9 @@
   {% endif %}
 </div>
 
+{% if not share_mode %}
 <div class="page-exit"><a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a></div>
+{% endif %}
 
 {% if payload_json %}<script type="application/json" id="explorer-data">{{ payload_json | safe }}</script>{% endif %}
 

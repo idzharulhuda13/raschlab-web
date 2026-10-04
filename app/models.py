@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, ForeignKey, Index, Integer, LargeBinary, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -91,4 +91,26 @@ class AnalysisFile(Base):
     content_gzip: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     sha256: Mapped[str] = mapped_column(String, nullable=False)
     bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class AnalysisShare(Base):
+    __tablename__ = "analysis_shares"
+    __table_args__ = (
+        Index(
+            "uq_analysis_shares_open",
+            "analysis_id",
+            unique=True,
+            sqlite_where=text("revoked_at IS NULL"),
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    analysis_id: Mapped[int] = mapped_column(ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    expires_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    revoked_at: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
