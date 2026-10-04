@@ -91,7 +91,11 @@ def get_share(token: str, request: Request, db: Session = Depends(get_session)):
     row, analysis, dataset = resolved
     if request.cookies.get(SHARE_COOKIE) != share_cookie_value(row):
         return _harden(_gate_page(request, None))
-    return _harden(render_explore(request, db, analysis, dataset, user=None, share={"token": token}))
+    try:
+        rendered = render_explore(request, db, analysis, dataset, user=None, share={"token": token})
+    except HTTPException as exc:
+        return _harden(JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}))
+    return _harden(rendered)
 
 
 @router.post("/s/{token}")

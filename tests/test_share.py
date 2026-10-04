@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Optional
@@ -205,6 +206,10 @@ def test_expiry_boundary_and_revocation(client: TestClient, monkeypatch: pytest.
     assert g_before.status_code == 200
     assert "Buka hasil" in g_before.text
 
+    monkeypatch.setattr(app.share, "now_epoch", lambda: expires_at)
+    anon_at_boundary = TestClient(client.app, base_url="https://testserver")
+    assert anon_at_boundary.get(f"/s/{token}").status_code == 404
+
     monkeypatch.setattr(app.share, "now_epoch", lambda: expires_at + 1)
     g_after = anon_no_cookie.get(f"/s/{token}")
     assert g_after.status_code == 404
@@ -222,7 +227,10 @@ def test_unknown_token_is_404_not_403(client: TestClient) -> None:
     anon = TestClient(client.app, base_url="https://testserver")
     r = anon.get("/s/nonexistent-token-xyz-12345")
     assert r.status_code == 404
-    assert PAGE_NOT_FOUND_MSG in r.text
+    data = json.loads(r.text)
+    assert data["detail"] == PAGE_NOT_FOUND_MSG
+    assert "SENTINEL" not in r.text
+    assert "explorer-data" not in r.text
 
 
 def test_gate_page_carries_no_data(client: TestClient) -> None:
@@ -470,3 +478,16 @@ def test_hardening_headers(client: TestClient) -> None:
     assert dash_resp.headers.get("referrer-policy") == "no-referrer"
     assert dash_resp.headers.get("cache-control") == "no-store"
     assert dash_resp.headers.get("x-robots-tag") == "noindex"
+
+
+def test_owner_person_table_keeps_the_person_sort_control(client: TestClient) -> None:
+    """The owner table must still offer a text sort on PERSON (regression guard)."""
+    uid, aid, _ = _owner_and_analysis(client, email="owner18@example.com")
+    page = client.get(f"/analyses/{aid}/explore?view=partisipan")
+    assert page.status_code == 200
+    assert ">PERSON<" in page.text or "PERSON</button>" in page.text, "the owner PERSON header cell is gone"
+    assert 'data-sort="text"' in page.text, "the owner PERSON sort control lost its text sort type"
+    # exactly one text-sort control (PERSON); the numeric ones stay numeric
+    assert page.text.count('data-sort="text"') == 1
+    assert page.text.count('class="th-sort"') == 6
+
