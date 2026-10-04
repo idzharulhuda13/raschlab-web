@@ -491,3 +491,28 @@ def test_owner_person_table_keeps_the_person_sort_control(client: TestClient) ->
     assert page.text.count('data-sort="text"') == 1
     assert page.text.count('class="th-sort"') == 6
 
+
+def test_render_failure_is_hardened_and_logged(
+    client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A non-HTTPException render error must still carry the share hardening headers, and must be logged."""
+    uid, aid, _ = _owner_and_analysis(client, email="owner19@example.com")
+    token, _ = _create_share_link(client, aid, password="password-1234")
+
+    with SessionLocal() as db:
+        row = db.scalar(select(Analysis).where(Analysis.id == aid))
+        row.params_json = "{not valid json"
+        db.commit()
+
+    anon = TestClient(client.app, base_url="https://testserver")
+    anon.post(f"/s/{token}", data={"password": "password-1234"}, follow_redirects=False)
+
+    caplog.set_level(logging.ERROR)
+    r = anon.get(f"/s/{token}")
+    assert r.status_code == 500, r.status_code
+    assert r.headers.get("cache-control") == "no-store"
+    assert r.headers.get("referrer-policy") == "no-referrer"
+    assert r.headers.get("x-robots-tag") == "noindex"
+    assert "Terjadi kesalahan" in r.text
+    assert "params_json" in caplog.text or "JSONDecodeError" in caplog.text or "share render failed" in caplog.text
+
