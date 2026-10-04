@@ -339,3 +339,37 @@ matching a Jinja string literal, the false-positive class its own header warns a
 appended `NAME` (18+1 columns, the producer's real shape). The repo's older 14-column fixture hid a real defect:
 dropping the identity column shifted the template's positional sort branch onto `RANK`, which then sorted as
 text. That shift is fixed by the name-based branch in `explore/fragment.html` (owner behaviour unchanged).
+
+
+## REVIEW ROUND (Arc, 4 Oct 2026) — independent reviewer, different model family (`gpt-6-luna`)
+
+Four findings raised over two rounds, all closed; final delta verdict **NO FINDINGS** with quoted lines.
+
+1. **MEDIUM — invalid-fragment 404 lost the hardening headers.** A shared request with `?fragment=bogus` raised
+   `HTTPException` inside `render_explore` before `_harden` ran. Fixed: `get_share` wraps the call and hardens
+   every answer. Then a follow-up finding (MEDIUM) — **a non-`HTTPException` render failure** (malformed
+   `analysis.params_json` → `JSONDecodeError`) produced an unhardened framework 500 — closed by catching
+   `Exception`, logging with `logger.exception` and returning a hardened 500 carrying `SERVER_ERROR_MSG`.
+2. **LOW — the owner's PERSON sort control vanished.** The `{% set h1 = col | trim %}` line had moved INSIDE the
+   `{% if %}` block during the W7b re-apply, and `data-sort` still used the positional `loop.index0 == 13`.
+   Regression inside this change-set, invisible to the tests because the shared page has no `PERSON` column at
+   all. Fixed, plus a new owner-side regression test (one text sort, six controls). Sortable set verified
+   unchanged for the owner: `{0, 3, 4, 5, 7}` plus the `PERSON` position.
+3. **LOW — test gaps.** The expiry boundary was never asserted at exactly `expires_at`, and the unknown-token
+   test checked presence of the message rather than the exact body. Both tightened; a mutation (`<=` → `<`)
+   makes the boundary test fail.
+
+**Mutating what the tests claim to cover** (each restored from a copy, md5 compared): identity redaction
+disabled → RED · guard dependency removed → RED · sort branch reverted (both halves) → RED · `expires_at <= now`
+→ `<` → RED · `_harden` dropped from the 500 branch → RED.
+
+**Two self-inflicted process failures, recorded so they are not repeated.** (a) A mutation script restored
+`app/templates/explore/fragment.html` with `git checkout --`, which discarded the whole uncommitted change-set
+for that file (9 rewritten links, 11 guards). (b) A later script restored `app/share.py` from a copy taken BEFORE
+the writer run that added the fix, removing the fix, and the same script then committed that reduced file; the
+delta review dispatched next saw only a one-file diff (the test) and legitimately answered `NO FINDINGS` about a
+product change it never saw. Both were caught by the suite/verification and repaired in `d1c2241`; nothing left
+the branch. The rules that now live in `agy-build-pipeline/references/run-discipline.md`: restore from a copy
+taken AFTER the change you mean to keep, grep the markers and run the FULL suite between the restore and the
+commit, and confirm `files=$(grep -c '^diff --git' <diff>)` covers every file a fix touched before handing a
+delta to a reviewer.
