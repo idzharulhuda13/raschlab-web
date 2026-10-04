@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -13,6 +13,7 @@ from app.ingest import router as ingest_router
 from app.analyze import router as analyze_router
 from app.explore import router as explore_router
 from app.export import router as export_router
+from app.share import router as share_router, share_guard
 from app.ui import initials_for
 
 APP_VERSION = "0.1.0"
@@ -33,6 +34,7 @@ app = App(
     docs_url="/docs" if settings.app_env.lower() == "dev" else None,
     redoc_url="/redoc" if settings.app_env.lower() == "dev" else None,
     openapi_url="/openapi.json" if settings.app_env.lower() == "dev" else None,
+    dependencies=[Depends(share_guard)],
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -51,6 +53,7 @@ app.include_router(ingest_router)
 app.include_router(analyze_router)
 app.include_router(explore_router)
 app.include_router(export_router)
+app.include_router(share_router)
 
 
 @app.get("/", response_class=HTMLResponse)

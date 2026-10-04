@@ -2001,12 +2001,10 @@ label[for="wright-misfit-toggle"] {
   cursor: pointer;
 }
 
+/* Sizing lives in .field--toggle (44x44): an ID rule here would beat that class on specificity and shrink the
+   control below the house tap target. */
 #wright-misfit-toggle {
-  inline-size: 20px;
-  block-size: 20px;
   margin: 0;
-  flex: none;
-  accent-color: var(--accent);
   cursor: pointer;
 }
 

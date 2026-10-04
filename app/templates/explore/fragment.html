@@ -1,18 +1,18 @@
 {% if render_view == 'butir' %}
 <div class="action-bar">
-  <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=butir" aria-label="Unduh Excel tabel butir">Unduh Excel</a>
+  {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=butir" aria-label="Unduh Excel tabel butir">Unduh Excel</a>{% endif %}
 </div>
 {% elif render_view == 'partisipan' %}
 <div class="action-bar">
-  <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=responden" aria-label="Unduh Excel tabel responden">Unduh Excel</a>
+  {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=responden" aria-label="Unduh Excel tabel responden">Unduh Excel</a>{% endif %}
 </div>
 {% elif render_view == 'bandingkan' and compare_ctx is defined and compare_ctx.from_id and compare_ctx.to_id %}
 <div class="action-bar">
-  <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=bandingkan&from={{ compare_ctx.from_id }}&to={{ compare_ctx.to_id }}" aria-label="Unduh Excel tabel perbandingan">Unduh Excel</a>
+  {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=bandingkan&from={{ compare_ctx.from_id }}&to={{ compare_ctx.to_id }}" aria-label="Unduh Excel tabel perbandingan">Unduh Excel</a>{% endif %}
 </div>
 {% endif %}
 {% if render_view == 'butir' %}
-<form class="search-bar" method="get" action="/analyses/{{ analysis.id }}/explore">
+<form class="search-bar" method="get" action="{{ explore_path }}">
   <input type="hidden" name="view" value="butir">
   <input type="hidden" name="page_item" value="1">
   <label class="field-label" for="butir-search">Cari butir</label>
@@ -23,7 +23,7 @@
 {% if item_ctx.count == 0 %}
 <div class="empty" id="butir-empty">
   <p class="empty-text">Tidak ada baris yang cocok dengan pencarian.</p>
-  <a href="/analyses/{{ analysis.id }}/explore?view=butir" class="btn btn--secondary">Hapus pencarian</a>
+  <a href="{{ explore_path }}?view=butir" class="btn btn--secondary">Hapus pencarian</a>
 </div>
 {% else %}
 <div class="table-scroll">
@@ -45,7 +45,7 @@
           {% if loop.index0 in (0, 3, 4, 5, 7, 9, 11, 13) %}
             {% set h0 = item_ctx.headers[0][loop.index0] | trim if item_ctx.headers[0] | length > loop.index0 else '' %}
             {% set h1 = col | trim %}
-            <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if loop.index0 == 13 else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ h0 if (item_ctx.headers[1] | select('equalto', col) | list | length) > 1 else col }}</button></th>
+            <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if h1 == 'PERSON' else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ h0 if (item_ctx.headers[1] | select('equalto', col) | list | length) > 1 else col }}</button></th>
           {% else %}
             {% if col %}
               <th scope="col" class="mono">{{ col }}</th>
@@ -100,7 +100,7 @@
 {% elif hist_error %}
 <p class="field-hint" id="partisipan-chart-error">{{ hist_error }}</p>
 {% endif %}
-<form class="search-bar" method="get" action="/analyses/{{ analysis.id }}/explore">
+<form class="search-bar" method="get" action="{{ explore_path }}">
   <input type="hidden" name="view" value="partisipan">
   <input type="hidden" name="page_person" value="1">
   <label class="field-label" for="partisipan-search">Cari partisipan</label>
@@ -111,7 +111,7 @@
 {% if person_ctx.count == 0 %}
 <div class="empty" id="partisipan-empty">
   <p class="empty-text">Tidak ada baris yang cocok dengan pencarian.</p>
-  <a href="/analyses/{{ analysis.id }}/explore?view=partisipan" class="btn btn--secondary">Hapus pencarian</a>
+  <a href="{{ explore_path }}?view=partisipan" class="btn btn--secondary">Hapus pencarian</a>
 </div>
 {% else %}
 <div class="table-scroll">
@@ -130,10 +130,10 @@
       </tr>
       <tr>
         {% for col in person_ctx.headers[1] %}
-          {% if loop.index0 in (0, 3, 4, 5, 7, 13) %}
+          {% set h1 = col | trim %}
+          {% if h1 == 'PERSON' or loop.index0 in (0, 3, 4, 5, 7) %}
             {% set h0 = person_ctx.headers[0][loop.index0] | trim if person_ctx.headers[0] | length > loop.index0 else '' %}
-            {% set h1 = col | trim %}
-            <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if loop.index0 == 13 else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ col }}</button></th>
+            <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if h1 == 'PERSON' else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ col }}</button></th>
           {% else %}
             {% if col %}
               <th scope="col" class="mono">{{ col }}</th>
@@ -208,21 +208,21 @@
     <p>Analisis ini dijalankan sebelum mesin mencatat kolom status, jadi rincian baris yang dipakai dan dibuang belum ada. Jalankan ulang analisis untuk melihatnya.</p>
   </div>
   {% endif %}
-  <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/explore?view=bandingkan">Bandingkan dengan versi arsip</a>
+  <a class="btn btn--secondary" href="{{ explore_path }}?view=bandingkan">Bandingkan dengan versi arsip</a>
 </section>
 {% if n_item > 0 %}
 <section class="band" id="bermasalah">
   <h2>Butir Bermasalah</h2>
   <div class="alert {% if n_misfit > 0 %}alert--warn{% else %}alert--fit{% endif %}" role="status">
     <p>{{ n_misfit | id_num }} dari {{ n_item | id_num }} butir melewati ambang misfit INFIT MNSQ ≥ {{ misfit_threshold }}.</p>
-    <a href="/analyses/{{ analysis.id }}/explore?view=butir" class="btn btn--secondary">Lihat rincian butir</a>
+    <a href="{{ explore_path }}?view=butir" class="btn btn--secondary">Lihat rincian butir</a>
   </div>
 </section>
 {% endif %}
 <section class="band" id="rekap">
   <h2>Rekap Responden</h2>
   <div class="action-bar">
-    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=ringkasan" aria-label="Unduh Excel rekap ringkasan">Unduh Excel</a>
+    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=ringkasan" aria-label="Unduh Excel rekap ringkasan">Unduh Excel</a>{% endif %}
   </div>
   <div class="summary-grid" id="summary-counts">
     <figure class="summary-figure">
@@ -306,7 +306,7 @@
   <h2>Tabel Opsi dan Distraktor (15.3)</h2>
   {% if option_headers %}
   <div class="action-bar">
-    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=opsi" aria-label="Unduh Excel tabel opsi dan distraktor">Unduh Excel</a>
+    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=opsi" aria-label="Unduh Excel tabel opsi dan distraktor">Unduh Excel</a>{% endif %}
   </div>
   <div class="table-scroll">
     <table class="data-table">
@@ -371,7 +371,7 @@
   <h2>Ringkasan Sub-Subtes</h2>
   {% if subsubtes_rows %}
   <div class="action-bar">
-    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=subsubtes" aria-label="Unduh Excel ringkasan sub-subtes">Unduh Excel</a>
+    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=subsubtes" aria-label="Unduh Excel ringkasan sub-subtes">Unduh Excel</a>{% endif %}
   </div>
   <div class="table-scroll">
     <table class="data-table">
@@ -400,7 +400,7 @@
   </div>
   {% elif subsubtes_headers %}
   <div class="action-bar">
-    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=subsubtes" aria-label="Unduh Excel ringkasan sub-subtes">Unduh Excel</a>
+    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=subsubtes" aria-label="Unduh Excel ringkasan sub-subtes">Unduh Excel</a>{% endif %}
   </div>
   <div class="alert alert--info" role="status">
     <p>Data ini tidak memuat kode sub-subtes pada label butir, jadi ringkasan per sub-subtes kosong. Analisis tetap lengkap; tabel ini terisi otomatis bila label butir memuat kode sub-subtes.</p>
@@ -418,8 +418,8 @@
   <h2>Ringkasan Tabulasi</h2>
   {% if tabulasi_rows %}
   <div class="action-bar">
-    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi" aria-label="Unduh Excel ringkasan tabulasi">Unduh Excel ringkasan</a>
-    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi_butir" aria-label="Unduh Excel tabulasi per butir">Unduh Excel butir</a>
+    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi" aria-label="Unduh Excel ringkasan tabulasi">Unduh Excel ringkasan</a>{% endif %}
+    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi_butir" aria-label="Unduh Excel tabulasi per butir">Unduh Excel butir</a>{% endif %}
   </div>
   <div class="table-scroll">
     <table class="data-table">
@@ -448,8 +448,8 @@
   </div>
   {% elif tabulasi_headers %}
   <div class="action-bar">
-    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi" aria-label="Unduh Excel ringkasan tabulasi">Unduh Excel ringkasan</a>
-    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi_butir" aria-label="Unduh Excel tabulasi per butir">Unduh Excel butir</a>
+    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi" aria-label="Unduh Excel ringkasan tabulasi">Unduh Excel ringkasan</a>{% endif %}
+    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi_butir" aria-label="Unduh Excel tabulasi per butir">Unduh Excel butir</a>{% endif %}
   </div>
   <div class="alert alert--info" role="status">
     <p>Data ini tidak memuat kode sub-subtes pada label butir, jadi ringkasan tabulasi kosong. Analisis tetap lengkap; tabel ini terisi otomatis bila label butir memuat kode sub-subtes.</p>
@@ -458,7 +458,7 @@
 
   {% if tab_item_ctx and tab_item_ctx.count > 0 %}
   <h2>Tabulasi per Butir</h2>
-  <form class="search-bar" method="get" action="/analyses/{{ analysis.id }}/explore">
+  <form class="search-bar" method="get" action="{{ explore_path }}">
     <input type="hidden" name="view" value="tabulasi">
     <input type="hidden" name="page_tab" value="1">
     <label class="field-label" for="tab-search">Cari baris tabulasi</label>
@@ -511,7 +511,7 @@
     {% endif %}
   </nav>
   {% elif q_tab and not tabulasi_missing %}
-  <div class="empty" id="tabulasi-empty"><p class="empty-text">Tidak ada baris yang cocok dengan pencarian.</p><a href="/analyses/{{ analysis.id }}/explore?view=tabulasi" class="btn btn--secondary">Hapus pencarian</a></div>
+  <div class="empty" id="tabulasi-empty"><p class="empty-text">Tidak ada baris yang cocok dengan pencarian.</p><a href="{{ explore_path }}?view=tabulasi" class="btn btn--secondary">Hapus pencarian</a></div>
   {% endif %}
   {% else %}
   <div class="alert alert--info" role="status">
@@ -526,7 +526,7 @@
   <p class="empty-text">{{ compare_ctx.empty_reason }}</p>
 </div>
 {% else %}
-<form class="compare-strip" method="get" action="/analyses/{{ analysis.id }}/explore">
+<form class="compare-strip" method="get" action="{{ explore_path }}">
   <input type="hidden" name="view" value="bandingkan">
   <label class="field-label" for="cmp-from">Analisis pertama</label>
   <select id="cmp-from" name="from" class="select-input">
