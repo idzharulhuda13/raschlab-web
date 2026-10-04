@@ -1,6 +1,8 @@
 """Read-only share links: one analysis, one password, seven days."""
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import select
@@ -26,12 +28,14 @@ SHARE_TTL_S = 604800
 WRONG_PW_MSG = "Password salah. Coba lagi."
 TOO_MANY_MSG = "Terlalu banyak percobaan. Coba lagi nanti."
 SHARE_PW_POLICY_MSG = "Password tautan minimal 10 karakter."
+SERVER_ERROR_MSG = "Terjadi kesalahan pada server. Coba lagi nanti."
 SHARE_HEADERS = {
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer",
     "X-Robots-Tag": "noindex",
 }
 EXEMPT_PREFIXES = ("/s/", "/static/", "/health")
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -95,6 +99,9 @@ def get_share(token: str, request: Request, db: Session = Depends(get_session)):
         rendered = render_explore(request, db, analysis, dataset, user=None, share={"token": token})
     except HTTPException as exc:
         return _harden(JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}))
+    except Exception:
+        logger.exception("share render failed for analysis %s", analysis.id)
+        return _harden(JSONResponse(status_code=500, content={"detail": SERVER_ERROR_MSG}))
     return _harden(rendered)
 
 
