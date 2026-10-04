@@ -663,3 +663,18 @@ def test_account_last_analysis_ignores_cross_owner_row(client: TestClient):
         '<span class="mono">2</span> '
         '<span class="section-text">analisis tersimpan</span>'
     ) not in html
+
+
+def test_toggle_sizing_is_not_overridden_by_an_id_rule() -> None:
+    """The 44px tap target lives in the class rule; an ID rule must not set a size of its own."""
+    css = (Path(__file__).resolve().parent.parent / "app" / "static" / "app.css").read_text()
+    id_block = re.search(r"#wright-misfit-toggle\s*\{(.*?)\}", css, re.S)
+    assert id_block, "#wright-misfit-toggle block is gone"
+    body = id_block.group(1)
+    for prop in ("inline-size", "block-size", "width", "height", "flex"):
+        assert prop not in body, f"the ID rule sets {prop}, which beats the 44px class rule"
+    class_block = re.search(r'\.field--toggle input\[type="checkbox"\]\s*\{(.*?)\}', css, re.S)
+    assert class_block, "the .field--toggle checkbox rule is gone"
+    class_body = class_block.group(1)
+    assert "width: 44px" in class_body and "height: 44px" in class_body
+

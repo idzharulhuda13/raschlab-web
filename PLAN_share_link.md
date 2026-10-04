@@ -373,3 +373,17 @@ the branch. The rules that now live in `agy-build-pipeline/references/run-discip
 taken AFTER the change you mean to keep, grep the markers and run the FULL suite between the restore and the
 commit, and confirm `files=$(grep -c '^diff --git' <diff>)` covers every file a fix touched before handing a
 delta to a reviewer.
+
+## TOGGLE TAP-TARGET FIX (folded in, same PR)
+
+The pre-existing `#wright-misfit-toggle` finding was folded into this change-set on request. Root cause: an ID
+rule in `app.css` declared `inline-size`/`block-size`/`flex`, which beats the 44px `.field--toggle` class rule on
+specificity, so the control measured 20x20 while its label row stayed 44px tall. Sizing declarations removed from
+the ID rule (only `margin: 0; cursor: pointer` remain), the comment now says why sizing lives in the class rule,
+and `tests/test_ui_contract.py` asserts that no `#wright-misfit-toggle` block declares
+`inline-size`/`block-size`/`width`/`height`/`flex` while the class rule keeps `width: 44px`/`height: 44px`.
+
+Measured after the fix, live browser: rect 44x44, `appearance: none`, `flex: 0 0 44px`, parent `.field
+field--toggle` 390x44, label 245x44, drawn box still `inset: 10px` inside the control. House UI gate re-run: 16
+passes -> **6 failing**, all of them the documented SVG `<title>`/`<desc>` contrast class (was 12 before, the
+under-44px class is gone on every surface, shared and owner). Suite 356 passed (336 baseline + 19 share + 1 lock).
