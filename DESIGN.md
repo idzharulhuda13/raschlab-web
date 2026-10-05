@@ -121,9 +121,12 @@ line up. The earlier Plus Jakarta Sans rationale is superseded by that direction
   checkbox row (`.field--toggle`, used by the Wright misfit highlight and the Bandingkan delta filter) and any
   other control the mouse and the thumb both aim at take `min-height: 44px` on desktop as well. A 32px sort
   header inside a 37px row is the shape this rule exists to prevent.
-- **A data row is not a control.** The Butir and Partisipan tables list numbers to read, sort and page
-  through: the rows carry no `tabindex`, no role and no hover treatment, so a keyboard user meets the sort
+- **A data row is not a control.** The Butir, Partisipan and Tabulasi tables list numbers to read, sort and
+  page through: the rows carry no `tabindex`, no role and no pointer cursor, so a keyboard user meets the sort
   buttons and the pager instead of 147 dead tab stops (measured 26 Sep 2026: activating a row changed nothing).
+  The 3% ink hover tint from the Table rule below does stay: it is a horizontal tracker across a 12-column
+  row, not an affordance, and it never ships with a pointer or a click handler (reconciled 6 Oct 2026 after two
+  reviewers read the two clauses against each other and against the rendered style).
   A row earns a tab stop only when a real action hangs off it, and that action decides the pattern.
 - **The app bar keeps its targets on a phone** (added 26 Sep 2026): every control in it holds 44x44 at every
   width, including the icon-shaped ones (account summary, theme toggle) and the skip link. Measured at 360px,

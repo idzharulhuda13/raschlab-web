@@ -423,11 +423,6 @@ h2,
   color: var(--muted);
 }
 
-.micro {
-  font-size: var(--step-14);
-  color: var(--muted);
-}
-
 .mono,
 .num-col,
 .band-scale-value,
@@ -458,10 +453,6 @@ h2,
   .sec {
     font-size: 14px;
   }
-  .micro {
-    font-size: var(--step-14);
-  }
-
   .appbar-inner {
     gap: var(--space-3);
     padding-inline: var(--space-4);

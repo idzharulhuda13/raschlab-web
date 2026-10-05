@@ -8,7 +8,6 @@
 
   var booted = false;
   var cachedPayload = null;
-  var itemMap = new Map();
 
   var TAB_IDS = {
     wright: 'tab-wright',
@@ -91,7 +90,7 @@
       }
     }
     var targetUrl = window.location.pathname + '?' + searchParams.toString();
-    fetch(targetUrl + (targetUrl.indexOf('fragment=') === -1 ? '?fragment=' : ''))
+    fetch(targetUrl)
       .then(function (res) {
         if (!res.ok) {
           throw new Error('HTTP ' + res.status);
@@ -416,7 +415,9 @@
   function wirePanelContent(view, panel) {
     if (view === 'bandingkan') {
       wireComparePanel(panel);
-    } else if (view === 'butir' || view === 'partisipan') {
+    } else if (view === 'butir' || view === 'partisipan' || view === 'tabulasi') {
+      // tabulasi was missing from this dispatch until 6 Oct 2026: its search form and pager fell back to a
+      // full page reload while the branches that serve them sat unreachable in wireSearchAndPager.
       wireSearchAndPager(view, panel);
       if (view === 'partisipan') {
         // The histogram lives only in the partisipan fragment, so the boot-time call cannot cover it: the
@@ -696,11 +697,6 @@
     }
 
     cachedPayload = payload;
-
-    itemMap.clear();
-    for (var mIdx = 0; mIdx < payload.items.length; mIdx++) {
-      itemMap.set(payload.items[mIdx][0], payload.items[mIdx]);
-    }
 
     var wrightScale = document.getElementById('wright-scale');
     if (wrightScale && window.RaschExplorerCharts && typeof window.RaschExplorerCharts.drawWright === 'function') {
