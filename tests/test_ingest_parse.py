@@ -341,3 +341,17 @@ def test_valid_fixture_parses_identically_after_the_new_checks():
         for c in range(40)
     ]
     assert missing_per_item(parsed) == GOLDEN_CSV_MISSING
+
+
+def test_spread_fixture_is_not_degenerate():
+    """The parity fixture must contain a spread of scores, or parity proves nothing."""
+    parsed = parse_delimited((FIXTURES_DIR / "sample_spread_60x20.csv").read_bytes())
+    assert len(parsed.person_labels) == 60
+    assert parsed.item_labels == [f"I{c + 1:02d}" for c in range(20)]
+    totals = [sum(1 for cell in row if cell == "1") for row in parsed.rows]
+    assert min(totals) == 4 and max(totals) == 16
+    assert len(set(totals)) == 13
+    assert not any(t in (0, 20) for t in totals)
+    hits = [sum(1 for row in parsed.rows if row[j] == "1") for j in range(20)]
+    assert min(hits) == 20 and max(hits) == 40
+    assert not any(h in (0, 60) for h in hits)
