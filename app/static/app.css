@@ -1216,6 +1216,7 @@ line.miss-marker {
 
 .def-value {
   color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
 .preview-table td,

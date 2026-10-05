@@ -692,3 +692,15 @@ def test_visited_rule_has_zero_specificity() -> None:
         "a bare a:visited rule would beat .btn--secondary again"
     )
 
+
+def test_definition_value_wraps_long_monospace_values() -> None:
+    """F12: a long unbreakable value must not push the page wider than the viewport.
+
+    At 390px the account page overflowed 52px because .def-value could not shrink
+    below its content width; this rule lets a long email wrap instead.
+    """
+    css = (Path(__file__).resolve().parent.parent / "app" / "static" / "app.css").read_text()
+    block = css.split(".def-value {", 1)[1].split("}", 1)[0]
+    assert "overflow-wrap: anywhere" in block, "the wrap rule is missing from .def-value"
+
+
