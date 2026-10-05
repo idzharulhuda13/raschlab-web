@@ -1,4 +1,5 @@
 import asyncio
+import html
 import json
 from pathlib import Path
 
@@ -499,10 +500,11 @@ def test_duplicate_column_upload_renders_the_refusal_alert(client: TestClient):
         follow_redirects=False,
     )
     assert resp.status_code == 200
+    # Jinja escapes the apostrophes in the refusal copy; compare the unescaped body.
     assert (
         "Berkas tidak valid: Nama kolom butir 'I01' muncul lebih dari satu kali. "
         "Beri nama setiap kolom butir yang berbeda."
-    ) in resp.text
+    ) in html.unescape(resp.text)
     with SessionLocal() as db:
         assert db.execute(select(func.count(Dataset.id))).scalar_one() == 0
 
