@@ -125,7 +125,8 @@ def test_register_rejects_empty_local_part(client, sent_emails, bad_email):
     assert len(sent_emails) == 1
 
 
-def test_register_duplicate_verified_email(client):
+def test_register_hides_an_existing_verified_account(client, sent_emails):
+    """An existing verified address must be indistinguishable from a new one."""
     client.post(
         "/register",
         data={"email": "a@example.test", "password": PASSWORD},
@@ -135,18 +136,33 @@ def test_register_duplicate_verified_email(client):
         user = db.execute(select(User).where(User.email == "a@example.test")).scalar_one()
         user.verified_at = now_epoch()
         db.commit()
+    sent_before = len(sent_emails)
 
-    response = client.post(
+    existing = client.post(
         "/register",
         data={"email": "a@example.test", "password": PASSWORD},
         follow_redirects=False,
     )
-    assert response.status_code == 200
-    assert "Email sudah terdaftar. Silakan masuk atau reset password." in response.text
+    fresh = client.post(
+        "/register",
+        data={"email": "baru@example.test", "password": PASSWORD},
+        follow_redirects=False,
+    )
 
+    assert existing.status_code == fresh.status_code == 303
+    assert existing.headers["location"] == fresh.headers["location"] == "/register?msg=sent"
+    assert "Email sudah terdaftar" not in existing.text
+
+    body_existing = client.get(existing.headers["location"])
+    body_fresh = client.get(fresh.headers["location"])
+    assert body_existing.status_code == body_fresh.status_code == 200
+    assert body_existing.text == body_fresh.text
+
+    # Only the brand new address is mailed, and no second row is created for it.
+    assert len(sent_emails) == sent_before + 1
     with SessionLocal() as db:
         users = db.execute(select(User)).scalars().all()
-        assert len(users) == 1
+        assert len(users) == 2
 
 
 def test_register_duplicate_unverified_reissues_token(client, sent_emails):

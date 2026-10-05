@@ -207,12 +207,11 @@ def post_register(
     user = db.execute(select(User).where(User.email_normalized == norm_email)).scalar_one_or_none()
     if user is not None:
         if user.verified_at is not None:
-            return templates.TemplateResponse(
-                request=request,
-                name="register.html",
-                context={"error": "Email sudah terdaftar. Silakan masuk atau reset password."},
-                status_code=200,
-            )
+            # Anti-enumeration: an address that already exists must look exactly
+            # like a brand new one, so both outcomes return the same 303 and the
+            # same page. No token is issued and no email is sent here; the
+            # unverified branch below keeps the resend-verification flow intact.
+            return RedirectResponse("/register?msg=sent", 303)
         raw = _issue_verify(db, user)
         db.commit()
         try:
