@@ -5,39 +5,52 @@
 
 {% block content %}
 {% set query_msg = (request.query_params.get('msg') if request and request.query_params else None) or msg %}
-{% if query_msg == 'analyzed' %}
-<div class="alert alert--fit" role="status">
-  Analisis berhasil dimulai. Tunggu hingga berstatus Selesai, lalu buka dashboard hasilnya.
-</div>
-{% endif %}
-
-<section class="band band--header">
-  <a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a>
-  <h1 class="detail-title">Hasil Analisis: <span class="mono">{{ dataset.filename }}</span></h1>
-  <div class="header-actions">
-    {% if status in ('running', 'queued') %}
-    <span class="chip chip--accent"><span class="chip-glyph">…</span> Memproses</span>
-    {% elif status == 'failed' %}
-    <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
-    {% endif %}
-    {% if mark_state == 'dipakai' %}
-    <span class="chip chip--accent">Dipakai</span>
-    {% elif mark_state == 'arsip' %}
-    <span class="chip chip--warn">Arsip</span>
-    {% endif %}
+{# The dashboard's header pattern (DESIGN.md, "One frame for the whole app"): crumbs, the file name as the
+   title, status chips, actions on the right, provenance one click away. #}
+<header class="dash-head">
+  {% if query_msg == 'analyzed' %}
+  <div class="alert alert--fit" role="status">
+    Analisis berhasil dimulai. Tunggu hingga berstatus Selesai, lalu buka dashboard hasilnya.
+  </div>
+  {% endif %}
+  <div class="dash-crumbs">
+    <a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a>
+    <span class="dash-eyebrow mono">Analisis #{{ analysis.id }}</span>
+  </div>
+  <div class="dash-title-row">
+    <div class="dash-title">
+      <h1 class="detail-title">{{ dataset.filename }}</h1>
+      <div class="dash-chips">
+        {% if status in ('running', 'queued') %}
+        <span class="chip chip--accent"><span class="chip-glyph">…</span> Memproses</span>
+        {% elif status == 'failed' %}
+        <span class="chip chip--misfit"><span class="chip-glyph">!</span> Gagal</span>
+        {% endif %}
+        {% if mark_state == 'dipakai' %}
+        <span class="chip chip--accent">Dipakai</span>
+        {% elif mark_state == 'arsip' %}
+        <span class="chip chip--warn">Arsip</span>
+        {% endif %}
+        <span class="field-hint">Hasil analisis disimpan selama {{ retention_days }} hari.</span>
+      </div>
+    </div>
     {% if can_mark %}
-    <form method="post" action="/analyses/{{ analysis.id }}/mark">
-      {% if mark_state == 'dipakai' %}
-      <input type="hidden" name="primary" value="0">
-      <button type="submit" class="btn btn--secondary">Batalkan tanda dipakai</button>
-      {% else %}
-      <input type="hidden" name="primary" value="1">
-      <button type="submit" class="btn btn--secondary">Tandai sebagai versi dipakai</button>
-      {% endif %}
-    </form>
+    <div class="header-actions">
+      <form method="post" action="/analyses/{{ analysis.id }}/mark">
+        {% if mark_state == 'dipakai' %}
+        <input type="hidden" name="primary" value="0">
+        <button type="submit" class="btn btn--secondary">Batalkan tanda dipakai</button>
+        {% else %}
+        <input type="hidden" name="primary" value="1">
+        <button type="submit" class="btn btn--secondary">Tandai sebagai versi dipakai</button>
+        {% endif %}
+      </form>
+    </div>
     {% endif %}
   </div>
-  <p class="field-hint">Hasil analisis disimpan selama 180 hari.</p>
+  <div class="dash-disclosures">
+  <details class="dash-more">
+  <summary>Detail proses</summary>
   <div class="header-pairs">
     <div class="def-row">
       <span class="def-label">Versi Mesin: </span>
@@ -66,12 +79,17 @@
     </div>
     {% endfor %}
   </div>
-</section>
+  </details>
+  </div>
+</header>
 
 {% if status in ('running', 'queued') %}
 <section class="band">
-  <div class="empty">
+  {# The page does not poll, so the state says how to see the next one and offers the action. #}
+  <div class="empty empty--loading" role="status">
     <p class="empty-text">Analisis sedang diproses…</p>
+    <p class="empty-text">Halaman ini tidak memperbarui diri sendiri. Muat ulang untuk melihat status terbaru.</p>
+    <a href="/analyses/{{ analysis.id }}" class="btn btn--secondary">Muat ulang status</a>
   </div>
 </section>
 {% elif status == 'failed' %}

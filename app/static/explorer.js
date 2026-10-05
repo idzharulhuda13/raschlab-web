@@ -113,16 +113,38 @@
     }
   }
 
-  function showFetchError(panel) {
+  /**
+   * Error state for a failed fragment request. With onRetry the alert carries a working `Coba lagi`
+   * button (used when a tab's first load failed and nothing else is in the panel); without it the
+   * previous panel content stays below the alert (a failed search or page change).
+   */
+  function showFetchError(panel, onRetry) {
     clearFetchError();
     var alertEl = document.createElement('div');
     alertEl.id = 'explorer-fetch-error';
     alertEl.className = 'alert alert--misfit';
     alertEl.setAttribute('role', 'alert');
-    alertEl.textContent = 'Gagal memuat data. Muat ulang halaman dan coba lagi.';
+    var message = document.createElement('p');
+    message.textContent = 'Gagal memuat data. Muat ulang halaman dan coba lagi.';
+    alertEl.appendChild(message);
+    if (onRetry) {
+      var retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'btn btn--secondary';
+      retry.textContent = 'Coba lagi';
+      retry.addEventListener('click', onRetry);
+      alertEl.appendChild(retry);
+    }
     if (panel) {
       panel.insertBefore(alertEl, panel.firstChild);
     }
+  }
+
+  function makeSpan(className, text) {
+    var span = document.createElement('span');
+    span.className = className;
+    if (text !== undefined) span.textContent = text;
+    return span;
   }
 
   function showExplorerError(reason) {
@@ -139,8 +161,17 @@
       reasonEl.id = 'explorer-error-reason';
       errorEl.appendChild(strong);
       errorEl.appendChild(reasonEl);
+      // The error takes the chart's place inside the frame; the toggle, the empty chart box and the readout
+      // rail are hidden, because a toggle and a readout with no map behind them are dead controls.
       var panelWright = document.getElementById('panel-wright');
-      if (panelWright) {
+      var frame = panelWright ? panelWright.querySelector('.chart-frame') : null;
+      if (frame) {
+        frame.insertBefore(errorEl, frame.firstChild);
+        var dead = panelWright.querySelectorAll('.chart-toolbar, #wright-scale, .chart-frame .table-hint, .readout-rail');
+        for (var d = 0; d < dead.length; d++) {
+          dead[d].hidden = true;
+        }
+      } else if (panelWright) {
         panelWright.appendChild(errorEl);
       }
     }
@@ -427,6 +458,25 @@
     tbody.appendChild(frag);
   }
 
+  /**
+   * The tab strip is one row that scrolls when eight labels do not fit. Keep the active tab inside the
+   * visible part of the strip, clear of the 16px scroll shadow at either edge.
+   */
+  function syncTabStrip() {
+    var tablist = document.getElementById('tablist');
+    if (!tablist) return;
+    var tab = tablist.querySelector('.tab.is-active');
+    if (!tab) return;
+    var pad = 24;
+    var left = tab.offsetLeft;
+    var right = left + tab.offsetWidth;
+    if (left - pad < tablist.scrollLeft) {
+      tablist.scrollLeft = Math.max(0, left - pad);
+    } else if (right + pad > tablist.scrollLeft + tablist.clientWidth) {
+      tablist.scrollLeft = right + pad - tablist.clientWidth;
+    }
+  }
+
   function activateTab(view, shouldFocus) {
     clearFetchError();
 
@@ -458,6 +508,8 @@
       }
     }
 
+    syncTabStrip();
+
     var currentUrl = new URL(window.location.href);
     currentUrl.searchParams.set('view', view);
     window.history.replaceState(null, '', currentUrl.toString());
@@ -465,7 +517,8 @@
     if (view !== 'wright') {
       var activePanel = document.getElementById(PANEL_IDS[view]);
       if (activePanel && !activePanel.classList.contains('is-loaded')) {
-        activePanel.innerHTML = '<div class="empty"><p class="empty-text">Memuat data...</p></div>';
+        activePanel.innerHTML = '<div class="empty empty--loading" role="status"><p class="empty-text">Memuat data…</p></div>';
+        activePanel.setAttribute('aria-busy', 'true');
 
         var params = {};
         var currentParams = new URLSearchParams(window.location.search);
@@ -476,11 +529,17 @@
         });
 
         fetchFragment(view, params, function (html) {
+          activePanel.removeAttribute('aria-busy');
           activePanel.innerHTML = html;
           activePanel.classList.add('is-loaded');
           wirePanelContent(view, activePanel);
         }, function () {
-          showFetchError(activePanel);
+          // Replace the loading block: an error above a "loading" line would contradict itself.
+          activePanel.removeAttribute('aria-busy');
+          activePanel.innerHTML = '';
+          showFetchError(activePanel, function () {
+            activateTab(view, true);
+          });
         });
       } else if (activePanel && activePanel.classList.contains('is-loaded')) {
         wirePanelContent(view, activePanel);
@@ -538,6 +597,8 @@
     booted = true;
 
     wireTablist();
+    syncTabStrip();
+    window.addEventListener('resize', syncTabStrip);
 
     // Roving tabindex setup: exactly one active tab is in tab sequence
     var currentView = 'wright';
@@ -562,7 +623,7 @@
 
     if (currentView !== 'wright') {
       var initialPanel = document.getElementById(PANEL_IDS[currentView]);
-      if (initialPanel && !initialPanel.querySelector('.empty-text')) {
+      if (initialPanel && !initialPanel.querySelector('.empty--loading')) {
         initialPanel.classList.add('is-loaded');
         wirePanelContent(currentView, initialPanel);
       }
@@ -612,9 +673,19 @@
       }
     }
 
+    // Appended as one more figure; the element's text still reads the frozen sentence segment
+    // " · Butir misfit (INFIT MNSQ ≥ 1,50): <n>." because the separators are .sr-only.
     var wrightMeta = document.getElementById('wright-meta');
     if (wrightMeta && wrightMeta.textContent.indexOf('Butir misfit') === -1) {
-      wrightMeta.textContent += ' · Butir misfit (INFIT MNSQ ≥ ' + misfitLabel + '): ' + formatIdNum(misfitCount) + '.';
+      wrightMeta.appendChild(makeSpan('sr-only', ' · '));
+      var fig = makeSpan('figure' + (misfitCount > 0 ? ' figure--warn' : ''));
+      var figLabel = makeSpan('figure-label', 'Butir misfit');
+      figLabel.appendChild(makeSpan('figure-note', ' (INFIT MNSQ ≥ ' + misfitLabel + ')'));
+      fig.appendChild(figLabel);
+      fig.appendChild(makeSpan('sr-only', ': '));
+      fig.appendChild(makeSpan('figure-value', formatIdNum(misfitCount)));
+      fig.appendChild(makeSpan('sr-only', '.'));
+      wrightMeta.appendChild(fig);
     }
 
     var wrightReadout = document.getElementById('wright-readout');

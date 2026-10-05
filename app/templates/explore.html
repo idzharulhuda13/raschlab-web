@@ -14,134 +14,145 @@
 {% endblock %}
 
 {% block content %}
-{% if not share_mode %}
-{% if request.query_params.get('msg') == 'analyzed' %}
-<div class="alert alert--fit" role="status">
-  Analisis selesai. Semua tabel hasil ada di tab di bawah.
-</div>
-{% endif %}
-{% endif %}
-<section class="band band--header">
-  {% if not share_mode %}<a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a>{% endif %}
-  <h1 class="detail-title">{{ view_label }}: <span class="mono">{{ dataset.filename }}</span></h1>
-  <div class="header-actions">
-    <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
-    {% if share_mode %}
-    <span class="chip chip--accent">Hasil dibagikan</span>
-    {% endif %}
-    {% if mark_state == 'dipakai' %}
-    <span class="chip chip--accent">Dipakai</span>
-    {% elif mark_state == 'arsip' %}
-    <span class="chip chip--warn">Arsip</span>
-    {% endif %}
-    {% if can_mark %}
-    <form method="post" action="/analyses/{{ analysis.id }}/mark">
-      {% if mark_state == 'dipakai' %}
-      <input type="hidden" name="primary" value="0">
-      <button type="submit" class="btn btn--secondary">Batalkan tanda dipakai</button>
-      {% else %}
-      <input type="hidden" name="primary" value="1">
-      <button type="submit" class="btn btn--secondary">Tandai sebagai versi dipakai</button>
-      {% endif %}
-    </form>
-    {% endif %}
-  </div>
-  {% if not share_mode %}
-  <div class="action-bar">
-    {% if share_new_url %}
-    <input id="share-url" type="text" value="{{ share_new_url }}" readonly class="field-input mono">
-    <button type="button" class="btn btn--secondary" data-copy-target="share-url">Salin tautan</button>
-    <span class="field-hint">Tautan hanya tampil sekali.</span>
-    {% elif owner_share %}
-    <span class="field-hint">Tautan aktif sampai {{ owner_share.expires_label }}.</span>
-    <form method="post" action="/analyses/{{ analysis.id }}/share/revoke">
-      <button type="submit" class="btn btn--secondary">Cabut tautan</button>
-    </form>
-    {% else %}
-    <form method="post" action="/analyses/{{ analysis.id }}/share">
-      <div class="field">
-        <label for="share-password" class="field-label">Password tautan</label>
-        <input type="password" id="share-password" name="password" minlength="10" required autocomplete="new-password" class="field-input">
-      </div>
-      <span class="field-hint">Berlaku 7 hari. Penerima melihat 8 tab hasil tanpa unduhan dan tanpa nama responden.</span>
-      <button type="submit" class="btn btn--secondary">Buat tautan bagikan</button>
-    </form>
-    {% endif %}
-    {% if share_error %}
-    <div class="alert alert--misfit" role="alert">{{ share_error }}</div>
-    {% endif %}
+<header class="dash-head">
+  {% if not share_mode and request.query_params.get('msg') == 'analyzed' %}
+  <div class="alert alert--fit" role="status">
+    Analisis selesai. Semua tabel hasil ada di tab di bawah.
   </div>
   {% endif %}
-  <p class="field-hint">Hasil analisis disimpan selama {{ retention_days }} hari.</p>
-  <div class="header-pairs">
-    <div class="def-row">
-      <span class="def-label">Versi Mesin: </span>
-      <span class="def-value mono">{{ engine_ref }}</span>
-    </div>
-    <div class="def-row">
-      <span class="def-label">Waktu Eksekusi: </span>
-      <span class="def-value mono">{% if elapsed_ms is not none %}{{ elapsed_ms | id_num }} ms{% else %}-{% endif %}</span>
-    </div>
-    <div class="def-row">
-      <span class="def-label">Urutan Responden: </span>
-      <span class="def-value mono">misfit (outfit MNSQ menurun)</span>
-    </div>
-    <div class="def-row">
-      <span class="def-label">Mode: </span>
-      <span class="def-value mono">{{ params.get('mode', 'compat') if params else 'compat' }}</span>
-    </div>
-    <div class="def-row">
-      <span class="def-label">Desimal: </span>
-      <span class="def-value mono">{{ params.get('digits', 2) if params else '2' }}</span>
-    </div>
-    {% for lst in delete_lists %}
-    <div class="def-row">
-      <span class="def-label">{{ lst.label }}: </span>
-      <span class="def-value mono">{{ lst.name }} ({{ lst.rows | id_num }} baris, {{ lst.sha256_short }})</span>
-    </div>
-    {% endfor %}
+  <div class="dash-crumbs">
+    {% if not share_mode %}<a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a>{% endif %}
+    <span class="dash-eyebrow mono">Analisis #{{ analysis.id }}</span>
   </div>
-</section>
-
-{% if not is_anchored %}
-<section class="band">
-  <div class="alert alert--warn" role="status">
-    <strong>Hasil Tanpa Jangkar (Unanchored)</strong>
-    <p>Analisis untuk berkas <span class="mono">{{ dataset.filename }}</span> berjalan tanpa jangkar, jadi titik nol skala dihitung dari data Anda sendiri, bukan dari acuan luar. Sebagai gambaran selisihnya: dibandingkan acuan Winsteps tersimpan pada matriks TBS 147 butir, measure tanpa jangkar berbeda rata-rata {{ '0.0013' | id_num }} dan maksimum {{ '0.0105' | id_num }} logit setelah titik nol disamakan. Angka itu berlaku untuk matriks pembanding tersebut, bukan jaminan untuk setiap data.</p>
+  <div class="dash-title-row">
+    <div class="dash-title">
+      <h1 class="detail-title">{{ dataset.filename }}</h1>
+      <div class="dash-chips">
+        <span class="chip chip--fit"><span class="chip-glyph">OK</span> Selesai</span>
+        {% if share_mode %}
+        <span class="chip chip--accent">Hasil dibagikan</span>
+        {% endif %}
+        {% if mark_state == 'dipakai' %}
+        <span class="chip chip--accent">Dipakai</span>
+        {% elif mark_state == 'arsip' %}
+        <span class="chip chip--warn">Arsip</span>
+        {% endif %}
+        <span class="field-hint">Hasil analisis disimpan selama {{ retention_days }} hari.</span>
+      </div>
+    </div>
+    {% if can_mark or not share_mode %}
+    <div class="header-actions">
+      {% if can_mark %}
+      <form method="post" action="/analyses/{{ analysis.id }}/mark">
+        {% if mark_state == 'dipakai' %}
+        <input type="hidden" name="primary" value="0">
+        <button type="submit" class="btn btn--secondary">Batalkan tanda dipakai</button>
+        {% else %}
+        <input type="hidden" name="primary" value="1">
+        <button type="submit" class="btn btn--secondary">Tandai sebagai versi dipakai</button>
+        {% endif %}
+      </form>
+      {% endif %}
+      {% if not share_mode %}
+      <details class="share-menu"{% if share_new_url or share_error %} open{% endif %}>
+        <summary class="btn btn--secondary">Bagikan</summary>
+        <div class="share-panel">
+          {% if share_new_url %}
+          <label for="share-url" class="field-label">Tautan bagikan</label>
+          <input id="share-url" type="text" value="{{ share_new_url }}" readonly class="field-input mono">
+          <button type="button" class="btn btn--secondary" data-copy-target="share-url" data-copy-status="share-copy-status">Salin tautan</button>
+          <span class="field-hint">Tautan hanya tampil sekali.</span>
+          <span class="field-hint" id="share-copy-status" aria-live="polite"></span>
+          {% elif owner_share %}
+          <span class="field-hint">Tautan aktif sampai {{ owner_share.expires_label }}.</span>
+          <form method="post" action="/analyses/{{ analysis.id }}/share/revoke">
+            <button type="submit" class="btn btn--secondary">Cabut tautan</button>
+          </form>
+          {% else %}
+          <form method="post" action="/analyses/{{ analysis.id }}/share">
+            <div class="field">
+              <label for="share-password" class="field-label">Password tautan</label>
+              <input type="password" id="share-password" name="password" minlength="10" required autocomplete="new-password" class="field-input">
+            </div>
+            <span class="field-hint">Berlaku 7 hari. Penerima melihat 8 tab hasil tanpa unduhan dan tanpa nama responden.</span>
+            <button type="submit" class="btn btn--secondary">Buat tautan bagikan</button>
+          </form>
+          {% endif %}
+          {% if share_error %}
+          <div class="alert alert--misfit" role="alert">{{ share_error }}</div>
+          {% endif %}
+        </div>
+      </details>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
-</section>
-{% endif %}
-{% if anchor_band and anchor_band.used == 0 %}
-<section class="band">
+  {% if anchor_band and anchor_band.used == 0 %}
   <div class="alert alert--warn" role="status">
     <p>Berkas jangkar <span class="mono">{{ anchor_band.name }}</span>: {{ anchor_band.requested | id_num }} diminta, {{ anchor_band.used | id_num }} dipakai, karena semua butir jangkarnya ikut terhapus dari matriks lewat daftar hapus butir. Analisis ini berjalan tanpa jangkar.</p>
   </div>
-</section>
-{% endif %}
-{% if anchor_band and anchor_band.used > 0 %}
-<section class="band">
-  <div class="alert alert--info" role="status">
-    <strong>Jangkar Aktif (Anchored)</strong>
-    <p>Analisis untuk berkas <span class="mono">{{ dataset.filename }}</span> berjalan dengan jangkar: {{ anchor_band.used | id_num }} butir dikunci pada nilai dari berkas <span class="mono">{{ anchor_band.name }}</span>.{% if anchor_band.used < anchor_band.requested %} Dari {{ anchor_band.requested | id_num }} jangkar yang diminta, {{ anchor_band.used | id_num }} dipakai; sisanya gugur karena butirnya ikut terhapus dari matriks lewat daftar hapus butir.{% endif %}</p>
+  {% endif %}
+  <div class="dash-disclosures">
+    <details class="dash-more">
+      <summary>Detail proses</summary>
+      <div class="header-pairs">
+        <div class="def-row">
+          <span class="def-label">Versi Mesin: </span>
+          <span class="def-value mono">{{ engine_ref }}</span>
+        </div>
+        <div class="def-row">
+          <span class="def-label">Waktu Eksekusi: </span>
+          <span class="def-value mono">{% if elapsed_ms is not none %}{{ elapsed_ms | id_num }} ms{% else %}-{% endif %}</span>
+        </div>
+        <div class="def-row">
+          <span class="def-label">Urutan Responden: </span>
+          <span class="def-value mono">misfit (outfit MNSQ menurun)</span>
+        </div>
+        <div class="def-row">
+          <span class="def-label">Mode: </span>
+          <span class="def-value mono">{{ params.get('mode', 'compat') if params else 'compat' }}</span>
+        </div>
+        <div class="def-row">
+          <span class="def-label">Desimal: </span>
+          <span class="def-value mono">{{ params.get('digits', 2) if params else '2' }}</span>
+        </div>
+        {% for lst in delete_lists %}
+        <div class="def-row">
+          <span class="def-label">{{ lst.label }}: </span>
+          <span class="def-value mono">{{ lst.name }} ({{ lst.rows | id_num }} baris, {{ lst.sha256_short }})</span>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% if not is_anchored %}
+    <details class="dash-note alert--warn">
+      <summary><strong>Hasil Tanpa Jangkar (Unanchored)</strong></summary>
+      <p>Analisis untuk berkas <span class="mono">{{ dataset.filename }}</span> berjalan tanpa jangkar, jadi titik nol skala dihitung dari data Anda sendiri, bukan dari acuan luar. Sebagai gambaran selisihnya: dibandingkan acuan Winsteps tersimpan pada matriks TBS 147 butir, measure tanpa jangkar berbeda rata-rata {{ '0.0013' | id_num }} dan maksimum {{ '0.0105' | id_num }} logit setelah titik nol disamakan. Angka itu berlaku untuk matriks pembanding tersebut, bukan jaminan untuk setiap data.</p>
+    </details>
+    {% endif %}
+    {% if anchor_band and anchor_band.used > 0 %}
+    <details class="dash-note alert--info">
+      <summary><strong>Jangkar Aktif (Anchored)</strong></summary>
+      <p>Analisis untuk berkas <span class="mono">{{ dataset.filename }}</span> berjalan dengan jangkar: {{ anchor_band.used | id_num }} butir dikunci pada nilai dari berkas <span class="mono">{{ anchor_band.name }}</span>.{% if anchor_band.used < anchor_band.requested %} Dari {{ anchor_band.requested | id_num }} jangkar yang diminta, {{ anchor_band.used | id_num }} dipakai; sisanya gugur karena butirnya ikut terhapus dari matriks lewat daftar hapus butir.{% endif %}</p>
+    </details>
+    {% endif %}
   </div>
-</section>
-{% endif %}
+  {% if share_mode %}
+  <noscript>
+    <div class="alert alert--warn" role="alert">
+      Halaman ini membutuhkan JavaScript untuk tampilan interaktif. Tanpa JavaScript, setiap tab tetap dapat dibuka lewat tautannya.
+    </div>
+  </noscript>
+  {% else %}
+  <noscript>
+    <div class="alert alert--warn" role="alert">
+      Halaman ini membutuhkan JavaScript untuk tampilan interaktif. Tanpa JavaScript, setiap tab tetap dapat dibuka lewat tautannya dan tabel dapat diunduh lewat Unduh Excel.
+    </div>
+  </noscript>
+  {% endif %}
+</header>
 
-{% if share_mode %}
-<noscript>
-  <div class="alert alert--warn" role="alert">
-    Halaman ini membutuhkan JavaScript untuk tampilan interaktif. Tanpa JavaScript, setiap tab tetap dapat dibuka lewat tautannya.
-  </div>
-</noscript>
-{% else %}
-<noscript>
-  <div class="alert alert--warn" role="alert">
-    Halaman ini membutuhkan JavaScript untuk tampilan interaktif. Tanpa JavaScript, setiap tab tetap dapat dibuka lewat tautannya dan tabel dapat diunduh lewat Unduh Excel.
-  </div>
-</noscript>
-{% endif %}
-
-<div id="tablist" class="tabs band" role="tablist">
+<div id="tablist" class="tabs" role="tablist" aria-label="Tampilan hasil">
   <a id="tab-wright" href="?view=wright{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'wright' %} is-active{% endif %}" role="tab" aria-controls="panel-wright" aria-selected="{{ 'true' if active_view == 'wright' else 'false' }}">Peta Wright</a>
   <a id="tab-butir" href="?view=butir{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'butir' %} is-active{% endif %}" role="tab" aria-controls="panel-butir" aria-selected="{{ 'true' if active_view == 'butir' else 'false' }}">Butir</a>
   <a id="tab-partisipan" href="?view=partisipan{% if tab_params %}&{{ tab_params }}{% endif %}" class="tab{% if active_view == 'partisipan' %} is-active{% endif %}" role="tab" aria-controls="panel-partisipan" aria-selected="{{ 'true' if active_view == 'partisipan' else 'false' }}">Partisipan</a>
@@ -155,110 +166,67 @@
 <div id="panel-wright" class="explorer-panel{% if active_view == 'wright' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-wright">
   {% set person_incl = rekap.get('PERSON EXTREME INCL COUNT') | int if ('PERSON EXTREME INCL COUNT' in rekap and rekap.get('PERSON EXTREME INCL COUNT') is not none) else none %}
   {% set person_count = rekap.get('PERSON COUNT') | int if ('PERSON COUNT' in rekap and rekap.get('PERSON COUNT') is not none) else none %}
-  <p id="wright-meta">Partisipan: {{ rekap.get('PERSON COUNT', '-') | id_num }} · Butir: {{ rekap.get('ITEM COUNT', '-') | id_num }} · Dikecualikan (skor sempurna/nol): {% if person_incl is not none and person_count is not none %}{{ (person_incl - person_count) | id_num }}{% else %}-{% endif %}</p>
+  {# The figure row keeps the frozen sentence as its text: colons and dots are .sr-only, so a screen reader and a
+     copy-paste read "Partisipan: <n> · Butir: <n> · ..." while the eye reads labelled figures. #}
+  <p id="wright-meta" class="figure-row">
+    <span class="figure"><span class="figure-label">Partisipan</span><span class="sr-only">: </span><span class="figure-value">{{ rekap.get('PERSON COUNT', '-') | id_num }}</span></span>
+    <span class="sr-only"> · </span>
+    <span class="figure"><span class="figure-label">Butir</span><span class="sr-only">: </span><span class="figure-value">{{ rekap.get('ITEM COUNT', '-') | id_num }}</span></span>
+    <span class="sr-only"> · </span>
+    <span class="figure"><span class="figure-label">Dikecualikan<span class="figure-note"> (skor sempurna/nol)</span></span><span class="sr-only">: </span><span class="figure-value">{% if person_incl is not none and person_count is not none %}{{ (person_incl - person_count) | id_num }}{% else %}-{% endif %}</span></span>
+  </p>
+  {% if wright_error %}
+  <div class="chart-frame">
+    <div class="alert alert--misfit" id="explorer-error" role="alert">
+      <strong>Peta Wright tidak tersedia</strong>
+      <p id="explorer-error-reason">{{ wright_error }}</p>
+    </div>
+  </div>
+  {% else %}
+  <div class="wright-body">
+    <div class="chart-frame">
+      <div class="chart-toolbar">
+        <p class="chart-caption">Partisipan di atas garis skala, butir di bawahnya, pada satu skala logit.</p>
+        <div class="field field--toggle">
+          <input type="checkbox" id="wright-misfit-toggle">
+          <label class="field-label" for="wright-misfit-toggle">Sorot butir misfit (INFIT MNSQ ≥ {{ misfit_threshold }})</label>
+        </div>
+      </div>
+      <div id="wright-scale" class="chart-scroll"></div>
+      <p class="table-hint">Geser peta ke samping untuk melihat seluruh skala.</p>
+    </div>
+    <aside class="readout-rail" aria-labelledby="wright-readout-title">
+      <h2 class="readout-title" id="wright-readout-title">Rincian butir</h2>
+      <div id="wright-readout" class="readout">Fokus pada butir di peta untuk melihat rincian.</div>
+    </aside>
+  </div>
+  {% endif %}
   {% if not share_mode %}
-  <div class="action-bar">
+  <div class="action-bar action-bar--wrap">
     <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=wright" aria-label="Unduh Excel peta Wright sisi measure">Unduh measure</a>
     <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=frekuensi" aria-label="Unduh Excel peta Wright sisi frekuensi">Unduh frekuensi</a>
     <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=semua" aria-label="Unduh semua tabel analisis {{ analysis.id }} {{ dataset.filename }} (satu berkas, semua sheet)">Unduh semua (satu berkas, semua sheet)</a>
   </div>
   {% endif %}
-  </div>
-  <div id="wright-scale" class="chart-scroll"></div>
-  <p id="wright-readout" class="readout">Fokus pada butir di peta untuk melihat rincian.</p>
-  <div class="field field--toggle">
-    <input type="checkbox" id="wright-misfit-toggle">
-    <label class="field-label" for="wright-misfit-toggle">Sorot butir misfit (INFIT MNSQ ≥ {{ misfit_threshold }})</label>
-  </div>
 </div>
 
-<div id="panel-butir" class="explorer-panel{% if active_view == 'butir' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-butir">
-  {% if active_view == 'butir' %}
-    {% set render_view = active_view %}
+{# The seven fragment panels: the active one is server-rendered, the rest carry the loading state the
+   client also writes while a fragment is on its way (explorer.js activateTab keeps the same markup). #}
+{% for render_view in ['butir', 'partisipan', 'ringkasan', 'opsi', 'subsubtes', 'tabulasi', 'bandingkan'] %}
+<div id="panel-{{ render_view }}" class="explorer-panel{% if active_view == render_view %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-{{ render_view }}">
+  {% if active_view == render_view %}
     {% include 'explore/fragment.html' %}
   {% else %}
-    <div class="empty">
-      <p class="empty-text">Memuat data...</p>
+    <div class="empty empty--loading" role="status">
+      <p class="empty-text">Memuat data…</p>
     </div>
   {% endif %}
 </div>
-
-<div id="panel-partisipan" class="explorer-panel{% if active_view == 'partisipan' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-partisipan">
-  {% if active_view == 'partisipan' %}
-    {% set render_view = active_view %}
-    {% include 'explore/fragment.html' %}
-  {% else %}
-    <div class="empty">
-      <p class="empty-text">Memuat data...</p>
-    </div>
-  {% endif %}
-</div>
-
-<div id="panel-ringkasan" class="explorer-panel{% if active_view == 'ringkasan' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-ringkasan">
-  {% if active_view == 'ringkasan' %}
-    {% set render_view = active_view %}
-    {% include 'explore/fragment.html' %}
-  {% else %}
-    <div class="empty">
-      <p class="empty-text">Memuat data...</p>
-    </div>
-  {% endif %}
-</div>
-
-<div id="panel-opsi" class="explorer-panel{% if active_view == 'opsi' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-opsi">
-  {% if active_view == 'opsi' %}
-    {% set render_view = active_view %}
-    {% include 'explore/fragment.html' %}
-  {% else %}
-    <div class="empty">
-      <p class="empty-text">Memuat data...</p>
-    </div>
-  {% endif %}
-</div>
-
-<div id="panel-subsubtes" class="explorer-panel{% if active_view == 'subsubtes' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-subsubtes">
-  {% if active_view == 'subsubtes' %}
-    {% set render_view = active_view %}
-    {% include 'explore/fragment.html' %}
-  {% else %}
-    <div class="empty">
-      <p class="empty-text">Memuat data...</p>
-    </div>
-  {% endif %}
-</div>
-
-<div id="panel-tabulasi" class="explorer-panel{% if active_view == 'tabulasi' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-tabulasi">
-  {% if active_view == 'tabulasi' %}
-    {% set render_view = active_view %}
-    {% include 'explore/fragment.html' %}
-  {% else %}
-    <div class="empty">
-      <p class="empty-text">Memuat data...</p>
-    </div>
-  {% endif %}
-</div>
-
-<div id="panel-bandingkan" class="explorer-panel{% if active_view == 'bandingkan' %} is-active{% endif %}" role="tabpanel" aria-labelledby="tab-bandingkan">
-  {% if active_view == 'bandingkan' %}
-    {% set render_view = active_view %}
-    {% include 'explore/fragment.html' %}
-  {% else %}
-    <div class="empty">
-      <p class="empty-text">Memuat data...</p>
-    </div>
-  {% endif %}
-</div>
+{% endfor %}
 
 {% if not share_mode %}
 <div class="page-exit"><a href="/datasets/{{ dataset.id }}" class="back-link">Kembali ke {{ dataset.filename }}</a></div>
 {% endif %}
 
 {% if payload_json %}<script type="application/json" id="explorer-data">{{ payload_json | safe }}</script>{% endif %}
-
-{% if wright_error %}
-<div class="alert alert--misfit" id="explorer-error" role="alert">
-  <strong>Peta Wright tidak tersedia</strong>
-  <p id="explorer-error-reason">{{ wright_error }}</p>
-</div>
-{% endif %}
 {% endblock %}

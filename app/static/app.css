@@ -267,6 +267,12 @@ a:hover {
   font-family: inherit;
 }
 
+/* Signed out there is no account menu to push the right-hand controls over, so the toggle takes the push
+   itself instead of sitting against the wordmark. */
+.wordmark + .theme-toggle {
+  margin-left: auto;
+}
+
 .theme-toggle-glyph {
   width: 18px;
   height: 18px;
@@ -497,6 +503,11 @@ h2,
   .appnav-link--akun {
     display: none;
   }
+
+  /* The link keeps its accessible name (aria-label); only the second word leaves the strip. */
+  .appnav-long {
+    display: none;
+  }
 }
 
 /* Buttons and fields */
@@ -713,6 +724,12 @@ h2,
   color: var(--ink);
 }
 
+/* An alert that is a band's only content needs no bottom margin: the band rhythm already spaces it (stacked
+   alerts on the dataset page sat 72px apart). */
+.band > .alert:last-child {
+  margin-bottom: 0;
+}
+
 .alert strong,
 .alert b {
   font-weight: 600;
@@ -798,15 +815,15 @@ h2,
   margin-bottom: var(--space-2);
 }
 
-button.chip,
-.chip-row .chip {
+/* Only real buttons get the control treatment: a status chip in a .chip-row (Kebersihan Data) is a static
+   label, and the earlier `.chip-row .chip` rule gave it a pointer cursor and a hover state it cannot honour. */
+button.chip {
   min-height: 44px;
   cursor: pointer;
   font-family: inherit;
 }
 
-button.chip:hover,
-.chip-row .chip:hover {
+button.chip:hover {
   background: var(--surface);
   border-color: var(--accent);
 }
@@ -1047,6 +1064,19 @@ th[aria-sort="none"] .th-sort::after {
   text-align: left;
 }
 
+/* The control-file button keeps its label on one line (it wrapped to two inside the row). */
+.dropzone--sub .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 719px) {
+  .dropzone--sub {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 .limits {
   list-style: none;
   margin: var(--space-4) 0 0;
@@ -1174,9 +1204,12 @@ line.miss-marker {
   color: var(--accent);
 }
 
+/* 44x44 at every width: the per-row export links on /analyses ("Butir", "Opsi") measured 30x44. */
 .text-link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 44px;
   min-height: 44px;
 }
 
@@ -1339,6 +1372,26 @@ line.miss-marker {
   margin-inline: auto;
 }
 
+/* Loading: a quiet dashed block, not a full empty card; one line of text, no spinner (MOTION 2 and the
+   no-@keyframes rule), and the panel carries aria-busy while it waits. */
+.empty--loading {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-6);
+  background: none;
+  border-style: dashed;
+}
+
+.empty--loading .empty-text {
+  margin-block: 0;
+}
+
+/* An alert that carries an action (the fragment retry) separates the sentence from the button. */
+.alert > p + .btn {
+  margin-top: var(--space-3);
+}
+
 .meta-line {
   font-size: 14px;
   color: var(--muted);
@@ -1368,10 +1421,6 @@ line.miss-marker {
   padding: var(--space-6);
   display: grid;
   gap: var(--space-4);
-}
-
-.file-table {
-  display: block;
 }
 
 @media (max-width: 719px) {
@@ -1416,6 +1465,11 @@ line.miss-marker {
   align-items: center;
   gap: var(--space-4);
   flex-wrap: wrap;
+}
+
+/* The secondary links under an auth form line up with the form's text edge (ghost padding indented them). */
+.auth-links .btn--ghost {
+  padding-inline: 0;
 }
 
 .section-block {
@@ -1555,6 +1609,16 @@ line.miss-marker {
   font-variant-numeric: tabular-nums;
 }
 
+/* The account page's two counts read at the dashboard's figure scale (they rendered as 14px mono). */
+p.summary-figure > .mono {
+  font-family: var(--font-ui);
+  font-size: var(--step-28);
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: proportional-nums;
+  color: var(--ink);
+}
+
 .summary-figure:first-child {
   border-top: 2px solid var(--accent);
 }
@@ -1569,18 +1633,198 @@ line.miss-marker {
 
 /* F4 explorer */
 
-/* Tabs */
+/* Dashboard frame (DESIGN.md, "The dashboard", 5 Oct 2026): one compact header band, a one-row text tab
+   strip, and panels on the wide shell. The phone gutter is 16px so the frame lines up with the app bar. */
+.dash-head {
+  width: 100%;
+  max-width: var(--shell-max);
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-6) var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.dash-head > .alert {
+  margin-bottom: 0;
+}
+
+/* Back link and run number share one line: the first row of the band, not two. */
+.dash-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-4);
+}
+
+.dash-crumbs .back-link {
+  margin-bottom: 0;
+}
+
+/* Provenance and the anchor explanation sit side by side as two quiet summaries; an open one takes its
+   own row so its content is never squeezed into a column. */
+.dash-disclosures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-6);
+}
+
+.dash-disclosures > details[open] {
+  flex-basis: 100%;
+}
+
+.dash-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-6);
+}
+
+.dash-title {
+  flex: 1 1 420px;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.dash-eyebrow {
+  font-size: var(--step-14);
+  color: var(--muted);
+}
+
+.dash-head .detail-title {
+  font-size: var(--step-28);
+  font-weight: 400;
+  line-height: 1.15;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dash-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.dash-chips .field-hint {
+  margin: 0;
+}
+
+/* Share popover: a native disclosure, closed by Escape and by a click outside (initMenus in the app script). */
+.share-menu {
+  position: relative;
+}
+
+.share-menu > summary {
+  list-style: none;
+}
+
+.share-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.share-menu[open] > summary {
+  border-color: var(--accent);
+}
+
+.share-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--space-2));
+  z-index: 7;
+  width: 380px;
+  max-width: calc(100vw - 2 * var(--space-4));
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+
+.share-panel form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.share-panel .field,
+.share-panel .field-label,
+.share-panel .field-hint,
+.share-panel .alert {
+  margin: 0;
+}
+
+.share-panel .btn {
+  justify-self: start;
+}
+
+/* Inline disclosures: provenance, and the anchor explanation whose summary states the fact. */
+.dash-more > summary,
+.dash-note > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  list-style: none;
+  cursor: pointer;
+  font-size: var(--step-14);
+  font-weight: 500;
+}
+
+.dash-more > summary::-webkit-details-marker,
+.dash-note > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dash-more > summary::before,
+.dash-note > summary::before {
+  content: "▸";
+  font-family: var(--font-mono);
+}
+
+.dash-more[open] > summary::before,
+.dash-note[open] > summary::before {
+  content: "▾";
+}
+
+.dash-more > summary {
+  width: fit-content;
+  color: var(--muted);
+}
+
+.dash-more > summary:hover {
+  color: var(--ink);
+}
+
+.dash-more .header-pairs {
+  margin-block: var(--space-2) 0;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-2) var(--space-6);
+}
+
+.dash-note > p {
+  max-width: 72ch;
+  margin: 0 0 var(--space-3);
+  font-size: var(--step-14);
+}
+
+/* Tabs: text tabs on the paper ground, one row at every width; the strip scrolls when eight labels do not
+   fit. The underline is a shape, so the active state never rests on colour alone. */
 .tabs {
   position: sticky;
   top: 72px;
   z-index: 5;
-  background: var(--surface);
+  border-bottom: 1px solid var(--line);
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding-block: var(--space-3);
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--space-1);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding-block: var(--space-1) 0;
   margin-bottom: var(--space-4);
   width: 100%;
   padding-inline: max(var(--space-6), calc((100% - var(--shell-max)) / 2 + var(--space-6)));
@@ -1589,58 +1833,65 @@ line.miss-marker {
 @media (max-width: 719px) {
   .tabs {
     top: 64px;
+    padding-inline: var(--space-4);
   }
 }
 
+/* Scroll shadows: a soft edge appears only on the side where more tabs wait, and the ground stays opaque.
+   The two paper layers scroll with the content (local) and cover each shadow once that end is reached. A
+   mask-image fade, the first build, also faded the strip's own background, so panel text scrolling under the
+   sticky strip showed through at its right edge (seen at 390px, 5 Oct 2026). */
+.tabs {
+  background:
+    linear-gradient(90deg, var(--paper) 40%, transparent) left center / var(--space-8) 100% no-repeat local,
+    linear-gradient(270deg, var(--paper) 40%, transparent) right center / var(--space-8) 100% no-repeat local,
+    linear-gradient(90deg, color-mix(in srgb, var(--ink) 18%, transparent), transparent) left center / var(--space-4) 100% no-repeat scroll,
+    linear-gradient(270deg, color-mix(in srgb, var(--ink) 18%, transparent), transparent) right center / var(--space-4) 100% no-repeat scroll,
+    var(--paper);
+}
+
 .tab {
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  padding-inline: var(--space-4);
-  padding-block: var(--space-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--ink);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: none;
+  color: var(--muted);
   font-family: var(--font-display);
   font-size: var(--step-14);
   font-weight: 400;
+  white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
-  transition: background-color var(--dur-1) ease-out, border-color var(--dur-1) ease-out, color var(--dur-1) ease-out;
+  box-shadow: inset 0 -2px 0 transparent;
+  transition: color var(--dur-1) ease-out, box-shadow var(--dur-1) ease-out;
 }
 
 .tab:visited {
-  color: var(--ink);
+  color: var(--muted);
 }
 
 .tab:hover {
-  border-color: var(--control);
   color: var(--ink);
   text-decoration: none;
+  box-shadow: inset 0 -2px 0 var(--line);
 }
 
+/* Inside a scrolling strip an outer ring would be clipped, so the ring sits inside the tab. */
 .tab:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-.tab.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--paper);
-  font-weight: 600;
-}
-
-.tab.is-active:visited {
-  color: var(--paper);
-}
-
+.tab.is-active,
+.tab.is-active:visited,
 .tab.is-active:hover {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--paper);
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 /* Panels */
@@ -1652,13 +1903,54 @@ line.miss-marker {
   display: block;
 }
 
-/* The explorer panels are the only content not wrapped in a .band, so their text, controls and tables
-   ran to the screen edge at every width while every other page kept the shell gutter. Same box as a
-   band, so the two line up on a phone and on a desktop. */
-.explorer-panel > * {
+/* The panel itself carries the shell box and gutter, so a bordered block inside it (a frame, an alert, the
+   loading block) keeps its border inside the content edge. The earlier rule padded every child instead,
+   which put a child's border 24px outside the text edge and edge to edge on a phone (measured 5 Oct 2026).
+   A fragment .band inside a panel drops its own box for the same reason. */
+.explorer-panel {
+  width: 100%;
+  min-width: 0;
   max-width: var(--shell-max);
   margin-inline: auto;
   padding-inline: var(--space-6);
+}
+
+.explorer-panel .band {
+  max-width: none;
+  padding-inline: 0;
+}
+
+@media (max-width: 719px) {
+  .dash-head,
+  .explorer-panel,
+  .page-exit {
+    padding-inline: var(--space-4);
+  }
+
+  .dash-head .detail-title {
+    font-size: var(--step-22);
+  }
+
+  .dash-title-row .header-actions {
+    justify-content: flex-start;
+  }
+
+  /* Both header actions fit one row at 360px with the tighter inline padding. */
+  .dash-title-row .header-actions .btn {
+    padding-inline: var(--space-4);
+  }
+
+  .share-menu[open] {
+    flex-basis: 100%;
+  }
+
+  .share-panel {
+    position: static;
+    width: auto;
+    max-width: none;
+    margin-top: var(--space-2);
+    box-shadow: none;
+  }
 }
 
 /* Chart containers */
@@ -1672,17 +1964,194 @@ line.miss-marker {
   min-height: 320px;
 }
 
-/* Readout */
+/* The 480px reserve is the Wright map's (it holds the space while the map draws); the participant histogram
+   is a fixed 210-unit chart and kept 270px of empty frame under itself on a phone. */
+.chart-block .chart-scroll {
+  min-height: 0;
+}
+
+/* Landing view, Peta Wright (DESIGN.md, "The landing view"): figure row, chart frame beside a readout rail,
+   exports after the thing they export. Panel children set block margins only: the inline margins belong to
+   the panel rule that centres them on the wide shell. */
+.explorer-panel [hidden] {
+  display: none;
+}
+
+.figure-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-8);
+  margin-block: 0 var(--space-6);
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-1);
+  min-width: 128px;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.figure:first-child {
+  border-top: 2px solid var(--accent);
+}
+
+.figure-label {
+  font-size: var(--step-14);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.figure-note {
+  display: block;
+  font-size: var(--step-12);
+  font-weight: 400;
+}
+
+.figure-value {
+  font-family: var(--font-ui);
+  font-size: var(--step-28);
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: proportional-nums;
+  color: var(--ink);
+}
+
+.figure--warn .figure-value {
+  color: var(--warn);
+}
+
+@media (max-width: 719px) {
+  .figure-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .figure {
+    min-width: 0;
+  }
+
+  .figure-value {
+    font-size: var(--step-22);
+  }
+}
+
+.wright-body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 1100px) {
+  .wright-body {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+  }
+}
+
+.chart-frame {
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.chart-frame > .alert {
+  margin-bottom: 0;
+}
+
+.chart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.chart-toolbar .chart-caption {
+  margin: 0;
+}
+
+.chart-toolbar .field {
+  margin: 0;
+}
+
+.readout-rail {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+}
+
+.readout-title {
+  font-size: var(--step-16);
+  margin: 0;
+}
+
+.action-bar--wrap {
+  flex-wrap: wrap;
+  margin-block: var(--space-4) 0;
+}
+
+@media (max-width: 719px) {
+  .action-bar.action-bar--wrap {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+
+  .action-bar.action-bar--wrap > * {
+    width: auto;
+  }
+}
+
+/* Readout: the frozen prompt until an item is chosen, then the item's values as a two-column list. */
 .readout {
+  min-height: var(--space-24);
   background: var(--surface-2);
   padding: var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-1);
-  margin-top: var(--space-4);
-  margin-bottom: var(--space-4);
   font-size: var(--step-14);
   color: var(--ink);
+}
+
+.readout h3 {
+  font-family: var(--font-mono);
+  font-size: var(--step-16);
+  font-weight: 600;
+  margin: 0 0 var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.readout p {
+  margin: 0 0 var(--space-2);
+}
+
+.readout strong {
+  font-weight: 600;
+  color: var(--warn);
+}
+
+.readout dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+}
+
+.readout dt {
+  color: var(--muted);
+}
+
+.readout dd {
+  margin: 0;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .readout .def-row {
@@ -1736,113 +2205,54 @@ line.miss-marker {
     width: 100%;
   }
 
+  /* The field and its button share one row under the label: three stacked full-width rows spent about
+     150px of a phone before the table. */
   .search-bar .field-input {
-    width: 100%;
-    flex: 1 1 100%;
+    width: auto;
+    flex: 1 1 0;
   }
 
   .search-bar .btn {
-    width: 100%;
+    width: auto;
   }
 }
 
-/* Compare strip */
-/* The display threshold toggle is a sibling of the compare strip rather than a child of it, so it
-   borrows the same shell inset and lines up with the selects instead of running to the page edge. */
-.cmp-filter {
-  max-width: var(--shell-max);
-  margin-inline: auto;
-  padding-inline: var(--space-6);
-}
-
+/* Compare control panel (Bandingkan): a surface panel, not sticky (it sat at the same top offset as the sticky
+   tab strip). Row one holds the two selects, row two the S.E. filter and the submit, so DOM order is visual
+   order; one column on a phone. */
 .compare-strip {
-  position: sticky;
-  top: 72px;
-  z-index: 5;
-  background: var(--surface);
-  padding-block: var(--space-3);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: var(--space-2) var(--space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
   align-items: end;
-  margin-bottom: var(--space-6);
-  width: 100%;
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
 }
 
-.compare-strip label[for="cmp-from"] {
-  grid-column: 1;
-  grid-row: 1;
-  margin-bottom: 0;
-}
-
-.compare-strip #cmp-from {
-  grid-column: 1;
-  grid-row: 2;
+.compare-strip .field {
+  margin: 0;
   min-width: 0;
-  width: 100%;
 }
 
-.compare-strip label[for="cmp-to"] {
-  grid-column: 2;
-  grid-row: 1;
-  margin-bottom: 0;
-}
-
-.compare-strip #cmp-to {
-  grid-column: 2;
-  grid-row: 2;
+.compare-strip .select-input {
   min-width: 0;
-  width: 100%;
 }
 
 .compare-strip .btn {
-  grid-column: 3;
-  grid-row: 2;
+  justify-self: end;
   white-space: nowrap;
-}
-
-@media (min-width: 720px) {
-  .compare-strip {
-    max-width: var(--shell-max);
-    margin-inline: auto;
-    padding-inline: var(--space-6);
-  }
 }
 
 @media (max-width: 719px) {
   .compare-strip {
-    top: 64px;
-    grid-template-columns: 1fr;
-    gap: var(--space-2);
-  }
-
-  .compare-strip label[for="cmp-from"] {
-    grid-column: 1;
-    grid-row: auto;
-  }
-
-  .compare-strip #cmp-from {
-    grid-column: 1;
-    grid-row: auto;
-    margin-bottom: var(--space-2);
-  }
-
-  .compare-strip label[for="cmp-to"] {
-    grid-column: 1;
-    grid-row: auto;
-  }
-
-  .compare-strip #cmp-to {
-    grid-column: 1;
-    grid-row: auto;
-    margin-bottom: var(--space-2);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .compare-strip .btn {
-    grid-column: 1;
-    grid-row: auto;
-    width: 100%;
-    margin-top: var(--space-2);
+    justify-self: stretch;
   }
 }
 
@@ -1855,49 +2265,56 @@ line.miss-marker {
   flex-wrap: wrap;
 }
 
-/* Summary figures */
+/* Summary figures (Rekap Responden): the same figure-on-a-rule shape as the landing view's figure row, never
+   boxed stat cards (the earlier build was the banned card wall: five bordered, shadowed boxes with uppercase
+   tracked labels). Five figures in one row on desktop, two columns on a phone. */
 .explorer-panel .summary-grid,
 #summary-counts.summary-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-6);
+  margin-bottom: var(--space-4);
 }
 
 @media (min-width: 720px) {
   .explorer-panel .summary-grid,
   #summary-counts.summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   }
 }
 
 figure.summary-figure {
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: var(--space-2);
   margin: 0;
-  padding: var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+figure.summary-figure:first-child {
+  border-top: 2px solid var(--accent);
 }
 
 figure.summary-figure .def-label {
   color: var(--muted);
   font-size: var(--step-14);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 500;
+}
+
+figure.summary-figure .def-label .figure-note {
+  overflow-wrap: anywhere;
 }
 
 figure.summary-figure .def-value {
   margin: 0;
+  font-family: var(--font-ui);
   font-size: var(--step-28);
   font-weight: 600;
   color: var(--ink);
   line-height: 1.1;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: proportional-nums;
 }
 
 @media (max-width: 719px) {
@@ -1949,6 +2366,28 @@ figure.summary-figure .def-value {
   stroke-width: 3.5;
 }
 
+/* The group's stroke is inherited by the label text, which drew every 14px label with a 1.5px outline
+   (2.5px dashed on misfit items; measured 5 Oct 2026). Labels carry fill only. Misfit keeps a shape cue
+   that is not colour: a dashed box at rest, a solid heavier box and a bold label while highlighted. */
+.wright-item-tick text {
+  stroke: none;
+}
+
+.wright-item-tick.is-misfit .focus-ring {
+  stroke: var(--misfit);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+
+.wright-item-tick.is-misfit-highlight .focus-ring {
+  stroke-width: 2.5;
+  stroke-dasharray: none;
+}
+
+.wright-item-tick.is-misfit-highlight text {
+  font-weight: 700;
+}
+
 .tick-mark {
   stroke: var(--control);
   fill: var(--muted);
@@ -1989,13 +2428,9 @@ figure.summary-figure .def-value {
   color: var(--ink);
 }
 
-.delta-row.is-muted {
-  opacity: 0.45;
-}
-
-.delta-row.is-muted td {
-  color: var(--muted);
-}
+/* Small changes are told apart by the muted fill the chart already gives their text and bar, plus the
+   weight prominent rows carry. The earlier opacity: 0.45 on these rows faded --muted text to roughly 2:1 on
+   the chart surface, under the 4.5:1 floor. */
 
 /* Misfit toggle */
 label[for="wright-misfit-toggle"] {
@@ -2012,4 +2447,480 @@ label[for="wright-misfit-toggle"] {
 #wright-misfit-toggle:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Fragment views (DESIGN.md, "The fragment views", run 2): every view opens with a view head (title, one
+   caption line, its actions), tables sit in one framed data plane, and the toolbar holds search, count and
+   export on one row. Shapes differ per view; these are the shared parts. */
+.explorer-panel h2 {
+  font-size: var(--step-22);
+}
+
+.view-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  margin-block: var(--space-2) var(--space-4);
+}
+
+.view-head h2 {
+  margin: 0;
+}
+
+.view-lede {
+  max-width: 72ch;
+  margin: var(--space-1) 0 0;
+  font-size: var(--step-14);
+  color: var(--muted);
+}
+
+.view-head .action-bar {
+  margin: 0;
+}
+
+.view-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  margin-bottom: var(--space-4);
+}
+
+.view-tools .search-bar {
+  flex: 1 1 360px;
+  max-width: 560px;
+  margin-bottom: 0;
+}
+
+/* The data plane: one surface with a hairline, the header pinned as a block so the engine's two header rows
+   stay together while the body scrolls (a sticky th per row stacked both rows at top 0). */
+.table-scroll {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.table-scroll thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.table-scroll thead th {
+  position: static;
+}
+
+.table-scroll .data-table th {
+  white-space: nowrap;
+  padding-block: var(--space-1);
+}
+
+/* The caption scrolls with the table it belongs to, so it is pinned to the frame's left edge and held to the
+   visible width; on a phone it otherwise ran past the frame and read as cut off. */
+.table-scroll .table-caption {
+  position: sticky;
+  left: 0;
+  max-width: calc(100vw - 2 * var(--space-4) - 2px);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  margin: 0;
+}
+
+.table-scroll .data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* The row's identifier stays on screen while a wide table scrolls sideways on a phone. */
+.table-scroll--pin th:first-child,
+.table-scroll--pin td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: inset -1px 0 0 var(--line);
+}
+
+.table-scroll--pin thead th:first-child {
+  background: var(--surface-2);
+}
+
+/* Count line and pager share one footer row under the table. */
+.table-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-6);
+  margin-top: var(--space-3);
+}
+
+.table-foot .field-hint,
+.table-foot .pager {
+  margin: 0;
+}
+
+/* A flagged row: a glyph in the identifier cell and a light tint, never the tint alone. */
+.row-flag td,
+.table-scroll--pin .row-flag td:first-child {
+  background: color-mix(in srgb, var(--warn) 9%, var(--surface));
+}
+
+.row-flag td:first-child::before {
+  content: "! ";
+  font-weight: 700;
+  color: var(--warn);
+}
+
+/* A header row whose cells are all empty (the engine writes a blank second header row for some tables) is
+   not drawn: it showed as an empty strip under the real header. The markup keeps it, row counts unchanged. */
+.data-table thead tr:not(:has(th:not(:empty))) {
+  display: none;
+}
+
+/* Opsi: one tbody per item; a firmer rule between items, and the key option's code marked with a check and
+   weight, never colour alone. */
+.opt-group + .opt-group tr:first-child td {
+  border-top: 1px solid var(--control);
+}
+
+.opt-key {
+  font-weight: 600;
+}
+
+.opt-key::before {
+  content: "✓ ";
+  color: var(--fit);
+}
+
+/* Tabulasi: one tbody per sub-subtes, and a share bar of high-discrimination items beside each row's total.
+   The counts stay in their own columns, so the bar is never the only way to read the share. */
+.tab-group + .tab-group tr:first-child td {
+  border-top: 1px solid var(--control);
+}
+
+.share-bar {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: var(--space-2);
+}
+
+.share-bar-track {
+  fill: var(--surface-2);
+}
+
+.share-bar-fill {
+  fill: var(--accent);
+}
+
+.view-head--sub {
+  margin-top: var(--space-8);
+}
+
+/* Sub-Subtes range strips: one row per sub-subtes (name, counts, the mean item measure with a +/- SD whisker on
+   one shared logit axis, the values as text), then the compact table. Strokes stay crisp while the strip
+   stretches (non-scaling), and the value text carries the numbers, so the strip is never the only signal. */
+.range-list {
+  margin-bottom: var(--space-6);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.range-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.range-row,
+.range-scale {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) minmax(120px, 0.8fr) minmax(0, 3fr) minmax(var(--space-24), auto);
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.range-row {
+  min-height: 44px;
+  border-bottom: 1px solid var(--line);
+}
+
+.range-row:last-child {
+  border-bottom: 0;
+}
+
+.range-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.range-meta {
+  font-size: var(--step-14);
+  color: var(--muted);
+}
+
+.range-strip {
+  display: block;
+  width: 100%;
+  height: 16px;
+}
+
+.range-strip line {
+  vector-effect: non-scaling-stroke;
+}
+
+.range-axis-line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.range-zero {
+  stroke: var(--control);
+  stroke-width: 1;
+}
+
+.range-whisker {
+  stroke: var(--control);
+  stroke-width: 2;
+}
+
+.range-mean {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.range-value {
+  font-size: var(--step-14);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.range-scale {
+  margin: var(--space-2) 0 0;
+  font-size: var(--step-12);
+  color: var(--muted);
+}
+
+/* The scale's end labels sit under the strip column: first end at its left edge, last end at its right. */
+.range-scale > :first-child {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
+}
+
+.range-scale > :last-child {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.range-scale-note {
+  grid-column: 1 / 3;
+  grid-row: 1;
+}
+
+@media (max-width: 719px) {
+  .range-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name value" "meta meta" "strip strip";
+    padding-block: var(--space-2);
+  }
+
+  .range-name { grid-area: name; }
+  .range-value { grid-area: value; }
+  .range-meta { grid-area: meta; }
+  .range-strip { grid-area: strip; }
+
+  .range-scale {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .range-scale > :first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .range-scale > :last-child {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .range-scale-note {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* Bandingkan: statement and means as plain lines, the match-count figure row with its pairing note on its own
+   line, and the delta chart in a frame that holds 70vh like a long table (147 rows draw about 3.300 units). */
+.cmp-statement {
+  margin: 0 0 var(--space-4);
+  font-weight: 500;
+}
+
+.cmp-means {
+  margin: 0 0 var(--space-4);
+  font-size: var(--step-14);
+  color: var(--muted);
+}
+
+.figure-row-note {
+  flex-basis: 100%;
+  font-size: var(--step-14);
+  color: var(--muted);
+}
+
+.view-tools .cmp-filter,
+.view-tools .field-hint {
+  margin: 0;
+}
+
+.cmp-frame {
+  margin-bottom: var(--space-4);
+}
+
+.cmp-frame .chart-caption {
+  margin: 0 0 var(--space-2);
+}
+
+.cmp-frame #cmp-chart {
+  max-height: 70vh;
+  overflow: auto;
+}
+
+/* Ringkasan verdict band: cleanliness beside the misfit count, both on a surface with a hairline, two columns
+   at >=900px. The bands stack as plain blocks inside, so the section ids the tests slice stay flat. */
+.verdict {
+  display: grid;
+  gap: var(--space-4);
+  margin-block: var(--space-2) var(--space-8);
+}
+
+@media (min-width: 900px) {
+  .verdict {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: stretch;
+  }
+}
+
+.explorer-panel .verdict-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.verdict + .band,
+.verdict > .band + .band {
+  margin-top: 0;
+}
+
+.verdict-cell h2,
+.verdict-cell .view-lede,
+.verdict-cell .chip-row,
+.verdict-cell .alert {
+  margin: 0;
+}
+
+.verdict-cell > .btn {
+  margin-top: auto;
+}
+
+.verdict-band {
+  width: 100%;
+}
+
+.verdict-band svg {
+  display: block;
+  margin-top: var(--space-1);
+}
+
+/* The band's words: one entry per segment, a swatch of the segment's colour plus the count and share as text,
+   so the colour is never the only signal. */
+.band-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-6);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  font-size: var(--step-14);
+}
+
+.band-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.band-legend .mono {
+  color: var(--muted);
+}
+
+.band-swatch {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: 2px;
+}
+
+.band-swatch--accent {
+  background: var(--accent);
+}
+
+.band-swatch--misfit {
+  background: var(--misfit);
+}
+
+.band-swatch--warn {
+  background: var(--warn);
+}
+
+.hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.hero-value {
+  font-family: var(--font-ui);
+  font-size: var(--step-56);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: proportional-nums;
+  color: var(--ink);
+}
+
+.hero--warn .hero-value {
+  color: var(--warn);
+}
+
+.hero-unit {
+  font-size: var(--step-18);
+  color: var(--muted);
+}
+
+.verdict-text {
+  margin: 0;
+  max-width: 48ch;
+}
+
+@media (max-width: 719px) {
+  .explorer-panel .verdict-cell {
+    padding: var(--space-4);
+  }
+
+  .hero-value {
+    font-size: var(--step-40);
+  }
 }

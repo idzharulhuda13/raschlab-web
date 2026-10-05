@@ -1,24 +1,27 @@
 {% if render_view == 'butir' %}
-<div class="action-bar">
-  {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=butir" aria-label="Unduh Excel tabel butir">Unduh Excel</a>{% endif %}
+{# Same cut the Ringkasan count uses (the analysis's own threshold, default 1.5); INFIT MNSQ is column 5 of
+   the frozen item table. Presentation only: the row is marked, nothing is filtered or reordered. #}
+{% set misfit_cut = (params.get('misfit') if params and params.get('misfit') is not none else 1.5) | float %}
+<div class="view-head">
+  <div>
+    <h2>Statistik Butir</h2>
+    <p class="view-lede">Baris bertanda ! melewati ambang misfit INFIT MNSQ ≥ {{ misfit_threshold }}. Sortir hanya berlaku pada halaman yang terlihat.</p>
+  </div>
 </div>
-{% elif render_view == 'partisipan' %}
-<div class="action-bar">
-  {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=responden" aria-label="Unduh Excel tabel responden">Unduh Excel</a>{% endif %}
+<div class="view-tools">
+  <form class="search-bar" method="get" action="{{ explore_path }}">
+    <input type="hidden" name="view" value="butir">
+    <input type="hidden" name="page_item" value="1">
+    <label class="field-label" for="butir-search">Cari butir</label>
+    <input class="field-input" type="search" id="butir-search" name="q_item" value="{{ q_item }}" autocomplete="off">
+    <button type="submit" class="btn btn--secondary">Cari</button>
+  </form>
+  {% if not share_mode %}
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=butir" aria-label="Unduh Excel tabel butir">Unduh Excel</a>
+  </div>
+  {% endif %}
 </div>
-{% elif render_view == 'bandingkan' and compare_ctx is defined and compare_ctx.from_id and compare_ctx.to_id %}
-<div class="action-bar">
-  {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=bandingkan&from={{ compare_ctx.from_id }}&to={{ compare_ctx.to_id }}" aria-label="Unduh Excel tabel perbandingan">Unduh Excel</a>{% endif %}
-</div>
-{% endif %}
-{% if render_view == 'butir' %}
-<form class="search-bar" method="get" action="{{ explore_path }}">
-  <input type="hidden" name="view" value="butir">
-  <input type="hidden" name="page_item" value="1">
-  <label class="field-label" for="butir-search">Cari butir</label>
-  <input class="field-input" type="search" id="butir-search" name="q_item" value="{{ q_item }}" autocomplete="off">
-  <button type="submit" class="btn btn--secondary">Cari</button>
-</form>
 
 {% if item_ctx.count == 0 %}
 <div class="empty" id="butir-empty">
@@ -26,7 +29,7 @@
   <a href="{{ explore_path }}?view=butir" class="btn btn--secondary">Hapus pencarian</a>
 </div>
 {% else %}
-<div class="table-scroll">
+<div class="table-scroll table-scroll--pin">
   <table class="data-table" data-explorer-table="1">
     <caption class="table-caption">Memuat estimasi measure, S.E., dan statistik kecocokan untuk {{ item_ctx.count | id_num }} butir sesuai urutan bawaan mesin.</caption>
     <thead>
@@ -34,7 +37,7 @@
       <tr>
         {% for col in item_ctx.headers[0] %}
           {% if col %}
-            <th scope="col" class="mono">{{ col }}</th>
+            <th scope="col" class="mono{% if loop.index0 != 13 %} num-col{% endif %}">{{ col }}</th>
           {% else %}
             <th></th>
           {% endif %}
@@ -45,10 +48,10 @@
           {% if loop.index0 in (0, 3, 4, 5, 7, 9, 11, 13) %}
             {% set h0 = item_ctx.headers[0][loop.index0] | trim if item_ctx.headers[0] | length > loop.index0 else '' %}
             {% set h1 = col | trim %}
-            <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if h1 == 'PERSON' else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ h0 if (item_ctx.headers[1] | select('equalto', col) | list | length) > 1 else col }}</button></th>
+            <th scope="col" class="mono{% if loop.index0 != 13 %} num-col{% endif %}" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if h1 == 'PERSON' else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ h0 if (item_ctx.headers[1] | select('equalto', col) | list | length) > 1 else col }}</button></th>
           {% else %}
             {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
+              <th scope="col" class="mono{% if loop.index0 != 13 %} num-col{% endif %}">{{ col }}</th>
             {% else %}
               <th></th>
             {% endif %}
@@ -59,7 +62,7 @@
     </thead>
     <tbody>
       {% for row in item_ctx.rows %}
-      <tr data-order="{{ loop.index0 }}">
+      <tr data-order="{{ loop.index0 }}"{% if row | length > 5 and row[5] | float(0) >= misfit_cut %} class="row-flag"{% endif %}>
         {% for cell in row %}
           {% if loop.index0 == 13 %}
             <td class="mono">{{ cell }}</td>
@@ -72,6 +75,7 @@
     </tbody>
   </table>
 </div>
+<div class="table-foot">
 <p class="field-hint" id="butir-count">Menampilkan {{ item_ctx.rows | length | id_num }} dari {{ item_ctx.count | id_num }} butir.</p>
 <nav class="pager" aria-label="Navigasi halaman butir">
   <span class="mono">Halaman {{ item_ctx.paged.page }} dari {{ item_ctx.paged.total_pages }} ({{ item_ctx.paged.total_rows | id_num }} baris)</span>
@@ -86,11 +90,18 @@
   <button type="button" class="btn btn--secondary" disabled>Selanjutnya</button>
   {% endif %}
 </nav>
+</div>
 {% endif %}
 
 {% elif render_view == 'partisipan' %}
+<div class="view-head">
+  <div>
+    <h2>Sebaran dan Statistik Partisipan</h2>
+    <p class="view-lede">Histogram memakai partisipan non-ekstrem pada skala logit yang sama dengan peta Wright; tabel di bawahnya memuat statistik tiap responden.</p>
+  </div>
+</div>
 {% if hist_json %}
-<div class="chart-block">
+<div class="chart-block chart-frame">
   <div class="chart-scroll">
     <div id="partisipan-chart" role="img" aria-label="Histogram sebaran partisipan pada skala logit"></div>
   </div>
@@ -98,15 +109,24 @@
   <script type="application/json" id="partisipan-hist-data">{{ hist_json | safe }}</script>
 </div>
 {% elif hist_error %}
-<p class="field-hint" id="partisipan-chart-error">{{ hist_error }}</p>
+<div class="chart-block chart-frame">
+  <p class="field-hint" id="partisipan-chart-error">{{ hist_error }}</p>
+</div>
 {% endif %}
-<form class="search-bar" method="get" action="{{ explore_path }}">
-  <input type="hidden" name="view" value="partisipan">
-  <input type="hidden" name="page_person" value="1">
-  <label class="field-label" for="partisipan-search">Cari partisipan</label>
-  <input class="field-input" type="search" id="partisipan-search" name="q_person" value="{{ q_person }}" autocomplete="off">
-  <button type="submit" class="btn btn--secondary">Cari</button>
-</form>
+<div class="view-tools">
+  <form class="search-bar" method="get" action="{{ explore_path }}">
+    <input type="hidden" name="view" value="partisipan">
+    <input type="hidden" name="page_person" value="1">
+    <label class="field-label" for="partisipan-search">Cari partisipan</label>
+    <input class="field-input" type="search" id="partisipan-search" name="q_person" value="{{ q_person }}" autocomplete="off">
+    <button type="submit" class="btn btn--secondary">Cari</button>
+  </form>
+  {% if not share_mode %}
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=responden" aria-label="Unduh Excel tabel responden">Unduh Excel</a>
+  </div>
+  {% endif %}
+</div>
 
 {% if person_ctx.count == 0 %}
 <div class="empty" id="partisipan-empty">
@@ -114,7 +134,7 @@
   <a href="{{ explore_path }}?view=partisipan" class="btn btn--secondary">Hapus pencarian</a>
 </div>
 {% else %}
-<div class="table-scroll">
+<div class="table-scroll table-scroll--pin">
   <table class="data-table" data-explorer-table="1">
     <caption class="table-caption">Memuat estimasi ability measure, S.E., dan statistik kecocokan untuk {{ person_ctx.count | id_num }} responden sesuai urutan misfit.</caption>
     <thead>
@@ -122,7 +142,7 @@
       <tr>
         {% for col in person_ctx.headers[0] %}
           {% if col %}
-            <th scope="col" class="mono">{{ col }}</th>
+            <th scope="col" class="mono{% if loop.index0 < 13 %} num-col{% endif %}">{{ col }}</th>
           {% else %}
             <th></th>
           {% endif %}
@@ -133,10 +153,10 @@
           {% set h1 = col | trim %}
           {% if h1 == 'PERSON' or loop.index0 in (0, 3, 4, 5, 7) %}
             {% set h0 = person_ctx.headers[0][loop.index0] | trim if person_ctx.headers[0] | length > loop.index0 else '' %}
-            <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if h1 == 'PERSON' else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ col }}</button></th>
+            <th scope="col" class="mono{% if loop.index0 < 13 %} num-col{% endif %}" aria-sort="none"><button type="button" class="th-sort" data-sort="{{ 'text' if h1 == 'PERSON' else 'number' }}" aria-label="Sortir kolom {{ (h0 ~ ' ' ~ h1) | trim }}">{{ col }}</button></th>
           {% else %}
             {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
+              <th scope="col" class="mono{% if loop.index0 < 13 %} num-col{% endif %}">{{ col }}</th>
             {% else %}
               <th></th>
             {% endif %}
@@ -160,6 +180,7 @@
     </tbody>
   </table>
 </div>
+<div class="table-foot">
 <p class="field-hint" id="partisipan-count">Menampilkan {{ person_ctx.rows | length | id_num }} dari {{ person_ctx.count | id_num }} responden.</p>
 <nav class="pager" aria-label="Navigasi halaman responden">
   <span class="mono">Halaman {{ person_ctx.paged.page }} dari {{ person_ctx.paged.total_pages }} ({{ person_ctx.paged.total_rows | id_num }} baris)</span>
@@ -174,32 +195,39 @@
   <button type="button" class="btn btn--secondary" disabled>Selanjutnya</button>
   {% endif %}
 </nav>
+</div>
 {% endif %}
 
 {% elif render_view == 'ringkasan' %}
-<section class="band" id="kebersihan">
+{# Verdict band: is the data clean, and how many items misfit. Two columns at >=900px, stacked below. #}
+<div class="verdict">
+<section class="band verdict-cell" id="kebersihan">
   <h2>Kebersihan Data</h2>
   {% if clean_audit %}
-  <p>Komposisi {{ clean_audit.total | id_num }} baris yang dibaca mesin.</p>
+  <p class="view-lede">Komposisi {{ clean_audit.total | id_num }} baris yang dibaca mesin.</p>
   <div class="chip-row">
     <span class="chip chip--fit"><span class="chip-glyph">OK</span> {{ clean_audit.dipakai | id_num }} dipakai</span>
     <span class="chip chip--misfit"><span class="chip-glyph">!</span> {{ clean_audit.dihapus | id_num }} dihapus</span>
     <span class="chip chip--warn"><span class="chip-glyph">!</span> {{ clean_audit.ekstrem | id_num }} ekstrem</span>
   </div>
-  <svg viewBox="0 0 560 100" role="img" width="100%" aria-label="Komposisi {{ clean_audit.total | id_num }} baris: {{ clean_audit.dipakai | id_num }} dipakai, {{ clean_audit.dihapus | id_num }} dihapus, {{ clean_audit.ekstrem | id_num }} ekstrem">
-    <line x1="10" y1="40" x2="550" y2="40" stroke="var(--line)" stroke-width="1"></line>
-    <rect x="{{ clean_audit.x_dipakai }}" y="24" width="{{ clean_audit.w_dipakai }}" height="12" fill="var(--accent)"></rect>
-    <rect x="{{ clean_audit.x_dihapus }}" y="24" width="{{ clean_audit.w_dihapus }}" height="12" fill="var(--misfit)"></rect>
-    <rect x="{{ clean_audit.x_ekstrem }}" y="24" width="{{ clean_audit.w_ekstrem }}" height="12" fill="var(--warn)"></rect>
-    <text x="{{ clean_audit.x_dipakai + clean_audit.w_dipakai / 2 }}" y="54" text-anchor="middle" font-size="11" fill="var(--ink)">{{ clean_audit.dipakai | id_num }} dipakai</text>
-    <text x="{{ clean_audit.x_dipakai + clean_audit.w_dipakai / 2 }}" y="68" text-anchor="middle" font-size="11" fill="var(--muted)">{{ clean_audit.pct_dipakai }}%</text>
-    <text x="{{ clean_audit.x_dihapus + clean_audit.w_dihapus / 2 }}" y="82" text-anchor="middle" font-size="11" fill="var(--ink)">{{ clean_audit.dihapus | id_num }} dihapus</text>
-    <text x="{{ clean_audit.x_dihapus + clean_audit.w_dihapus / 2 }}" y="94" text-anchor="middle" font-size="11" fill="var(--muted)">{{ clean_audit.pct_dihapus }}%</text>
-    <text x="548" y="54" text-anchor="end" font-size="11" fill="var(--ink)">{{ clean_audit.ekstrem | id_num }} ekstrem</text>
-    <text x="548" y="68" text-anchor="end" font-size="11" fill="var(--muted)">{{ clean_audit.pct_ekstrem }}%</text>
-    <text x="10" y="18" text-anchor="start" font-size="11" fill="var(--muted)">0</text>
-    <text x="550" y="18" text-anchor="end" font-size="11" fill="var(--muted)">{{ clean_audit.total | id_num }} baris</text>
-  </svg>
+  {# The band draws only the line and the three segments (geometry from the route, untouched) and stretches
+     to the cell. Its words live in HTML around it: the SVG labels used to sit under each segment, so two small
+     segments at the right end printed on top of each other and past the viewBox, and at 390px the 100%-width
+     band rendered its 11-unit text at about 7px. #}
+  <div class="verdict-band">
+    <div class="band-scale-ends"><span>0</span><span>{{ clean_audit.total | id_num }} baris</span></div>
+    <svg viewBox="0 20 560 22" preserveAspectRatio="none" role="img" width="100%" height="22" aria-label="Komposisi {{ clean_audit.total | id_num }} baris: {{ clean_audit.dipakai | id_num }} dipakai, {{ clean_audit.dihapus | id_num }} dihapus, {{ clean_audit.ekstrem | id_num }} ekstrem">
+      <line x1="10" y1="40" x2="550" y2="40" stroke="var(--line)" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+      <rect x="{{ clean_audit.x_dipakai }}" y="24" width="{{ clean_audit.w_dipakai }}" height="12" fill="var(--accent)"></rect>
+      <rect x="{{ clean_audit.x_dihapus }}" y="24" width="{{ clean_audit.w_dihapus }}" height="12" fill="var(--misfit)"></rect>
+      <rect x="{{ clean_audit.x_ekstrem }}" y="24" width="{{ clean_audit.w_ekstrem }}" height="12" fill="var(--warn)"></rect>
+    </svg>
+    <ul class="band-legend">
+      <li><span class="band-swatch band-swatch--accent" aria-hidden="true"></span>{{ clean_audit.dipakai | id_num }} dipakai <span class="mono">{{ clean_audit.pct_dipakai }}%</span></li>
+      <li><span class="band-swatch band-swatch--misfit" aria-hidden="true"></span>{{ clean_audit.dihapus | id_num }} dihapus <span class="mono">{{ clean_audit.pct_dihapus }}%</span></li>
+      <li><span class="band-swatch band-swatch--warn" aria-hidden="true"></span>{{ clean_audit.ekstrem | id_num }} ekstrem <span class="mono">{{ clean_audit.pct_ekstrem }}%</span></li>
+    </ul>
+  </div>
   <div class="alert {% if clean_audit.dihapus > 0 or clean_audit.ekstrem > 0 %}alert--warn{% else %}alert--fit{% endif %}" role="status">
     <p>{{ clean_audit.dihapus | id_num }} baris dihapus lewat daftar hapus dan {{ clean_audit.ekstrem | id_num }} baris dikecualikan sebagai ekstrem ({{ clean_audit.ekstrem_bawah | id_num }} bawah, {{ clean_audit.ekstrem_atas | id_num }} atas). {{ clean_audit.butir_dihapus | id_num }} butir dibuang sebelum penilaian.</p>
   </div>
@@ -211,38 +239,45 @@
   <a class="btn btn--secondary" href="{{ explore_path }}?view=bandingkan">Bandingkan dengan versi arsip</a>
 </section>
 {% if n_item > 0 %}
-<section class="band" id="bermasalah">
+<section class="band verdict-cell" id="bermasalah">
   <h2>Butir Bermasalah</h2>
-  <div class="alert {% if n_misfit > 0 %}alert--warn{% else %}alert--fit{% endif %}" role="status">
-    <p>{{ n_misfit | id_num }} dari {{ n_item | id_num }} butir melewati ambang misfit INFIT MNSQ ≥ {{ misfit_threshold }}.</p>
-    <a href="{{ explore_path }}?view=butir" class="btn btn--secondary">Lihat rincian butir</a>
-  </div>
+  {# The view's one hero figure: the misfit count against the item count, both read from the item table. #}
+  <p class="hero{% if n_misfit > 0 %} hero--warn{% endif %}"><span class="hero-value">{{ n_misfit | id_num }}</span> <span class="hero-unit">dari {{ n_item | id_num }} butir</span></p>
+  <p class="verdict-text">{{ n_misfit | id_num }} dari {{ n_item | id_num }} butir melewati ambang misfit INFIT MNSQ ≥ {{ misfit_threshold }}.</p>
+  <a href="{{ explore_path }}?view=butir" class="btn btn--secondary">Lihat rincian butir</a>
 </section>
 {% endif %}
+</div>
 <section class="band" id="rekap">
-  <h2>Rekap Responden</h2>
-  <div class="action-bar">
-    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=ringkasan" aria-label="Unduh Excel rekap ringkasan">Unduh Excel</a>{% endif %}
+  <div class="view-head">
+    <h2>Rekap Responden</h2>
+    {% if not share_mode %}
+    <div class="action-bar">
+      <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=ringkasan" aria-label="Unduh Excel rekap ringkasan">Unduh Excel</a>
+    </div>
+    {% endif %}
   </div>
+  {# Labels in Indonesian, each with the engine's own key as a mono note so the figure traces to its row in the
+     table below. PERSON COUNT is the non-extreme count (the Wright map's population). #}
   <div class="summary-grid" id="summary-counts">
     <figure class="summary-figure">
-      <figcaption class="def-label">ITEM MEASURE MEAN</figcaption>
+      <figcaption class="def-label">Rata-rata measure butir <span class="figure-note mono">ITEM MEASURE MEAN</span></figcaption>
       <p class="def-value mono">{{ (rekap.get('ITEM MEASURE MEAN') if rekap.get('ITEM MEASURE MEAN') is not none and rekap.get('ITEM MEASURE MEAN') != '' else '-') | id_num }}</p>
     </figure>
     <figure class="summary-figure">
-      <figcaption class="def-label">PERSON MEASURE MEAN</figcaption>
+      <figcaption class="def-label">Rata-rata measure partisipan <span class="figure-note mono">PERSON MEASURE MEAN</span></figcaption>
       <p class="def-value mono">{{ (rekap.get('PERSON MEASURE MEAN') if rekap.get('PERSON MEASURE MEAN') is not none and rekap.get('PERSON MEASURE MEAN') != '' else '-') | id_num }}</p>
     </figure>
     <figure class="summary-figure">
-      <figcaption class="def-label">ITEM COUNT</figcaption>
+      <figcaption class="def-label">Jumlah butir <span class="figure-note mono">ITEM COUNT</span></figcaption>
       <p class="def-value mono">{{ (rekap.get('ITEM COUNT') if rekap.get('ITEM COUNT') is not none and rekap.get('ITEM COUNT') != '' else '-') | id_num }}</p>
     </figure>
     <figure class="summary-figure">
-      <figcaption class="def-label">PERSON COUNT</figcaption>
+      <figcaption class="def-label">Partisipan non-ekstrem <span class="figure-note mono">PERSON COUNT</span></figcaption>
       <p class="def-value mono">{{ (rekap.get('PERSON COUNT') if rekap.get('PERSON COUNT') is not none and rekap.get('PERSON COUNT') != '' else '-') | id_num }}</p>
     </figure>
     <figure class="summary-figure">
-      <figcaption class="def-label">PERSON EXTREME INCL COUNT</figcaption>
+      <figcaption class="def-label">Partisipan termasuk ekstrem <span class="figure-note mono">PERSON EXTREME INCL COUNT</span></figcaption>
       <p class="def-value mono">{{ (rekap.get('PERSON EXTREME INCL COUNT') if rekap.get('PERSON EXTREME INCL COUNT') is not none and rekap.get('PERSON EXTREME INCL COUNT') != '' else '-') | id_num }}</p>
     </figure>
   </div>
@@ -253,36 +288,18 @@
     <table class="data-table">
       <caption class="table-caption">Memuat statistik agregat dari mesin untuk keseluruhan proses analisis.</caption>
       <thead>
-        {% if sum_headers | length >= 2 %}
+        {# The engine's blank spacer row (",,") carries no header text, so it is not drawn as an empty strip. #}
+        {% for header_row in sum_headers[:2] if header_row | join('') | trim %}
         <tr>
-          {% for col in sum_headers[0] %}
+          {% for col in header_row %}
             {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
+              <th scope="col" class="mono{% if loop.index0 >= 2 %} num-col{% endif %}">{{ col }}</th>
             {% else %}
               <th></th>
             {% endif %}
           {% endfor %}
         </tr>
-        <tr>
-          {% for col in sum_headers[1] %}
-            {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
-            {% else %}
-              <th></th>
-            {% endif %}
-          {% endfor %}
-        </tr>
-        {% elif sum_headers | length == 1 %}
-        <tr>
-          {% for col in sum_headers[0] %}
-            {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
-            {% else %}
-              <th></th>
-            {% endif %}
-          {% endfor %}
-        </tr>
-        {% endif %}
+        {% endfor %}
       </thead>
       <tbody>
         {% for row in sum_data %}
@@ -303,12 +320,19 @@
 
 {% elif render_view == 'opsi' %}
 <section class="band" id="opsi">
-  <h2>Tabel Opsi dan Distraktor (15.3)</h2>
-  {% if option_headers %}
-  <div class="action-bar">
-    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=opsi" aria-label="Unduh Excel tabel opsi dan distraktor">Unduh Excel</a>{% endif %}
+  <div class="view-head">
+    <div>
+      <h2>Tabel Opsi dan Distraktor (15.3)</h2>
+      {% if option_headers %}<p class="view-lede">Opsi dikelompokkan per butir; tanda ✓ menandai opsi kunci (nilai SCORE 1).</p>{% endif %}
+    </div>
+    {% if option_headers and not share_mode %}
+    <div class="action-bar">
+      <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=opsi" aria-label="Unduh Excel tabel opsi dan distraktor">Unduh Excel</a>
+    </div>
+    {% endif %}
   </div>
-  <div class="table-scroll">
+  {% if option_headers %}
+  <div class="table-scroll table-scroll--pin">
     <table class="data-table">
       <caption class="table-caption">Memuat frekuensi pemilihan setiap opsi respon per butir sesuai urutan bawaan mesin.</caption>
       <thead>
@@ -316,7 +340,7 @@
         <tr>
           {% for col in option_headers[0] %}
             {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
+              <th scope="col" class="mono{% if loop.index0 != 11 %} num-col{% endif %}">{{ col }}</th>
             {% else %}
               <th></th>
             {% endif %}
@@ -325,7 +349,7 @@
         <tr>
           {% for col in option_headers[1] %}
             {% if col %}
-              <th scope="col" class="mono">{{ col }}</th>
+              <th scope="col" class="mono{% if loop.index0 != 11 %} num-col{% endif %}">{{ col }}</th>
             {% else %}
               <th></th>
             {% endif %}
@@ -333,12 +357,20 @@
         </tr>
         {% endif %}
       </thead>
-      <tbody>
+      {# One tbody per item (ENTRY, column 0) so an item's options read as one group; the engine's row order is
+         kept. The key option (SCORE, column 3, equals 1) gets a non-colour mark on its option code (column 4). #}
+      <tbody class="opt-group">
         {% for row in option_paged %}
+        {% if not loop.first and row[0] != loop.previtem[0] %}
+      </tbody>
+      <tbody class="opt-group">
+        {% endif %}
         <tr>
           {% for cell in row %}
             {% if loop.index0 == 11 %}
               <td class="mono">{{ cell }}</td>
+            {% elif loop.index0 == 4 and row | length > 3 and row[3] | trim == '1' %}
+              <td class="num-col mono opt-key">{{ cell | id_num }}</td>
             {% else %}
               <td class="num-col mono">{{ cell | id_num }}</td>
             {% endif %}
@@ -348,6 +380,7 @@
       </tbody>
     </table>
   </div>
+  <div class="table-foot">
   <nav class="pager" aria-label="Navigasi halaman opsi">
     <span class="mono">Halaman {{ option_paged.page }} dari {{ option_paged.total_pages }} ({{ option_paged.total_rows | id_num }} baris)</span>
     {% if option_paged.has_prev %}
@@ -361,6 +394,7 @@
     <button type="button" class="btn btn--secondary" disabled>Selanjutnya</button>
     {% endif %}
   </nav>
+  </div>
   {% else %}
   <div class="alert alert--info" role="status"><p>Analisis ini dijalankan sebelum mesin menulis tabel opsi, jadi rinciannya belum tersimpan. Jalankan ulang analisis untuk melihatnya.</p></div>
   {% endif %}
@@ -368,10 +402,59 @@
 
 {% elif render_view == 'subsubtes' %}
 <section class="band" id="subsubtes">
-  <h2>Ringkasan Sub-Subtes</h2>
+  <div class="view-head">
+    <div>
+      <h2>Ringkasan Sub-Subtes</h2>
+      {% if subsubtes_rows %}<p class="view-lede">Setiap baris satu sub-subtes: jumlah butir, butir misfit, dan sebaran measure butirnya pada satu skala logit.</p>{% endif %}
+    </div>
+    {% if subsubtes_headers and not share_mode %}
+    <div class="action-bar">
+      <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=subsubtes" aria-label="Unduh Excel ringkasan sub-subtes">Unduh Excel</a>
+    </div>
+    {% endif %}
+  </div>
   {% if subsubtes_rows %}
-  <div class="action-bar">
-    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=subsubtes" aria-label="Unduh Excel ringkasan sub-subtes">Unduh Excel</a>{% endif %}
+  {# Range strips drawn from the stored values only: column 4 is the mean item measure, 5 its sample SD,
+     1 the item count, 8 the misfit count. One shared axis from the floor of the lowest (mean - SD) to the
+     ceiling of the highest (mean + SD), always including 0. A value that does not parse is printed as "-"
+     and never drawn at 0. No column key appears here: a test reads the header names in order from the
+     table below by their first occurrence in this section. #}
+  {% set ns = namespace(lo=0.0, hi=0.0) %}
+  {% for r in subsubtes_rows if r | length > 8 %}
+    {% set m = r[4] | float(none) %}{% set sd = r[5] | float(none) %}
+    {% if m is not none %}
+      {% set spread = sd if sd is not none else 0 %}
+      {% if m - spread < ns.lo %}{% set ns.lo = m - spread %}{% endif %}
+      {% if m + spread > ns.hi %}{% set ns.hi = m + spread %}{% endif %}
+    {% endif %}
+  {% endfor %}
+  {% set lo = ns.lo | round(0, 'floor') %}
+  {% set hi = ns.hi | round(0, 'ceil') %}
+  {% set hi = hi if hi > lo else lo + 1 %}
+  {% set span = hi - lo %}
+  <div class="range-list">
+    <ol class="range-rows">
+      {% for r in subsubtes_rows if r | length > 8 %}
+      {% set m = r[4] | float(none) %}{% set sd = r[5] | float(none) %}
+      <li class="range-row">
+        <span class="range-name">{{ r[0] }}</span>
+        <span class="range-meta">{{ r[1] | id_num }} butir · {{ r[8] | id_num }} misfit</span>
+        {% if m is not none %}
+        <svg class="range-strip" viewBox="0 0 100 16" preserveAspectRatio="none" width="100%" height="16" aria-hidden="true" focusable="false">
+          <line class="range-axis-line" x1="0" y1="8" x2="100" y2="8"></line>
+          <line class="range-zero" x1="{{ ((0 - lo) / span * 100) | round(2) }}" y1="2" x2="{{ ((0 - lo) / span * 100) | round(2) }}" y2="14"></line>
+          {% if sd is not none %}<line class="range-whisker" x1="{{ ((m - sd - lo) / span * 100) | round(2) }}" y1="8" x2="{{ ((m + sd - lo) / span * 100) | round(2) }}" y2="8"></line>{% endif %}
+          <line class="range-mean" x1="{{ ((m - lo) / span * 100) | round(2) }}" y1="1" x2="{{ ((m - lo) / span * 100) | round(2) }}" y2="15"></line>
+        </svg>
+        <span class="range-value mono">{{ r[4] | id_num }}{% if sd is not none %} ± {{ r[5] | id_num }}{% endif %}</span>
+        {% else %}
+        <span class="range-strip"></span>
+        <span class="range-value mono">-</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="range-scale"><span class="mono">{{ lo | int }}</span><span class="range-scale-note">garis tegak tipis = 0 logit; garis tegak tebal = rata-rata measure butir; garis datar = ± simpangan baku</span><span class="mono">{{ hi | int }} logit</span></p>
   </div>
   <div class="table-scroll">
     <table class="data-table">
@@ -399,9 +482,6 @@
     </table>
   </div>
   {% elif subsubtes_headers %}
-  <div class="action-bar">
-    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=subsubtes" aria-label="Unduh Excel ringkasan sub-subtes">Unduh Excel</a>{% endif %}
-  </div>
   <div class="alert alert--info" role="status">
     <p>Data ini tidak memuat kode sub-subtes pada label butir, jadi ringkasan per sub-subtes kosong. Analisis tetap lengkap; tabel ini terisi otomatis bila label butir memuat kode sub-subtes.</p>
   </div>
@@ -415,27 +495,43 @@
 {% elif render_view == 'tabulasi' %}
 <section class="band" id="tabulasi">
   {% if not tabulasi_missing %}
-  <h2>Ringkasan Tabulasi</h2>
-  {% if tabulasi_rows %}
-  <div class="action-bar">
-    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi" aria-label="Unduh Excel ringkasan tabulasi">Unduh Excel ringkasan</a>{% endif %}
-    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi_butir" aria-label="Unduh Excel tabulasi per butir">Unduh Excel butir</a>{% endif %}
+  <div class="view-head">
+    <div>
+      <h2>Ringkasan Tabulasi</h2>
+      {% if tabulasi_rows %}<p class="view-lede">Butir per sub-subtes dan tingkat kesukaran, dibagi menurut daya beda. Bilah di kolom jumlah menunjukkan bagian butir berdaya beda tinggi.</p>{% endif %}
+    </div>
+    {% if (tabulasi_rows or tabulasi_headers) and not share_mode %}
+    <div class="action-bar">
+      <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi" aria-label="Unduh Excel ringkasan tabulasi">Unduh Excel ringkasan</a>
+      <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi_butir" aria-label="Unduh Excel tabulasi per butir">Unduh Excel butir</a>
+    </div>
+    {% endif %}
   </div>
-  <div class="table-scroll">
+  {% if tabulasi_rows %}
+  <div class="table-scroll table-scroll--pin">
     <table class="data-table">
       <caption class="table-caption">{{ tabulasi_rows | length | id_num }} baris: Subtes, Sub-subtes dan tingkat kesukaran, dihitung dari opsi kunci tiap butir. Kesukaran dari DATA% (sulit sampai 29%, sedang 30 sampai 69%, mudah 70% ke atas), daya beda dari PTMA CORR (rendah di bawah 0,20, tinggi 0,20 ke atas). NOMOR_TINGGI dan NOMOR_RENDAH memuat nomor butir.</caption>
       <thead>
         <tr>
           {% for col in tabulasi_headers[0] %}
-          <th scope="col" class="mono">{{ col }}</th>
+          <th scope="col" class="mono{% if loop.index0 in (3, 5, 7) %} num-col{% endif %}">{{ col }}</th>
           {% endfor %}
         </tr>
       </thead>
-      <tbody>
+      {# One tbody per sub-subtes (column 1), engine order kept. The share bar in JUMLAH (column 7) is TINGGI
+         (column 3) over JUMLAH, both stored counts; it is drawn only when JUMLAH is a positive number. #}
+      <tbody class="tab-group">
         {% for row in tabulasi_rows %}
+        {% if not loop.first and row[1] != loop.previtem[1] %}
+      </tbody>
+      <tbody class="tab-group">
+        {% endif %}
         <tr>
           {% for cell in row %}
-          {% if loop.index0 in (3, 5, 7) %}
+          {% if loop.index0 == 7 %}
+          {% set high = row[3] | int(-1) %}{% set total = cell | int(0) %}
+          <td class="num-col mono">{% if total > 0 and high >= 0 and high <= total %}<svg class="share-bar" viewBox="0 0 100 8" preserveAspectRatio="none" width="56" height="8" aria-hidden="true" focusable="false"><rect class="share-bar-track" x="0" y="0" width="100" height="8"></rect><rect class="share-bar-fill" x="0" y="0" width="{{ (high / total * 100) | round(2) }}" height="8"></rect></svg> {% endif %}{{ cell | id_num }}</td>
+          {% elif loop.index0 in (3, 5) %}
           <td class="num-col mono">{{ cell | id_num }}</td>
           {% else %}
           <td class="mono">{{ cell }}</td>
@@ -447,25 +543,28 @@
     </table>
   </div>
   {% elif tabulasi_headers %}
-  <div class="action-bar">
-    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi" aria-label="Unduh Excel ringkasan tabulasi">Unduh Excel ringkasan</a>{% endif %}
-    {% if not share_mode %}<a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=tabulasi_butir" aria-label="Unduh Excel tabulasi per butir">Unduh Excel butir</a>{% endif %}
-  </div>
   <div class="alert alert--info" role="status">
     <p>Data ini tidak memuat kode sub-subtes pada label butir, jadi ringkasan tabulasi kosong. Analisis tetap lengkap; tabel ini terisi otomatis bila label butir memuat kode sub-subtes.</p>
   </div>
   {% endif %}
 
+  {% if tab_item_ctx and (tab_item_ctx.count > 0 or q_tab) %}
+  <div class="view-head view-head--sub">
+    <h2>Tabulasi per Butir</h2>
+  </div>
+  {# The toolbar stays while a search is active, so a search with no match can be edited, not only cleared. #}
+  <div class="view-tools">
+    <form class="search-bar" method="get" action="{{ explore_path }}">
+      <input type="hidden" name="view" value="tabulasi">
+      <input type="hidden" name="page_tab" value="1">
+      <label class="field-label" for="tab-search">Cari baris tabulasi</label>
+      <input class="field-input" type="search" id="tab-search" name="q_tab" value="{{ q_tab }}" autocomplete="off">
+      <button type="submit" class="btn btn--secondary">Cari</button>
+    </form>
+  </div>
+  {% endif %}
   {% if tab_item_ctx and tab_item_ctx.count > 0 %}
-  <h2>Tabulasi per Butir</h2>
-  <form class="search-bar" method="get" action="{{ explore_path }}">
-    <input type="hidden" name="view" value="tabulasi">
-    <input type="hidden" name="page_tab" value="1">
-    <label class="field-label" for="tab-search">Cari baris tabulasi</label>
-    <input class="field-input" type="search" id="tab-search" name="q_tab" value="{{ q_tab }}" autocomplete="off">
-    <button type="submit" class="btn btn--secondary">Cari</button>
-  </form>
-  <div class="table-scroll">
+  <div class="table-scroll table-scroll--pin">
     <table class="data-table" data-explorer-table="1">
       <caption class="table-caption">Memuat {{ tab_item_ctx.count | id_num }} baris tabulasi per butir sesuai urutan bawaan mesin.</caption>
       <thead>
@@ -473,7 +572,7 @@
         <tr>
           {% for col in tab_item_ctx.headers[0] %}
             {% if loop.index0 in (2, 6, 7) %}
-            <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="number" aria-label="Sortir kolom {{ col }}">{{ col }}</button></th>
+            <th scope="col" class="mono num-col" aria-sort="none"><button type="button" class="th-sort" data-sort="number" aria-label="Sortir kolom {{ col }}">{{ col }}</button></th>
             {% else %}
             <th scope="col" class="mono" aria-sort="none"><button type="button" class="th-sort" data-sort="text" aria-label="Sortir kolom {{ col }}">{{ col }}</button></th>
             {% endif %}
@@ -496,6 +595,7 @@
       </tbody>
     </table>
   </div>
+  <div class="table-foot">
   <p class="field-hint" id="tabulasi-count">Menampilkan {{ tab_item_ctx.rows | length | id_num }} dari {{ tab_item_ctx.count | id_num }} baris.</p>
   <nav class="pager" aria-label="Navigasi halaman tabulasi per butir">
     <span class="mono">Halaman {{ tab_item_ctx.paged.page }} dari {{ tab_item_ctx.paged.total_pages }} ({{ tab_item_ctx.paged.total_rows | id_num }} baris)</span>
@@ -510,6 +610,7 @@
     <button type="button" class="btn btn--secondary" disabled>Selanjutnya</button>
     {% endif %}
   </nav>
+  </div>
   {% elif q_tab and not tabulasi_missing %}
   <div class="empty" id="tabulasi-empty"><p class="empty-text">Tidak ada baris yang cocok dengan pencarian.</p><a href="{{ explore_path }}?view=tabulasi" class="btn btn--secondary">Hapus pencarian</a></div>
   {% endif %}
@@ -521,59 +622,87 @@
 </section>
 
 {% elif render_view == 'bandingkan' %}
+{% set has_pair = compare_ctx.from_id and compare_ctx.to_id %}
+<div class="view-head">
+  <div>
+    <h2>Perbandingan Dua Analisis</h2>
+    <p class="view-lede" id="cmp-caveat">{{ compare_ctx.caveat }}</p>
+  </div>
+  {% if has_pair and not share_mode %}
+  <div class="action-bar">
+    <a class="btn btn--secondary" href="/analyses/{{ analysis.id }}/export?table=bandingkan&from={{ compare_ctx.from_id }}&to={{ compare_ctx.to_id }}" aria-label="Unduh Excel tabel perbandingan">Unduh Excel</a>
+  </div>
+  {% endif %}
+</div>
 {% if compare_ctx.options | length < 2 %}
 <div class="empty">
   <p class="empty-text">{{ compare_ctx.empty_reason }}</p>
 </div>
 {% else %}
+{# Control panel, not sticky: it sat at the same top offset as the sticky tab strip. DOM order is visual
+   order: the two selects, then the S.E. filter and the submit on the second row. #}
 <form class="compare-strip" method="get" action="{{ explore_path }}">
   <input type="hidden" name="view" value="bandingkan">
-  <label class="field-label" for="cmp-from">Analisis pertama</label>
-  <select id="cmp-from" name="from" class="select-input">
-    {% for o in compare_ctx.options %}
-    <option value="{{ o.id }}"{% if o.id == compare_ctx.from_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}{% if o.mark_label %} · {{ o.mark_label }}{% endif %}</option>
-    {% endfor %}
-  </select>
-  <label class="field-label" for="cmp-to">Analisis kedua</label>
-  <select id="cmp-to" name="to" class="select-input">
-    {% for o in compare_ctx.options %}
-    <option value="{{ o.id }}"{% if o.id == compare_ctx.to_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}{% if o.mark_label %} · {{ o.mark_label }}{% endif %}</option>
-    {% endfor %}
-  </select>
+  <div class="field">
+    <label class="field-label" for="cmp-from">Analisis pertama</label>
+    <select id="cmp-from" name="from" class="select-input">
+      {% for o in compare_ctx.options %}
+      <option value="{{ o.id }}"{% if o.id == compare_ctx.from_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}{% if o.mark_label %} · {{ o.mark_label }}{% endif %}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label class="field-label" for="cmp-to">Analisis kedua</label>
+    <select id="cmp-to" name="to" class="select-input">
+      {% for o in compare_ctx.options %}
+      <option value="{{ o.id }}"{% if o.id == compare_ctx.to_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}{% if o.mark_label %} · {{ o.mark_label }}{% endif %}</option>
+      {% endfor %}
+    </select>
+  </div>
   <div class="field field--toggle">
     <input type="checkbox" id="cmp-over-se" name="over_se" value="1"{% if compare_ctx.over_se_only %} checked{% endif %}>
     <label class="field-label" for="cmp-over-se">Hanya butir yang bergeser lebih dari S.E. butir itu.</label>
   </div>
-  <div class="action-bar">
-    <button type="submit" class="btn btn--primary">Tampilkan Perbandingan</button>
-  </div>
+  <button type="submit" class="btn btn--primary">Tampilkan Perbandingan</button>
 </form>
 
-<p id="cmp-over-se-count" aria-live="polite">{% if compare_ctx.over_se_only %}Menampilkan {{ compare_ctx.n_over_se | id_num }} dari {{ compare_ctx.n_pairs_total | id_num }} butir, yang bergeser lebih dari S.E.-nya.{% else %}Menampilkan {{ compare_ctx.n_pairs_total | id_num }} butir.{% endif %}</p>
+<p id="cmp-statement" class="cmp-statement">{% if compare_ctx.statement %}{{ compare_ctx.statement }}{% else %}Pilih dua analisis untuk dibandingkan.{% endif %}</p>
 
-<p id="cmp-statement">{% if compare_ctx.statement %}{{ compare_ctx.statement }}{% else %}Pilih dua analisis untuk dibandingkan.{% endif %}</p>
+{% if has_pair %}
+{# Match counts as figures; the frozen sentence stays the element's text (separators are .sr-only). Only drawn
+   once two runs are chosen: before that the counts were printed as zeros, which read as a result. #}
+<p id="cmp-counts" class="figure-row">
+  <span class="figure"><span class="figure-label">Cocok</span><span class="sr-only">: </span><span class="figure-value">{{ compare_ctx.matched | id_num }}</span><span class="sr-only"> butir. </span></span>
+  <span class="figure"><span class="figure-label">Hanya di analisis pertama</span><span class="sr-only">: </span><span class="figure-value">{{ compare_ctx.unmatched_from | id_num }}</span><span class="sr-only">. </span></span>
+  <span class="figure"><span class="figure-label">Hanya di analisis kedua</span><span class="sr-only">: </span><span class="figure-value">{{ compare_ctx.unmatched_to | id_num }}</span><span class="sr-only">.</span></span>
+  {% if compare_ctx.key_used == 'label' %}<span class="figure-row-note"> Dipasangkan berdasarkan label butir.</span>{% elif compare_ctx.key_used == 'entry' %}<span class="figure-row-note"> Dipasangkan berdasarkan nomor butir (kedua berkas tidak memuat label butir).</span>{% endif %}
+</p>
 
-<p class="field-hint" id="cmp-caveat">{{ compare_ctx.caveat }}</p>
+<p id="cmp-means" class="cmp-means">{% if compare_ctx.means %}Rata-rata measure butir: {{ compare_ctx.means.from | id_num }} (analisis pertama) vs {{ compare_ctx.means.to | id_num }} (analisis kedua).{% endif %}</p>
 
-<p id="cmp-counts">Cocok: {{ compare_ctx.matched | id_num }} butir. Hanya di analisis pertama: {{ compare_ctx.unmatched_from | id_num }}. Hanya di analisis kedua: {{ compare_ctx.unmatched_to | id_num }}.{% if compare_ctx.key_used == 'label' %} Dipasangkan berdasarkan label butir.{% elif compare_ctx.key_used == 'entry' %} Dipasangkan berdasarkan nomor butir (kedua berkas tidak memuat label butir).{% endif %}</p>
-
-<p id="cmp-means">{% if compare_ctx.means %}Rata-rata measure butir: {{ compare_ctx.means.from | id_num }} (analisis pertama) vs {{ compare_ctx.means.to | id_num }} (analisis kedua).{% endif %}</p>
-
-<div class="field field--toggle cmp-filter">
-  <input type="checkbox" id="cmp-delta-only">
-  <label class="field-label" for="cmp-delta-only">Tampilkan hanya perubahan ≥ 0,30 (ambang tampilan, bukan uji statistik).</label>
+<div class="view-tools">
+  <div class="field field--toggle cmp-filter">
+    <input type="checkbox" id="cmp-delta-only">
+    <label class="field-label" for="cmp-delta-only">Tampilkan hanya perubahan ≥ 0,30 (ambang tampilan, bukan uji statistik).</label>
+  </div>
+  <p id="cmp-over-se-count" class="field-hint" aria-live="polite">{% if compare_ctx.over_se_only %}Menampilkan {{ compare_ctx.n_over_se | id_num }} dari {{ compare_ctx.n_pairs_total | id_num }} butir, yang bergeser lebih dari S.E.-nya.{% else %}Menampilkan {{ compare_ctx.n_pairs_total | id_num }} butir.{% endif %}</p>
 </div>
 
-<div id="cmp-chart" class="chart-scroll"></div>
+{% if compare_ctx.pairs %}
+<div class="chart-frame cmp-frame">
+  <p class="chart-caption">Selisih measure tiap butir (analisis kedua dikurangi pertama), diurutkan dari selisih terbesar.</p>
+  <div id="cmp-chart" class="chart-scroll"></div>
+</div>
+{% endif %}
 
-<div class="table-scroll">
+<div class="table-scroll table-scroll--pin">
   <table class="data-table">
     <thead>
       <tr>
         <th scope="col" class="mono" colspan="2">Butir</th>
-        <th scope="col" class="mono">Measure analisis pertama</th>
-        <th scope="col" class="mono">Measure analisis kedua</th>
-        <th scope="col" class="mono">Selisih (kedua − pertama)</th>
+        <th scope="col" class="mono num-col">Measure analisis pertama</th>
+        <th scope="col" class="mono num-col">Measure analisis kedua</th>
+        <th scope="col" class="mono num-col">Selisih (kedua − pertama)</th>
       </tr>
     </thead>
     <tbody id="cmp-tbody">
@@ -589,6 +718,7 @@
     </tbody>
   </table>
 </div>
+{% endif %}
 
 {% if not compare_ctx.pairs %}
 <div class="empty" id="cmp-empty">

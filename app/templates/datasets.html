@@ -21,7 +21,7 @@
 </section>
 
 <section class="band band--upload">
-  <form id="upload-form" action="/datasets" method="post" enctype="multipart/form-data" data-loading="Mengunggah berkas...">
+  <form id="upload-form" class="upload-form" action="/datasets" method="post" enctype="multipart/form-data" data-loading="Mengunggah berkas…">
     {% if error %}
     <div class="alert alert--misfit" role="alert">
       {{ error }}
@@ -71,8 +71,8 @@
     <p class="empty-text">Unggah berkas data di atas (CSV, XLSX, atau PRN) untuk memulai analisis pengukuran.</p>
   </div>
   {% else %}
-  <div class="table-scroll">
-    <table class="data-table file-table">
+  <div class="table-scroll file-table">
+    <table class="data-table">
     <caption class="table-caption">Berkas tersimpan beserta kapasitasnya</caption>
     <thead>
       <tr>

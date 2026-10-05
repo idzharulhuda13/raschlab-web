@@ -184,10 +184,54 @@ function initLoadingStates() {
   });
 }
 
+// Disclosure menus (account menu, share popover) are overlays: Escape and a click outside close them.
+// Escape returns focus to the summary only when focus was inside the menu, so it never steals focus.
+function initMenus() {
+  const SELECTOR = 'details.acct-menu[open], details.share-menu[open]';
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll(SELECTOR).forEach(function (menu) {
+      const hadFocus = menu.contains(document.activeElement);
+      menu.open = false;
+      const summary = menu.querySelector('summary');
+      if (hadFocus && summary) summary.focus();
+    });
+  });
+  document.addEventListener('click', function (e) {
+    document.querySelectorAll(SELECTOR).forEach(function (menu) {
+      if (!menu.contains(e.target)) menu.open = false;
+    });
+  });
+}
+
+// Copy buttons: data-copy-target names the input, data-copy-status the live region that reports the result.
+function initCopyButtons() {
+  document.querySelectorAll('[data-copy-target]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const input = document.getElementById(btn.dataset.copyTarget);
+      const status = document.getElementById(btn.dataset.copyStatus || '');
+      if (!input) return;
+      input.select();
+      function report(ok) {
+        if (status) status.textContent = ok ? 'Tautan disalin.' : 'Tautan sudah terpilih. Salin dengan Ctrl+C.';
+      }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(input.value).then(function () { report(true); }, function () { report(false); });
+      } else {
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+        report(ok);
+      }
+    });
+  });
+}
+
 // Bootstrap after DOM ready
 document.addEventListener('DOMContentLoaded', function () {
   initTheme();
   initSortableTables();
   initDropzones();
   initLoadingStates();
+  initMenus();
+  initCopyButtons();
 });

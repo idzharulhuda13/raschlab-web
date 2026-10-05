@@ -5,45 +5,44 @@
 
 {% block content %}
 {% set query_msg = (request.query_params.get('msg') if request and request.query_params else None) or msg %}
-{% if query_msg == 'uploaded' %}
-<div class="alert alert--fit" role="status">
-  Berkas berhasil diunggah. Periksa pratinjau, lalu tetapkan klasifikasi token.
-</div>
-{% elif query_msg == 'committed' %}
-<div class="alert alert--fit" role="status">
-  Pemetaan respon berhasil dikonfirmasi. Jalankan analisis untuk memperoleh hasil.
-</div>
-{% elif query_msg == 'discarded' %}
-<div class="alert alert--fit" role="status">
-  Berkas berhasil dibuang. Unggah berkas baru untuk memulai kembali.
-</div>
-{% endif %}
-
-<section class="band band--header">
-  <a href="/datasets" class="back-link">Kembali ke Berkas Pengukuran</a>
-  <h1 class="detail-title">Pratinjau Berkas: <span class="mono">{{ dataset.filename }}</span></h1>
-  <div>
-    {% if status == 'ready' %}
-    <span class="chip chip--fit"><span class="chip-glyph">OK</span> Siap dianalisis</span>
-    {% else %}
-    <span class="chip chip--warn"><span class="chip-glyph">!</span> Menunggu konfirmasi</span>
-    {% endif %}
+{# Same header as the analysis dashboard (DESIGN.md, "One frame for the whole app"): crumbs, the file name as
+   the title, the status chip, then the file's facts as a figure row. #}
+<header class="dash-head">
+  {% if query_msg == 'uploaded' %}
+  <div class="alert alert--fit" role="status">
+    Berkas berhasil diunggah. Periksa pratinjau, lalu tetapkan klasifikasi token.
   </div>
-  <div class="header-pairs">
-    <div class="def-row">
-      <span class="def-label">Format: </span>
-      <span class="def-value mono">{{ dataset.format | upper }}</span>
-    </div>
-    <div class="def-row">
-      <span class="def-label">Dimensi: </span>
-      <span class="def-value mono">{{ dataset.n_persons }} resp x {{ dataset.n_items }} butir</span>
-    </div>
-    <div class="def-row">
-      <span class="def-label">Ukuran: </span>
-      <span class="def-value mono">{{ ((dataset.raw_bytes / 1024) | round(1) | string).replace('.', ',') }} KB</span>
+  {% elif query_msg == 'committed' %}
+  <div class="alert alert--fit" role="status">
+    Pemetaan respon berhasil dikonfirmasi. Jalankan analisis untuk memperoleh hasil.
+  </div>
+  {% elif query_msg == 'discarded' %}
+  <div class="alert alert--fit" role="status">
+    Berkas berhasil dibuang. Unggah berkas baru untuk memulai kembali.
+  </div>
+  {% endif %}
+  <div class="dash-crumbs">
+    <a href="/datasets" class="back-link">Kembali ke Berkas Pengukuran</a>
+    <span class="dash-eyebrow mono">Pratinjau berkas #{{ dataset.id }}</span>
+  </div>
+  <div class="dash-title-row">
+    <div class="dash-title">
+      <h1 class="detail-title">{{ dataset.filename }}</h1>
+      <div class="dash-chips">
+        {% if status == 'ready' %}
+        <span class="chip chip--fit"><span class="chip-glyph">OK</span> Siap dianalisis</span>
+        {% else %}
+        <span class="chip chip--warn"><span class="chip-glyph">!</span> Menunggu konfirmasi</span>
+        {% endif %}
+      </div>
     </div>
   </div>
-</section>
+  <div class="figure-row">
+    <span class="figure"><span class="figure-label">Format</span><span class="figure-value">{{ dataset.format | upper }}</span></span>
+    <span class="figure"><span class="figure-label">Dimensi</span><span class="figure-value">{{ dataset.n_persons }} resp x {{ dataset.n_items }} butir</span></span>
+    <span class="figure"><span class="figure-label">Ukuran</span><span class="figure-value">{{ ((dataset.raw_bytes / 1024) | round(1) | string).replace('.', ',') }} KB</span></span>
+  </div>
+</header>
 
 {% if error %}
 <div class="band">

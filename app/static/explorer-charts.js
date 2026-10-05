@@ -682,17 +682,22 @@
       role: 'img',
       'aria-label': 'Grafik selisih butir ' + fromLabel + ' ke ' + toLabel + ': ' + formatNum(pairs.length) + ' butir, rentang selisih dari ' + (minDelta >= 0 ? '+' : '') + formatNum(minDelta.toFixed(2)) + ' hingga ' + (maxDelta >= 0 ? '+' : '') + formatNum(maxDelta.toFixed(2)) + ' logit',
       viewBox: '0 0 ' + svgWidth + ' ' + svgHeight,
-      width: '100%',
+      // Natural size, scrolled by its frame on a narrow screen: with width 100% and a fixed height the chart
+      // sat as an 860-unit strip in the middle of a wide frame, and on a phone it would have drawn its text
+      // at about 6px (the pinned micro label never shrinks with the viewport).
+      width: svgWidth,
       height: svgHeight,
-      style: 'display: block;'
+      style: 'display: block; max-width: none;'
     });
     svg.appendChild(svgEl('title', null, 'Grafik selisih butir'));
 
     var headerGroup = svgEl('g');
     var headerFrag = document.createDocumentFragment();
+    // Row one (y 14) carries the column name and the two directions; row two (y 32) the tick values. The
+    // column name used to share the tick row's height and touched the first tick label.
     headerFrag.appendChild(svgEl('text', {
       x: marginLeft - 8,
-      y: 20,
+      y: 14,
       'text-anchor': 'end',
       'font-family': fontUi,
       'font-size': '12',
@@ -701,20 +706,20 @@
     }, 'Butir'));
     headerFrag.appendChild(svgEl('text', {
       x: marginLeft + plotWidth * 0.25,
-      y: 20,
+      y: 14,
       'text-anchor': 'middle',
       'font-family': fontUi,
-      'font-size': '11',
+      'font-size': '12',
       fill: colorMuted
-    }, '<- Lebih mudah di ' + toLabel));
+    }, '← Lebih mudah di ' + toLabel));
     headerFrag.appendChild(svgEl('text', {
       x: marginLeft + plotWidth * 0.75,
-      y: 20,
+      y: 14,
       'text-anchor': 'middle',
       'font-family': fontUi,
-      'font-size': '11',
+      'font-size': '12',
       fill: colorMuted
-    }, 'Lebih sukar di ' + toLabel + ' ->'));
+    }, 'Lebih sukar di ' + toLabel + ' →'));
 
     headerFrag.appendChild(svgEl('line', {
       x1: marginLeft,
