@@ -75,7 +75,6 @@ PERSON_LABEL_HEADERS: frozenset[str] = frozenset(
         "student_code",
         "participant",
         "subject",
-        "case",
         # Identity columns as exported by the assessment platforms in use.
         # Without these, the identity column is read as an item column, which both
         # loses the real person identifiers and turns every identifier into a
@@ -224,10 +223,16 @@ def _looks_like_data(cell: str) -> bool:
 
 
 def _reject_unrecognised_header(header: list[str], has_person_col: bool) -> None:
-    """Refuse a first row that reads as data: identity cell plus numbers."""
+    """Refuse a first row only when the WHOLE row reads as data, not as column names.
+
+    A first cell holding a word is a column name: without a recognised identity
+    alias that column is simply the first item column, which is why item names may
+    legitimately be numeric (`case,1,2,3`). A header-less export starts with a value
+    in every column, the identity cell included, so that is the only shape refused.
+    """
     if has_person_col or len(header) < 2:
         return
-    if all(_looks_like_data(cell) for cell in header[1:]):
+    if _looks_like_data(header[0]) and all(_looks_like_data(cell) for cell in header[1:]):
         raise _StorageError(NO_HEADER_MSG)
 
 

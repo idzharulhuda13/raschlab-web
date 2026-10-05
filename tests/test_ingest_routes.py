@@ -511,7 +511,7 @@ def test_duplicate_column_upload_renders_the_refusal_alert(client: TestClient):
 
 def test_headerless_upload_renders_the_refusal_alert(client: TestClient):
     _create_authenticated_user(client)
-    payload = b"P000,0,1,0,1,0,1,0,1,0,1\nP001,1,0,1,0,1,0,1,0,1,0\n"
+    payload = b"0,0,1,0,1,0,1,0,1,0,1\n1,1,0,1,0,1,0,1,0,1,0\n"
     resp = client.post(
         "/datasets",
         files={"data": ("tanpa-judul.csv", payload, "text/csv")},

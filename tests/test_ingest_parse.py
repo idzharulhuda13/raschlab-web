@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 from app.parsers import (
+    NO_HEADER_MSG,
     classify,
     count_all_missing_persons,
     distinct_tokens,
@@ -314,7 +315,7 @@ def test_duplicate_column_headers_are_refused():
 
 
 def test_headerless_first_row_is_refused():
-    raw = b"P000,0,1,0,1,0,1\nP001,1,0,1,0,1,0\n"
+    raw = b"0,0,1,0,1,0,1\n1,1,0,1,0,1,0\n"
     with pytest.raises(StorageError) as exc:
         parse_delimited(raw)
     assert str(exc.value) == (
@@ -383,7 +384,7 @@ def test_xlsx_duplicate_column_headers_are_refused():
 
 
 def test_xlsx_headerless_first_row_is_refused():
-    raw = _xlsx_bytes([["P000", "0", "1", "0"], ["P001", "1", "0", "1"]])
+    raw = _xlsx_bytes([["0", "0", "1", "0"], ["1", "1", "0", "1"]])
     with pytest.raises(StorageError) as exc:
         parse_xlsx(raw)
     assert "Berkas tidak memuat baris judul kolom." in str(exc.value)
@@ -394,3 +395,18 @@ def test_numeric_item_columns_with_an_identity_header_are_accepted():
     parsed = parse_delimited(b"student_code,1,2,3\nS001,1,0,1\nS002,0,1,1\n")
     assert parsed.item_labels == ["1", "2", "3"]
     assert parsed.person_labels == ["S001", "S002"]
+
+
+def test_numeric_item_names_with_a_textual_first_column_are_a_header():
+    """`case` names a column: the row is a header even though the item names are numbers."""
+    parsed = parse_delimited(b"case,1,2,3\nS001,1,0,1\nS002,0,1,1\n")
+    assert parsed.item_labels == ["case", "1", "2", "3"]
+    assert len(parsed.person_labels) == 2
+    assert len(parsed.rows) == 2
+
+
+def test_a_row_of_values_in_every_column_is_still_refused():
+    """The shape that really is data: no textual cell anywhere in the first row."""
+    with pytest.raises(StorageError) as exc:
+        parse_delimited(b"0,1,0,1\n1,0,1,0\n")
+    assert str(exc.value) == NO_HEADER_MSG
