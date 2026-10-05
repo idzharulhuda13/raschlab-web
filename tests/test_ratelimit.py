@@ -43,11 +43,12 @@ def _request(headers=None, client=("203.0.113.9", 40000)) -> Request:
     return Request(scope)
 
 
-def test_client_ip_prefers_cf_connecting_ip():
-    assert client_ip(_request({"CF-Connecting-IP": "198.51.100.7"})) == "198.51.100.7"
+def test_client_ip_ignores_a_client_supplied_cf_connecting_ip():
+    """Nothing in front of this service sets that header, so it is plain client input."""
+    assert client_ip(_request({"CF-Connecting-IP": "198.51.100.7"})) == "203.0.113.9"
     assert (
         client_ip(_request({"CF-Connecting-IP": "198.51.100.7", "X-Forwarded-For": "9.9.9.9"}))
-        == "198.51.100.7"
+        == "9.9.9.9"
     )
 
 
