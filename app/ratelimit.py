@@ -35,7 +35,19 @@ def check_limit(key: str, limit: int, window_s: int) -> tuple[bool, int]:
 
 
 def client_ip(request: Request) -> str:
+    """Resolve the caller from a trusted hop only.
+
+    The leftmost X-Forwarded-For entry is client supplied and is never trusted.
+    Cloudflare sets CF-Connecting-IP on the proxied path; otherwise the rightmost
+    X-Forwarded-For hop is the one the platform front end appended; with no
+    forwarding header at all the socket peer is the only truth.
+    """
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip:
+        return cf_ip.strip()
     xff = request.headers.get("x-forwarded-for")
     if xff:
-        return xff.split(",")[0].strip()
+        hops = [hop.strip() for hop in xff.split(",") if hop.strip()]
+        if hops:
+            return hops[-1]
     return (request.client.host if request.client else None) or "unknown"
