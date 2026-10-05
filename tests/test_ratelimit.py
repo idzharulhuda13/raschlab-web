@@ -68,3 +68,16 @@ def test_spoofed_leftmost_xff_does_not_change_the_key():
     second = client_ip(_request({"X-Forwarded-For": "7.7.7.7, 9.9.9.9"}))
     assert first == second == "9.9.9.9"
 
+
+
+def test_key_spray_cannot_reset_a_limited_key(monkeypatch):
+    """A spray of distinct keys must not evict a spent key and hand it a fresh quota."""
+    _COUNTS.clear()
+    monkeypatch.setattr("app.ratelimit._MAX_KEYS", 3)
+    for _ in range(2):
+        assert check_limit("victim", 2, 3600)[0] is True
+    assert check_limit("victim", 2, 3600)[0] is False
+    for i in range(10):
+        check_limit("spray:" + str(i), 5, 3600)
+    assert len(_COUNTS) <= 3
+    assert check_limit("victim", 2, 3600)[0] is False

@@ -3,30 +3,35 @@ from fastapi import Request
 
 _COUNTS: dict[str, tuple[int, float]] = {}
 _MAX_KEYS = 20000
+# No window in this app is longer than an hour, so an entry older than that is dead for
+# every caller and can be dropped without giving anyone a fresh quota.
+_MAX_WINDOW_S = 3600
 
 
-def _evict(now: float, window_s: int) -> None:
-    """Keep the map bounded: drop expired keys first, then the oldest ones.
+def _purge_expired(now: float) -> None:
+    """Drop entries that are dead for every window in use; never drop a live one.
 
-    A key created by a spray of distinct values is fresh for its whole window, so
-    purging expired keys alone never shrinks the map under attack.
+    Calling this with a single caller's window would delete entries another caller still
+    counts on, which is exactly the reset this module must not allow.
     """
-    for k in [k for k, (_, s) in _COUNTS.items() if now - s >= window_s]:
+    for k in [k for k, (_, s) in _COUNTS.items() if now - s >= _MAX_WINDOW_S]:
         _COUNTS.pop(k, None)
-    overflow = len(_COUNTS) - _MAX_KEYS + 1
-    if overflow > 0:
-        oldest = sorted(_COUNTS, key=lambda k: _COUNTS[k][1])[:overflow]
-        for k in oldest:
-            _COUNTS.pop(k, None)
 
 
 def check_limit(key: str, limit: int, window_s: int) -> tuple[bool, int]:
     now = time.time()
     if len(_COUNTS) >= _MAX_KEYS:
-        _evict(now, window_s)
-    if key in _COUNTS and now - _COUNTS[key][1] >= window_s:
+        _purge_expired(now)
+    entry = _COUNTS.get(key)
+    if entry is not None and now - entry[1] >= window_s:
         del _COUNTS[key]
-    count, start = _COUNTS.get(key, (0, now))
+        entry = None
+    if entry is None and len(_COUNTS) >= _MAX_KEYS:
+        # The map is full of live keys, which means someone is spraying distinct keys.
+        # Refuse the newcomer instead of evicting the oldest live key: evicting it would
+        # hand that key a fresh quota and let the spray reset what it is escaping.
+        return False, window_s
+    count, start = entry if entry is not None else (0, now)
     retry_after = max(0, int(start + window_s - now))
     if count < limit:
         _COUNTS[key] = (count + 1, start)
