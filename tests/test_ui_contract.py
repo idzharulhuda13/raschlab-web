@@ -678,3 +678,17 @@ def test_toggle_sizing_is_not_overridden_by_an_id_rule() -> None:
     class_body = class_block.group(1)
     assert "width: 44px" in class_body and "height: 44px" in class_body
 
+
+def test_visited_rule_has_zero_specificity() -> None:
+    """F11: the visited colour must never beat a class rule.
+
+    `a:visited` is (0,1,1) and `.btn--secondary` is (0,1,0), so the bare rule
+    turned every clicked button green for good. Only the :where() wrapper is
+    allowed, because it carries zero specificity.
+    """
+    css = (Path(__file__).resolve().parent.parent / "app" / "static" / "app.css").read_text()
+    assert ":where(a:visited)" in css, "the zero specificity visited rule is gone"
+    assert css.count("a:visited") == css.count(":where(a:visited)"), (
+        "a bare a:visited rule would beat .btn--secondary again"
+    )
+

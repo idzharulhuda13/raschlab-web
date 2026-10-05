@@ -29,7 +29,7 @@ a {
   text-underline-offset: 2px;
 }
 
-a:visited {
+:where(a:visited) {
   color: var(--accent);
 }
 
