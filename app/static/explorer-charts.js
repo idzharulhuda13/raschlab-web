@@ -13,12 +13,20 @@
   // labels on the dark panel, against a 4,5:1 requirement. One listener repaints the last draw.
   var draws = [];
 
+  /**
+   * A refetched panel replaces its markup, so the container a chart was drawn into leaves the document.
+   * Keeping such an entry means the next theme switch redraws into a detached node while the chart on
+   * screen stays in the old palette. Stale entries are dropped here and in repaintForTheme.
+   */
+  function isLive(container) {
+    if (!container) return false;
+    if (typeof container.isConnected === 'boolean') return container.isConnected;
+    return document.body ? document.body.contains(container) : false;
+  }
+
   function rememberDraw(kind, container, data) {
-    for (var i = 0; i < draws.length; i++) {
-      if (draws[i].container === container) {
-        draws[i] = { kind: kind, container: container, data: data };
-        return;
-      }
+    for (var i = draws.length - 1; i >= 0; i--) {
+      if (draws[i].container === container || !isLive(draws[i].container)) draws.splice(i, 1);
     }
     draws.push({ kind: kind, container: container, data: data });
   }
@@ -29,9 +37,18 @@
    * palette while the rest of the page switched themes.
    */
   function repaintForTheme() {
+    // Drop the entries whose container left the document (a refetched panel replaces its markup).
+    var live = [];
     for (var i = 0; i < draws.length; i++) {
-      var d = draws[i];
-      if (!d.container) continue;
+      if (isLive(draws[i].container)) live.push(draws[i]);
+    }
+    draws = live;
+    // Snapshot before painting: every draw re-registers itself through rememberDraw, which splices and
+    // pushes on this same array, so iterating it directly would repaint the first chart twice and skip
+    // the rest (measured 6 Oct 2026: the histogram stayed in the light palette while the map repainted).
+    var targets = draws.slice();
+    for (var j = 0; j < targets.length; j++) {
+      var d = targets[j];
       if (d.kind === 'wright') drawWright(d.container, d.data);
       else if (d.kind === 'delta') drawDelta(d.container, d.data);
       else if (d.kind === 'person-hist') drawPersonHistogram(d.container, d.data);

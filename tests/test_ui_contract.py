@@ -161,7 +161,52 @@ def test_retired_names_and_token_contract():
         assert "96px" not in content, f"Raw literal 96px found in page template {html_file}"
 
 
+def _css_blocks(css: str) -> list[tuple[str, str, str]]:
+    """Every declaration block of a stylesheet as (media condition, selector, body).
+
+    Braces are counted instead of regexed: the reduce block nests rules inside a media query, and a
+    regex over the whole sheet cannot tell a declaration from a nested one. A nested at-rule is handed
+    to the walker again with its own condition, so `@media (max-width: 719px)` inside the sheet is
+    scanned too.
+    """
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    blocks: list[tuple[str, str, str]] = []
+
+    def walk(text: str, media: str) -> None:
+        i = 0
+        while i < len(text):
+            j = text.find("{", i)
+            if j == -1:
+                return
+            head = text[i:j].strip()
+            depth, k = 1, j + 1
+            while k < len(text) and depth:
+                if text[k] == "{":
+                    depth += 1
+                elif text[k] == "}":
+                    depth -= 1
+                k += 1
+            body = text[j + 1:k - 1]
+            if head.startswith("@media"):
+                walk(body, head)
+            elif head.startswith("@") or not head:
+                pass  # @keyframes / @font-face: no selector to cover
+            else:
+                blocks.append((media, head, body))
+            i = k
+
+    walk(css, "")
+    return blocks
+
+
+def _selector_list(text: str) -> list[str]:
+    return [re.sub(r"\s+", " ", part).strip() for part in text.split(",") if part.strip()]
+
+
 def test_reduced_motion_covers_every_transition():
+    """Every transition/animation declared OUTSIDE the reduce block must be neutralised by a rule with the
+    same selector INSIDE it. The earlier version of this test compared two counts, so a transition added
+    after the block still passed (measured 6 Oct 2026: the counts moved together only by luck)."""
     app_css_path = Path("app/static/app.css")
     if not app_css_path.exists():
         pytest.fail("app/static/app.css missing")
@@ -171,17 +216,27 @@ def test_reduced_motion_covers_every_transition():
     assert "prefers-reduced-motion" in css_stripped
     assert "@keyframes" not in css_stripped
 
-    parts = re.split(r"@media[^{]*prefers-reduced-motion[^{]*\{", css_stripped)
-    assert len(parts) >= 2, "Could not find prefers-reduced-motion block in app.css"
+    declared: dict[str, str] = {}
+    covered: set[str] = set()
+    for media, selector, body in _css_blocks(css):
+        names = {d.split(":")[0].strip() for d in body.split(";") if d.strip()}
+        if not ({"transition", "animation"} & names):
+            continue
+        for sel in _selector_list(selector):
+            if "prefers-reduced-motion" in media:
+                covered.add(sel)
+            else:
+                declared[sel] = media or "top level"
 
-    outside = parts[0]
-    inside = parts[1]
+    # Guard against a vacuous pass: a parser that finds nothing must fail, not succeed.
+    assert declared, "no transition/animation found outside the reduce block: parse or stylesheet broken"
+    assert covered, "the reduce block declares no transition/animation override"
 
-    outside_count = outside.count("transition")
-    inside_count = inside.count("transition")
-
-    assert outside_count >= 1, f"Expected at least 1 transition outside reduce block, found {outside_count}"
-    assert inside_count >= outside_count, f"Expected inside count ({inside_count}) >= outside count ({outside_count})"
+    missing = sorted(sel for sel in declared if sel not in covered)
+    assert not missing, (
+        "these selectors declare a transition/animation with no reduced-motion override: "
+        + ", ".join(f"{sel} ({declared[sel]})" for sel in missing)
+    )
 
 
 def test_theme_toggle_markup_and_mechanism(client: TestClient):
