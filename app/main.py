@@ -15,7 +15,6 @@ from app.explore import router as explore_router
 from app.export import router as export_router
 from app.share import router as share_router, share_guard
 from app.ui import initials_for
-from app.edge import edge_guard, edge_seen
 
 APP_VERSION = "0.1.0"
 
@@ -37,7 +36,6 @@ app = App(
     openapi_url="/openapi.json" if settings.app_env.lower() == "dev" else None,
     dependencies=[Depends(share_guard)],
 )
-app.middleware("http")(edge_guard)
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -66,14 +64,13 @@ def read_root(request: Request):
 
 
 @app.get("/health")
-def health(request: Request):
+def health():
     git_commit = os.getenv("GIT_COMMIT")
     commit = git_commit[:7] if git_commit else "dev"
     return {
         "status": "ok",
         "version": APP_VERSION,
         "commit": commit,
-        "edge": edge_seen(request),
     }
 
 
