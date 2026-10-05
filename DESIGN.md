@@ -105,7 +105,9 @@ line up. The earlier Plus Jakarta Sans rationale is superseded by that direction
   for the single page title. No all-bold rows, no uppercase-tracked micro labels.
 - Line height: 1.2 headings, 1.5 body, 1.45 table body. Measure (line length) under 72 characters for
   prose; the hero line under 46.
-- Every numeral in a table, metric tile or scale band uses `font-variant-numeric: tabular-nums`.
+- Every numeral in a table, metric tile or scale band uses `font-variant-numeric: tabular-nums`. One exception
+  (5 Oct 2026): a standalone figure value in a dashboard figure row uses proportional figures (see the dashboard
+  section), because alignment only matters in a column.
 - **Density (owner's reference: the artifact, 25 Sep 2026).** Table body `14px`, header `14px` on
   `--surface-2`, cell padding `--space-2` block / `--space-3` inline, which measures a **37px** row
   instead of 47,7px. On 26 Sep 2026, the header was raised from 12px for legibility while the body cell
@@ -245,21 +247,167 @@ redirect into a profile page is a design bug even when that page is flawless.
 invisible for `I`, `l`, `J`, which is what `idzharul.huda@gmail.com` rendered (a thin stroke on a 28px
 tinted disc reads as a broken image). Minimum 44px on mobile, no border, no glow.
 
-### The eight explorer views (each its own shape, RHYTHM 3)
+### The dashboard: `/analyses/{id}/explore` (redesign, 5 Oct 2026)
 
-One route, eight views, and they must not read as the same page with different words. Each view is defined
-by the *shape* of its composition, measured after render:
+Owner's directive (5 Oct 2026): *"redesign ui/ux raschlab web terutama bagian dashboard"*, and *"biarin dia
+juga yang nentuin design nya"*: the writer decides. This section is that decision. It is the contract for the
+four redesign runs; a later run follows it and never re-picks it.
 
-| view | shape | focal point |
+**Diagnosis (measured 5 Oct 2026 before any edit, seeded 147-item / 490-person analysis, both themes).** The
+palette and type were not the problem: every token pair already passes AA and the owner picked them from the
+artifact. Composition was. At 390px the first content a reader met was a back link, the share-password form,
+five engine rows and a long warning box. The eight boxed tabs wrapped to **4 rows (224px)**, and the Wright map
+started at **1617px**, nearly two phone screens down. At 1440 the map started at **1062px**, below a 900px fold,
+so a desktop first screen showed no result at all. Three export buttons stacked full-width above the chart. The
+readout was a browser-default `<dl>`. A stray `</div>` left the map, its readout and the misfit toggle
+**outside** `#panel-wright`, so every other tab showed the map first (Butir content measured at 1994px on a
+phone). `Salin tautan` had no handler (a dead control), and the account menu ignored Escape.
+
+**Direction: keep the instrument, rebuild the reading order.** Same palette, same type family, same dials
+(ENERGY 3 / RHYTHM 3 / MOTION 2). The dashboard now reads like a product's reading surface (the owner's
+references are Claude and Netflix): the identity of the run is one compact band, the views are a quiet text tab
+strip, and the first screen at every width is the result itself.
+
+**What a reader must see first, in this order:** which run this is (file, run number, status), how big it is
+and how many items misfit (the figure row), then the map. Provenance (engine version, timing, mode), sharing and
+the anchor explanation are one click away, never in front of the result.
+
+**Frame, top to bottom:**
+
+1. **Header band `.dash-head`.** Back link; an eyebrow `Analisis #<id>` (mono); the h1 is the **file name**
+   alone in the display face (the view lives in the tab strip; an h1 that said `Peta Wright:` kept saying it
+   after the reader switched tabs). Status chips sit in one row under the title (`OK Selesai`, `Dipakai` /
+   `Arsip`, and the anchor state as a chip with a glyph and a word). The actions sit right of the title on
+   desktop and under it on a phone: the mark toggle and a **`Bagikan` popover** (a `<details>` menu holding the
+   unchanged share form; it opens by itself when a link was just created or refused, because a once-only link
+   must be seen). Provenance and the retention line live in an inline disclosure **`Detail proses`**. The
+   unanchored / anchored explanation is an inline disclosure whose summary line states the fact (`Hasil Tanpa
+   Jangkar (Unanchored)`); the anchor-dropped warning stays a full open alert because it reports a problem.
+   Reason: the facts stay one click away and stay in the markup, while the band stops being taller than a
+   phone screen.
+2. **View tabs `.tabs`.** Text tabs on the paper ground with a hairline under the strip, sticky under the app
+   bar, **one row at every width**. The active tab is ink with a 2px accent underline; inactive tabs are muted.
+   Where eight labels do not fit (measured: below about 900px), the strip scrolls sideways with a scroll
+   shadow on the side that has more tabs, and the active tab is scrolled into view on load and on every
+   activation. Reason: a boxed strip that wraps spends 224px of a
+   phone on navigation; a scroll strip is the shape every large product uses for more destinations than fit.
+   Each tab is whole and reachable by swipe, Tab and the arrow keys; a tab cut by the strip's edge is the cue
+   that more follow, never a label cut inside its own box. The underline is a shape, so the active state never
+   rests on colour alone.
+3. **Panels** share one frame width, `--shell-wide` (1360px). Reason: 1120px is right for the forms and lists
+   elsewhere; at 1440 it left 320px empty while the Wright chart (at least 930px of plot) and the 14-column
+   tables scrolled sideways inside it.
+
+**What each view is FOR and the shape it takes** (one focal point each; no two share a layout, RHYTHM 3):
+
+| view | the question it answers | shape | focal point |
+|---|---|---|---|
+| Peta Wright (landing) | Does the test fit these people, and which items do not fit? | figure row, then chart frame beside a readout rail (stacked below 1100px), exports at the rail's foot | the map |
+| Ringkasan | Is this run usable? | verdict band (cleanliness band + misfit count) over a figure grid on top rules, the verbatim engine table last | the verdict |
+| Butir | What does each item look like? | one toolbar row (search, count, export), dense table with pinned header, pager at the foot | the table |
+| Partisipan | How is ability spread, and who misfits? | histogram in a chart frame, then the Butir toolbar shape over the paged table | the distribution |
+| Opsi & Distraktor | Do the distractors behave? | caption over a two-row-header table grouped by item, pager | the table |
+| Sub-Subtes | How do the sub-tests compare? | one caption line over a compact summary table | the counts |
+| Tabulasi | How do difficulty and discrimination cross? | summary matrix first, then a search toolbar over the per-item table | the matrix |
+| Bandingkan | What changed between two runs? | sticky two-select control strip, a figure row of match counts, the delta chart, the paired table | the delta |
+
+**The landing view, Peta Wright.**
+
+- **Figure row `#wright-meta.figure-row`**: `Partisipan`, `Butir`, `Dikecualikan (skor sempurna/nol)`, and the
+  `Butir misfit` count the client appends from the embedded payload. Each figure is a label over a value on a
+  top hairline; only the first carries the accent rule. A row of figures, never boxed stat cards. The frozen
+  sentence (`Partisipan: <n> · Butir: <n> · ...`) is still the element's text: the colons and middle dots
+  are `.sr-only`, so a screen reader and a copy-paste get the sentence while the eye gets the figures.
+- **Chart frame `.chart-frame`**: a `--surface` panel with a hairline and `--radius-lg`. A toolbar line holds a
+  one-line caption saying what the chart encodes, and the misfit toggle, so the toggle sits **before** the 147
+  item stops in the Tab order. `#wright-scale` stays a `.chart-scroll`; below 720px a hint line says the map
+  scrolls sideways.
+- **Readout rail `.readout-rail`**: titled `Rincian butir`; `#wright-readout` shows the frozen prompt until an
+  item is chosen, then the item's values as a two-column list (muted term, mono value). Beside the chart at
+  `>=1100px` so a choice and its numbers are on screen together; under the chart below that. The three export
+  links sit at the rail's foot as one compact group: a secondary action, after the thing it exports.
+- **Figure values** use Archivo 600 with proportional figures; columns keep `tabular-nums`. Reason: tabular
+  digits at 28px read loose; alignment only matters in a column.
+
+**States (every one renders as text, never a blank box):**
+
+| state | where | what renders |
 |---|---|---|
-| Peta Wright | full-bleed scale, no card chrome, a compact readout strip above it | the map |
-| Butir | search strip, then a dense table that scrolls with a pinned header | the table |
-| Partisipan | score histogram over a search strip and a paged table, all inside one scroll region | the count |
-| Ringkasan | labelled figure grid, 2-4 columns at `≥720px`, each figure on a top rule | the figures |
-| Opsi & Distraktor | two-row header then a paged table | the table |
-| Sub-Subtes | one caption line over a compact summary table | the counts |
-| Tabulasi | summary table first then a search strip over the per-item table | the per-item table |
-| Bandingkan | control strip of two paired selects first, then the delta chart, then the paired table | the delta |
+| loading (fragment views) | the panel | `Memuat data…` in a quiet `.empty--loading` block, `role="status"`, the panel `aria-busy="true"` until the fragment lands |
+| error (fragment fetch) | the panel | the loading block is **replaced** (never left under the error) by the frozen alert plus a working `Coba lagi` button that re-requests the same fragment |
+| error / empty (Wright) | inside the chart frame | an analysis with zero measure bins cannot draw a map, and the server already reports it as `wright_error`, so the empty map is the error state: the frozen alert takes the chart's place, and the toggle and readout rail are not rendered (a toggle with no map is a dead control) |
+| loading (Wright) | none | the map draws synchronously from the embedded payload on `DOMContentLoaded` (measured: load event at 97ms), so a loading text would flash for a frame and then lie under noscript; there is none on purpose |
+
+**The fragment views (run 2, 5 Oct 2026).** Shared parts, each with its reason:
+
+- **View head `.view-head`**: an h2 at `--step-22` (panel titles sit under the tab strip and the figure row,
+  so the page-scale 28px read as a second page title), one `.view-lede` line saying what the view shows and
+  how to read its marks, and the view's actions on the right. Reason: every view states its question before
+  its numbers.
+- **Toolbar `.view-tools`**: search on the left (at most 560px), the export on the right, one row on desktop.
+  On a phone the field and its `Cari` button share one row under the label (three stacked full-width rows cost
+  about 150px before the first table row).
+- **The data plane `.table-scroll`**: one `--surface` frame with a hairline and `--radius-lg`. The `thead` is
+  sticky as one block, because a sticky `th` per row stacked the engine's two header rows on top of each other.
+  Headers do not wrap and numeric headers align right over their numbers (`th.num-col`). The caption is pinned
+  to the frame's left edge and held to the visible width, so on a phone it no longer scrolls off with the table.
+- **`.table-scroll--pin`**: the row identifier (first column) stays on screen while a wide table scrolls
+  sideways on a phone. Reason: a bare 14-column table squeezed into 390px is a named tell; scrolling it without
+  its identifier loses the row.
+- **`.table-foot`**: the count line and the pager share one footer row under the table.
+- **`.row-flag`**: a row that passes a documented threshold gets `!` in its identifier cell plus a 9% `--warn`
+  tint, and the view head says what `!` means. Never the tint alone. Butir uses it for INFIT MNSQ at or above
+  the analysis's own misfit threshold (the same cut the Ringkasan count uses).
+- **Ringkasan verdict band `.verdict`**: `Kebersihan Data` (3 parts) beside `Butir Bermasalah` (2 parts) on
+  surface cells at >=900px, stacked below. The misfit count is the view's **one hero figure** (`.hero`,
+  `--step-56` / `--step-40`, Archivo 600, `--warn` when above zero, the word `butir` beside it), the frozen
+  sentence under it. Reason: Ringkasan answers "is this run usable?", so the two verdicts lead and the
+  statistics follow.
+- **Cleanliness band words in HTML**: the SVG keeps only the line and the three segments (route geometry,
+  untouched) and stretches to the cell; the `0` / `<n> baris` endpoints use the motif's `.band-scale-ends`, and
+  `.band-legend` lists each segment as a colour swatch plus count and share in words. Reason: the SVG labels
+  sat under each segment, so two small segments at the right end printed on top of each other and past the
+  viewBox, and at 390px the 100%-width band drew 11-unit text at about 7px.
+- **Rekap figures** use the figure-on-a-rule shape of the landing view (Indonesian label, the engine key as a
+  mono note so each figure traces to its row in the table under it), never boxed cards.
+- **Bandingkan control panel**: a surface panel (two selects on row one; the S.E. filter and the one primary
+  button on row two, so DOM order is visual order), not sticky (it shared the sticky tab strip's offset). The
+  match counts, means, delta filter, chart and table render only once two runs are chosen: before that the panel
+  printed `Cocok: 0 butir` zeros and offered a filter with nothing to filter. The delta chart draws at its
+  natural 860-unit width inside a 70vh frame, sorted by the largest change, so its text never scales below the
+  micro label.
+- **No opacity on text**: a muted state uses `--muted` (which passes 4.5:1), never `opacity`. The delta chart's
+  `opacity: 0.45` rows measured about 2:1. Disabled controls keep 45% opacity: WCAG exempts inactive controls.
+- **Opsi grouped per item**: one `tbody` per ENTRY with a firmer rule between items; the key option (SCORE 1 in
+  this dichotomous product) carries `✓` and weight on its option code. Row markup is untouched (the `<tr>` count
+  is pinned) and a header row with only empty cells is hidden by CSS, not removed.
+- **Sub-Subtes range strips**: one row per sub-subtes (name, item and misfit counts, the mean item measure as a
+  thick tick with a +/- S.SD whisker on one shared logit axis, the values as text), then the compact table. The
+  axis runs from the floor of the lowest mean minus SD to the ceiling of the highest mean plus SD and always holds
+  0; a value that does not parse prints `-` and is never drawn at 0. Reason: the question is "how do the
+  sub-tests compare?", which a position on one scale answers faster than seven rows of numbers.
+- **Tabulasi**: summary grouped per sub-subtes, a share bar of high-discrimination items (TINGGI over JUMLAH,
+  stored counts) beside each total, then a search toolbar over the per-item table; the toolbar stays while a
+  search is active so a search with no match can be edited.
+- **Static chips are not controls**: only `button.chip` gets the 44px pointer treatment; the old `.chip-row
+  .chip` rule gave the Kebersihan status chips a pointer and a hover they could not honour.
+- **Tab strip scroll shadows** replace the first build's mask fade (which also faded the strip's background,
+  so text scrolling under it showed through): a soft 16px edge shows only on the side with more tabs.
+
+**Shell fix carried by this change.** At `<=480px` the nav link reads `Hasil` (the word `Analisis` is hidden,
+the accessible name stays `Hasil Analisis`), because a scroll strip of two links cut `Hasil Analisi` mid-word at
+375px. The account menu and the share popover close on Escape and return focus to their summary.
+
+**Token change for the dashboard (5 Oct 2026).** One token is added and none changes value:
+
+| Token | Value | Reason |
+|---|---|---|
+| `--shell-wide` | `1360px` | Dashboard frame width (header band, tab strip, panels). Measured: the 1120px shell left 320px empty at 1440 while the Wright plot (930px minimum) scrolled inside it. Forms and lists keep `--shell-max`. |
+
+New text/surface pairs the frame introduces, measured with the WCAG formula: inactive tab `--muted` on `--paper`
+5,67:1 light / 8,98:1 dark; active tab `--ink` on `--paper` 14,39 / 17,14; the active underline `--accent` on
+`--paper` 7,44 / 10,95 (a non-text indicator, needs 3:1); readout flag `--warn` on `--surface` 6,92 / 10,06; chart
+frame text `--muted` on `--surface` 6,22 / 8,20.
 
 **Ringkasan is the view most at risk of the banned card wall.** Its figures are one grid, each a label
 above a mono value on a `--line` rule, and only the first figure may carry the accent rule. A figure grid,
