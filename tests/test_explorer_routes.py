@@ -1,7 +1,7 @@
 """Integration tests for the F4 Explorer route (/analyses/{id}/explore).
 
 Covers:
-- Auth and gate guards: anonymous, foreign owner, gate closed.
+- Auth and gate guards: anonymous redirects to /login, foreign owner 404, gate closed 404.
 - Status-based redirects: running and failed analyses redirect to /analyses/{id}.
 - Full-page render: shell structure, tablist, eight tabs and panels, is-active state,
   embedded #explorer-data JSON with schema 1, noscript block.
@@ -277,13 +277,14 @@ def _build_standard_files(item_measures: Optional[list[str]] = None) -> dict[str
 
 
 # ---------------------------------------------------------------------------
-# (1) Anonymous → 404
+# (1) Anonymous -> 303 to /login
 # ---------------------------------------------------------------------------
 
-def test_explore_anonymous_returns_404(client: TestClient):
-    # No cookie set; the route returns 404 for unauthenticated requests.
-    resp = client.get("/analyses/999/explore")
-    assert resp.status_code == 404
+def test_explore_anonymous_redirects_to_login(client: TestClient):
+    # No cookie set: the route sends the visitor to /login, like /datasets.
+    resp = client.get("/analyses/999/explore", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/login"
 
 
 # ---------------------------------------------------------------------------

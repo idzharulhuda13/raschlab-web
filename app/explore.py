@@ -417,7 +417,7 @@ def get_explore(
         raise HTTPException(status_code=404, detail=PAGE_NOT_FOUND_MSG)
     user = _current_user(request, db)
     if user is None:
-        raise HTTPException(status_code=404, detail=PAGE_NOT_FOUND_MSG)
+        return RedirectResponse("/login", status_code=303)
 
     analysis = db.scalar(select(Analysis).where(Analysis.id == id))
     if analysis is None or analysis.user_id != user.id:
