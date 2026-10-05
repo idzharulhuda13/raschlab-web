@@ -8,6 +8,8 @@ import hashlib
 import os
 from pathlib import Path
 import subprocess
+import csv
+import io
 import sys
 import tempfile
 import warnings
@@ -76,20 +78,18 @@ def main() -> int:
         client = TestClient(app, base_url="https://testserver")
         client.cookies.set(COOKIE_NAME, token)
 
-        fixture_path = (
-            Path(__file__).resolve().parent.parent
-            / "tests"
-            / "fixtures"
-            / "sample_300x40.csv"
-        )
+        fixture_rel = sys.argv[1] if len(sys.argv) > 1 else "tests/fixtures/sample_300x40.csv"
+        fixture_path = Path(fixture_rel)
+        if not fixture_path.is_absolute():
+            fixture_path = Path(__file__).resolve().parent.parent / fixture_rel
         if not fixture_path.is_file():
-            fixture_path = Path("tests/fixtures/sample_300x40.csv").resolve()
-
+            print(f"Fixture tidak ditemukan: {fixture_path}", file=sys.stderr)
+            return 1
         csv_bytes = fixture_path.read_bytes()
 
         upload_resp = client.post(
             "/datasets",
-            files={"data": ("sample_300x40.csv", csv_bytes, "text/csv")},
+            files={"data": (fixture_path.name, csv_bytes, "text/csv")},
             follow_redirects=False,
         )
         if upload_resp.status_code != 303:
@@ -169,7 +169,7 @@ def main() -> int:
                 )
                 return 1
 
-            platform_files = {f.filename: f for f in files}
+            platform_records = {f.filename: f for f in files}
 
         parsed = parse_delimited(csv_bytes)
         mapping = {"1": "correct", "0": "incorrect", "NA": "missing", "": "missing"}
@@ -209,6 +209,8 @@ def main() -> int:
             return proc.returncode or 1
 
         all_match = True
+        platform_files: dict[str, bytes] = {}
+        cli_files: dict[str, bytes] = {}
         for filename in OUTPUT_FILES:
             cli_file_path = cli_out_dir / filename
             if not cli_file_path.is_file():
@@ -219,7 +221,7 @@ def main() -> int:
             cli_bytes = cli_file_path.read_bytes()
             cli_sha256 = hashlib.sha256(cli_bytes).hexdigest()
 
-            af = platform_files.get(filename)
+            af = platform_records.get(filename)
             if af is None:
                 print(f"{filename}: platform file missing MISMATCH")
                 all_match = False
@@ -227,6 +229,9 @@ def main() -> int:
 
             platform_bytes = gzip.decompress(af.content_gzip)
             platform_sha256 = hashlib.sha256(platform_bytes).hexdigest()
+
+            platform_files[filename] = platform_bytes
+            cli_files[filename] = cli_bytes
 
             is_identical = (
                 platform_bytes == cli_bytes
@@ -241,6 +246,48 @@ def main() -> int:
 
         if all_match and len(platform_files) == len(OUTPUT_FILES):
             print(f"ALL {len(OUTPUT_FILES)} FILES BYTE-IDENTICAL")
+
+        def _extreme_excluded(data: bytes) -> str:
+            for line in data.decode("utf-8").splitlines():
+                cells = line.split(",")
+                if len(cells) >= 3 and cells[0] == "COUNTS" and cells[1] == "EXTREME EXCLUDED":
+                    return cells[2].strip()
+            return "?"
+
+        def _status_counts(data: bytes) -> str:
+            rows = list(csv.reader(io.StringIO(data.decode("utf-8"))))
+            col = rows[1].index("STATUS")
+            counts: dict[str, int] = {}
+            for r in rows[2:]:
+                if len(r) > col:
+                    key = r[col].strip() or "(blank)"
+                    counts[key] = counts.get(key, 0) + 1
+            return " ".join(f"{k}={v}" for k, v in sorted(counts.items()))
+
+        def _measures(data: bytes) -> tuple[float, float, int]:
+            rows = list(csv.reader(io.StringIO(data.decode("utf-8"))))
+            try:
+                col = rows[1].index("JMLE MEASURE")
+            except ValueError:
+                header = [f"{a} {b}".strip() for a, b in zip(rows[0], rows[1])]
+                col = header.index("JMLE MEASURE") if "JMLE MEASURE" in header else rows[1].index("MEASURE")
+            vals = [float(r[col]) for r in rows[2:] if len(r) > col and r[col].strip()]
+            return min(vals), max(vals), len(set(vals))
+
+        summary_p = _extreme_excluded(platform_files["summary_table.csv"])
+        summary_c = _extreme_excluded(cli_files["summary_table.csv"])
+        print(f"EXTREME EXCLUDED  platform={summary_p} cli={summary_c}")
+        print(f"PERSON STATUS     platform={_status_counts(platform_files['person_table.csv'])}")
+        print(f"PERSON STATUS     cli={_status_counts(cli_files['person_table.csv'])}")
+        pmin, pmax, pdist = _measures(platform_files["item_table_15.1.csv"])
+        cmin, cmax, cdist = _measures(cli_files["item_table_15.1.csv"])
+        print(f"ITEM MEASURE      platform min={pmin} max={pmax} distinct={pdist}")
+        print(f"ITEM MEASURE      cli      min={cmin} max={cmax} distinct={cdist}")
+        vacuous = summary_p != summary_c or pdist < 2 or cdist < 2
+        if vacuous:
+            print("PARITY VACUOUS: the fixture produced no spread to compare")
+
+        if all_match and not vacuous:
             return 0
         return 1
 
