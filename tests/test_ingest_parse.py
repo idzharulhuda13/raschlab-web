@@ -300,3 +300,44 @@ def test_implausible_item_columns_accepts_normal_response_columns():
     body = "\n".join(f"USER{idx:06d},A,B" for idx in range(200))
     parsed = parse_delimited((header + "\n" + body + "\n").encode())
     assert implausible_item_columns(parsed) == []
+
+
+def test_duplicate_column_headers_are_refused():
+    raw = b"id,I01,I02,I01,I04\nP000,0,1,0,1\nP000,1,0,1,0\n"
+    with pytest.raises(StorageError) as exc:
+        parse_delimited(raw)
+    assert str(exc.value) == (
+        "Nama kolom butir 'I01' muncul lebih dari satu kali. "
+        "Beri nama setiap kolom butir yang berbeda."
+    )
+
+
+def test_headerless_first_row_is_refused():
+    raw = b"P000,0,1,0,1,0,1\nP001,1,0,1,0,1,0\n"
+    with pytest.raises(StorageError) as exc:
+        parse_delimited(raw)
+    assert str(exc.value) == (
+        "Berkas tidak memuat baris judul kolom. "
+        "Baris pertama terbaca sebagai baris data, bukan nama kolom."
+    )
+
+
+def test_numeric_only_first_row_is_refused():
+    raw = b"1,0,1,0\n0,1,1,0\n"
+    with pytest.raises(StorageError) as exc:
+        parse_delimited(raw)
+    assert "Berkas tidak memuat baris judul kolom." in str(exc.value)
+
+
+def test_valid_fixture_parses_identically_after_the_new_checks():
+    raw = (FIXTURES_DIR / "sample_300x40.csv").read_bytes()
+    parsed = parse_delimited(raw)
+    assert parsed.item_labels == [f"I{c + 1:02d}" for c in range(40)]
+    assert parsed.person_labels[0] == "P0001"
+    assert parsed.person_labels[-1] == "P0300"
+    assert len(parsed.rows) == 300
+    assert parsed.rows[0] == [
+        "NA" if (7 * 0 + 13 * c) % 29 == 0 else ("1" if (0 + 2 * c) % 5 != 0 else "0")
+        for c in range(40)
+    ]
+    assert missing_per_item(parsed) == GOLDEN_CSV_MISSING

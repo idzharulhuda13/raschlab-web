@@ -192,6 +192,47 @@ def _format_cell(val: Any) -> str:
     return str(val).strip()
 
 
+NO_HEADER_MSG = (
+    "Berkas tidak memuat baris judul kolom. "
+    "Baris pertama terbaca sebagai baris data, bukan nama kolom."
+)
+DUPLICATE_COLUMN_MSG = (
+    "Nama kolom butir '{label}' muncul lebih dari satu kali. "
+    "Beri nama setiap kolom butir yang berbeda."
+)
+
+
+def _looks_like_data(cell: str) -> bool:
+    """A blank or numeric header cell is a value, not a column name."""
+    if not cell.strip():
+        return True
+    try:
+        float(cell.strip().replace(",", "."))
+    except ValueError:
+        return False
+    return True
+
+
+def _reject_unrecognised_header(header: list[str], has_person_col: bool) -> None:
+    """Refuse a first row that reads as data: identity cell plus numbers."""
+    if has_person_col or len(header) < 2:
+        return
+    if all(_looks_like_data(cell) for cell in header[1:]):
+        raise _StorageError(NO_HEADER_MSG)
+
+
+def _reject_duplicate_columns(item_labels: list[str]) -> None:
+    """Two columns that normalise to one name are ambiguous for anchors and tables."""
+    seen: set[str] = set()
+    for cell in item_labels:
+        key = _normalize_header(cell)
+        if not key:
+            continue
+        if key in seen:
+            raise _StorageError(DUPLICATE_COLUMN_MSG.format(label=cell.strip()))
+        seen.add(key)
+
+
 def parse_delimited(raw: bytes) -> ParsedDataset:
     """Parse UTF-8/UTF-8-SIG delimited text into person labels, item labels, and cells."""
     if len(raw) > _MAX_UPLOAD_BYTES:
@@ -224,6 +265,8 @@ def parse_delimited(raw: bytes) -> ParsedDataset:
                 continue
             has_person_col = _normalize_header(header[0]) in PERSON_LABEL_HEADERS
             item_labels = header[1:] if has_person_col else header
+            _reject_unrecognised_header(header, has_person_col)
+            _reject_duplicate_columns(item_labels)
             continue
 
         n_items = len(item_labels)
