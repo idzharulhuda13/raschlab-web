@@ -40,7 +40,11 @@
   --dur-2: 200ms;
   --dur-3: 80ms;
   --band-h: 12px;
-  --shell-max: 1360px;
+  --shell-max: 1120px;
+  /* The dashboard frame is wider than the list and form shell: its header band, tab strip and panels need
+     room for the Wright plot (930px minimum measured 5 Oct 2026), while forms and lists stay on
+     --shell-max (DESIGN.md, "The dashboard"). */
+  --shell-wide: 1360px;
 }
 
 [data-theme="dark"] {

@@ -146,6 +146,7 @@ a:hover {
 
 .appnav-link:hover {
   text-decoration: underline;
+  color: var(--muted);
 }
 
 .appnav-link.is-active {
@@ -333,10 +334,6 @@ a:hover {
 
 .band--list {
   margin-top: var(--space-8);
-}
-
-.band--header {
-  padding-top: var(--space-6);
 }
 
 .band--preview {
@@ -549,6 +546,9 @@ h2,
 
 .btn--secondary:hover {
   border-color: var(--accent);
+  /* a:hover is an element selector (0,1,1) and outranks this class (0,1,0), so without a colour here every
+     anchor-styled secondary button recoloured its text towards the accent on hover (measured 6 Oct 2026). */
+  color: var(--ink);
 }
 
 .btn--ghost {
@@ -559,6 +559,7 @@ h2,
 
 .btn--ghost:hover {
   text-decoration: underline;
+  color: var(--accent);
 }
 
 .btn--danger {
@@ -1637,11 +1638,24 @@ p.summary-figure > .mono {
    strip, and panels on the wide shell. The phone gutter is 16px so the frame lines up with the app bar. */
 .dash-head {
   width: 100%;
-  max-width: var(--shell-max);
+  max-width: var(--shell-wide);
   margin-inline: auto;
   padding: var(--space-6) var(--space-6) var(--space-4);
   display: grid;
   gap: var(--space-3);
+}
+
+/* The pages that carry the dashboard frame are wider than the list and form shell, so their app bar,
+   footer, bands and exit link follow the frame: without this the wordmark and the h1 stop sharing one left
+   edge, and a band inside an entity page is 240px narrower than the header above it. Lists and forms keep
+   --shell-max (DESIGN.md, "The dashboard"). The ancestor is wrapped in :where() so this stays at the
+   same specificity as a two-class rule and the later ".explorer-panel .band { max-width: none }" still
+   wins for a fragment band inside a panel. */
+.app-shell:where(:has(.dash-head)) .appbar-inner,
+.app-shell:where(:has(.dash-head)) .footer-inner,
+.app-shell:where(:has(.dash-head)) .band,
+.app-shell:where(:has(.dash-head)) .page-exit {
+  max-width: var(--shell-wide);
 }
 
 .dash-head > .alert {
@@ -1827,7 +1841,7 @@ p.summary-figure > .mono {
   padding-block: var(--space-1) 0;
   margin-bottom: var(--space-4);
   width: 100%;
-  padding-inline: max(var(--space-6), calc((100% - var(--shell-max)) / 2 + var(--space-6)));
+  padding-inline: max(var(--space-6), calc((100% - var(--shell-wide)) / 2 + var(--space-6)));
 }
 
 @media (max-width: 719px) {
@@ -1910,7 +1924,7 @@ p.summary-figure > .mono {
 .explorer-panel {
   width: 100%;
   min-width: 0;
-  max-width: var(--shell-max);
+  max-width: var(--shell-wide);
   margin-inline: auto;
   padding-inline: var(--space-6);
 }

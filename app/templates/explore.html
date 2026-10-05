@@ -217,7 +217,7 @@
   {% if active_view == render_view %}
     {% include 'explore/fragment.html' %}
   {% else %}
-    <div class="empty empty--loading" role="status">
+    <div class="empty empty--loading" role="status" aria-busy="true">
       <p class="empty-text">Memuat data…</p>
     </div>
   {% endif %}

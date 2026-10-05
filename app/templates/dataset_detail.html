@@ -5,8 +5,8 @@
 
 {% block content %}
 {% set query_msg = (request.query_params.get('msg') if request and request.query_params else None) or msg %}
-{# Same header as the analysis dashboard (DESIGN.md, "One frame for the whole app"): crumbs, the file name as
-   the title, the status chip, then the file's facts as a figure row. #}
+{# Same header as the analysis dashboard (DESIGN.md, "The dashboard": the frame, top to bottom): crumbs, the
+   file name as the title, the status chip, then the file's facts as a figure row. #}
 <header class="dash-head">
   {% if query_msg == 'uploaded' %}
   <div class="alert alert--fit" role="status">

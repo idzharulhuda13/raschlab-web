@@ -223,6 +223,13 @@
     function onSelectChange() {
       if (cmpFrom && cmpTo && cmpFrom.value && cmpTo.value && cmpFrom.value !== cmpTo.value) {
         loadCompareFragment(cmpFrom.value, cmpTo.value);
+        return;
+      }
+      // Measured 6 Oct 2026: with both selects on the same analysis the single primary button neither
+      // navigated nor said anything, so it read as a dead control. Say what is missing instead.
+      var statement = document.getElementById('cmp-statement');
+      if (statement) {
+        statement.textContent = 'Pilih dua analisis yang berbeda untuk dibandingkan.';
       }
     }
 
@@ -250,7 +257,13 @@
     if (!panel) return;
     clearFetchError();
     var prevHtml = panel.innerHTML;
+    // The S.E. filter is part of the request, not of the response: without it here the checkbox was a dead
+    // control (measured 6 Oct 2026, no JS reference to the field existed at all).
+    var overSeEl = document.getElementById('cmp-over-se');
     var params = { from: fromId, to: toId };
+    if (overSeEl && overSeEl.checked) {
+      params.over_se = '1';
+    }
 
     fetchFragment('bandingkan', params, function (html) {
       panel.innerHTML = html;
@@ -260,6 +273,11 @@
       currentUrl.searchParams.set('view', 'bandingkan');
       currentUrl.searchParams.set('from', fromId);
       currentUrl.searchParams.set('to', toId);
+      if (overSeEl && overSeEl.checked) {
+        currentUrl.searchParams.set('over_se', '1');
+      } else {
+        currentUrl.searchParams.delete('over_se');
+      }
       window.history.replaceState(null, '', currentUrl.toString());
 
       wireComparePanel(panel);
@@ -342,7 +360,9 @@
           }
         }, function () {
           panel.innerHTML = prevHtml;
-          showFetchError(panel);
+          showFetchError(panel, function () {
+            refetchFragment(view, params, panel, prevHtml);
+          });
           wirePanelContent(view, panel);
         });
       });
@@ -384,7 +404,9 @@
           wirePanelContent(targetView, panel);
         }, function () {
           panel.innerHTML = prevHtml;
-          showFetchError(panel);
+          showFetchError(panel, function () {
+            refetchFragment(targetView, targetParams, panel, prevHtml);
+          });
           wirePanelContent(targetView, panel);
         });
       });
@@ -396,7 +418,32 @@
       wireComparePanel(panel);
     } else if (view === 'butir' || view === 'partisipan') {
       wireSearchAndPager(view, panel);
+      if (view === 'partisipan') {
+        // The histogram lives only in the partisipan fragment, so the boot-time call cannot cover it: the
+        // fragment is inserted here by innerHTML, and a pager refetch replaces it again. Measured 6 Oct 2026:
+        // ?view=partisipan draws 1 svg, the same view opened by clicking the tab drew 0.
+        bootPersonHistogram();
+      }
     }
+  }
+
+  /**
+   * Re-issue a fragment request after a failed one, from the retry button the error block renders.
+   * Restoring the previous markup is enough: the request is the same one that failed.
+   */
+  function refetchFragment(view, params, panel, prevHtml) {
+    clearFetchError();
+    fetchFragment(view, params, function (html) {
+      panel.innerHTML = html;
+      panel.classList.add('is-loaded');
+      wirePanelContent(view, panel);
+    }, function () {
+      panel.innerHTML = prevHtml;
+      showFetchError(panel, function () {
+        refetchFragment(view, params, panel, prevHtml);
+      });
+      wirePanelContent(view, panel);
+    });
   }
 
   function handleTableSort(table, sortBtn) {

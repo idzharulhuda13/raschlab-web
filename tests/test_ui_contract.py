@@ -357,8 +357,13 @@ def test_all_template_classes_defined_in_app_css():
     # .range-strip, .range-axis-line, .range-zero, .range-whisker, .range-mean, .range-value, .range-scale,
     # .range-scale-note), Tabulasi's .tab-group and share bar (.share-bar, .share-bar-track, .share-bar-fill),
     # and .view-head--sub for a second view head inside one view.
-    assert len(used_classes) == 216, f"Used template class count changed to {len(used_classes)}"
-    assert len(defined_classes) == 229, f"Defined app.css class count changed to {len(defined_classes)}"
+    # 215 (Arc, 5 Oct 2026, measured against the frozen tree): the pin above said 216, which no revision ever
+    # produced. .band--header left the templates in the same wave, when the analysis, datasets and dataset
+    # detail pages adopted the dashboard header frame (.dash-head); its rule in app.css is now unreferenced.
+    assert len(used_classes) == 215, f"Used template class count changed to {len(used_classes)}"
+    # 228 (Arc, 6 Oct 2026): .band--header retired with the app-wide header adoption and its now-unreferenced
+    # rule is deleted (reviewer finding, re-measured): used 215 / defined 228.
+    assert len(defined_classes) == 228, f"Defined app.css class count changed to {len(defined_classes)}"
 
 
 def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_ujian.csv") -> tuple[int, int]:

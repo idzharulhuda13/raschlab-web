@@ -646,6 +646,9 @@
   <div class="field">
     <label class="field-label" for="cmp-from">Analisis pertama</label>
     <select id="cmp-from" name="from" class="select-input">
+      {# A placeholder keeps the two selects from silently defaulting to the same analysis, which made the
+         view's only primary button a no-op on first open (measured 6 Oct 2026). #}
+      <option value="" disabled{% if not compare_ctx.from_id %} selected{% endif %}>Pilih analisis…</option>
       {% for o in compare_ctx.options %}
       <option value="{{ o.id }}"{% if o.id == compare_ctx.from_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}{% if o.mark_label %} · {{ o.mark_label }}{% endif %}</option>
       {% endfor %}
@@ -654,6 +657,7 @@
   <div class="field">
     <label class="field-label" for="cmp-to">Analisis kedua</label>
     <select id="cmp-to" name="to" class="select-input">
+      <option value="" disabled{% if not compare_ctx.to_id %} selected{% endif %}>Pilih analisis…</option>
       {% for o in compare_ctx.options %}
       <option value="{{ o.id }}"{% if o.id == compare_ctx.to_id %} selected{% endif %}>Analisis #{{ o.id }} · {{ o.dataset_filename }} · {{ o.created_at_label }}{% if o.mark_label %} · {{ o.mark_label }}{% endif %}</option>
       {% endfor %}

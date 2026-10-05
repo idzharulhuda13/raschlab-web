@@ -5,8 +5,8 @@
 
 {% block content %}
 {% set query_msg = (request.query_params.get('msg') if request and request.query_params else None) or msg %}
-{# The dashboard's header pattern (DESIGN.md, "One frame for the whole app"): crumbs, the file name as the
-   title, status chips, actions on the right, provenance one click away. #}
+{# The dashboard's header pattern (DESIGN.md, "The dashboard": the frame, top to bottom): crumbs, the file
+   name as the title, status chips, actions on the right, provenance one click away. #}
 <header class="dash-head">
   {% if query_msg == 'analyzed' %}
   <div class="alert alert--fit" role="status">
