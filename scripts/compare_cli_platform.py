@@ -287,7 +287,84 @@ def main() -> int:
         if vacuous:
             print("PARITY VACUOUS: the fixture produced no spread to compare")
 
-        if all_match and not vacuous:
+        con_lines = Path(con_path).read_text(encoding="utf-8").splitlines(keepends=True)
+        nolabel_con_lines = [
+            line for line in con_lines if not line.strip().upper().startswith("ILABEL")
+        ]
+        nolabel_con_path = tmp_path / "control_nolabel.con"
+        nolabel_con_path.write_text("".join(nolabel_con_lines), encoding="utf-8")
+
+        nolabel_cli_out_dir = tmp_path / "cli_out_nolabel"
+        nolabel_cli_out_dir.mkdir(parents=True, exist_ok=True)
+
+        nolabel_cmd = [
+            sys.executable,
+            "-m",
+            "raschlab",
+            "analyze",
+            "--con",
+            str(nolabel_con_path),
+            "--data",
+            str(data_path),
+            "--out",
+            str(nolabel_cli_out_dir),
+            "--format",
+            "csv",
+        ]
+        nolabel_proc = subprocess.run(nolabel_cmd, capture_output=True, text=True)
+        if nolabel_proc.returncode != 0:
+            print(
+                f"Label-less CLI analyze gagal (kode {nolabel_proc.returncode}):\n{nolabel_proc.stderr}",
+                file=sys.stderr,
+            )
+            return nolabel_proc.returncode or 1
+
+        def _read_item_csv(path: Path) -> tuple[list[str], list[str]]:
+            rows = list(csv.reader(io.StringIO(path.read_text(encoding="utf-8"))))
+            if len(rows) < 2:
+                return [], []
+            try:
+                col_m = rows[1].index("JMLE MEASURE")
+            except ValueError:
+                header = [f"{a} {b}".strip() for a, b in zip(rows[0], rows[1])]
+                col_m = header.index("JMLE MEASURE") if "JMLE MEASURE" in header else rows[1].index("MEASURE")
+            try:
+                col_item = rows[1].index("ITEM")
+            except ValueError:
+                header = [f"{a} {b}".strip() for a, b in zip(rows[0], rows[1])]
+                col_item = header.index("ITEM")
+            measures = [r[col_m].strip() for r in rows[2:] if len(r) > col_m and r[col_m].strip()]
+            items = [r[col_item].strip() for r in rows[2:] if len(r) > col_item and r[col_item].strip()]
+            return measures, items
+
+        labelled_measures, labelled_items = _read_item_csv(cli_out_dir / "item_table_15.1.csv")
+        nolabel_measures, nolabel_items = _read_item_csv(nolabel_cli_out_dir / "item_table_15.1.csv")
+
+        n_rows = len(labelled_measures)
+        measures_identical = (
+            len(labelled_measures) == len(nolabel_measures)
+            and len(labelled_measures) > 0
+            and labelled_measures == nolabel_measures
+        )
+
+        expected_labels = [f"I{j + 1:02d}" for j in range(n_rows)]
+        if nolabel_items != expected_labels:
+            print(
+                f"FAILURE: label-less ITEM column mismatch: expected {expected_labels}, got {nolabel_items}",
+                file=sys.stderr,
+            )
+        assert nolabel_items == expected_labels, (
+            f"Assertion failed: label-less ITEM column {nolabel_items} does not match expected {expected_labels}"
+        )
+
+        identical_str = "yes" if measures_identical else "no"
+        labels_str = f"I01..I{n_rows:02d}"
+        print(f"LABEL-LESS CLI RUN  rows={n_rows} measures_identical={identical_str}  labels={labels_str}")
+
+        if not measures_identical:
+            print("FAILURE: label-less run measures do not match labelled run", file=sys.stderr)
+
+        if all_match and not vacuous and measures_identical and (nolabel_items == expected_labels):
             return 0
         return 1
 
