@@ -488,3 +488,55 @@ def test_cell_cap_message_reports_the_observed_size(client: TestClient, monkeypa
     assert "Berkas memuat 36 sel, melebihi batas maksimal 30 sel." in resp.text
     with SessionLocal() as db:
         assert db.execute(select(func.count(Dataset.id))).scalar_one() == 0
+
+
+def test_duplicate_column_upload_renders_the_refusal_alert(client: TestClient):
+    _create_authenticated_user(client)
+    payload = b"id,I01,I02,I01,I04\nP000,0,1,0,1\nP001,1,0,1,0\n"
+    resp = client.post(
+        "/datasets",
+        files={"data": ("dobel.csv", payload, "text/csv")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert (
+        "Berkas tidak valid: Nama kolom butir 'I01' muncul lebih dari satu kali. "
+        "Beri nama setiap kolom butir yang berbeda."
+    ) in resp.text
+    with SessionLocal() as db:
+        assert db.execute(select(func.count(Dataset.id))).scalar_one() == 0
+
+
+def test_headerless_upload_renders_the_refusal_alert(client: TestClient):
+    _create_authenticated_user(client)
+    payload = b"P000,0,1,0,1,0,1,0,1,0,1\nP001,1,0,1,0,1,0,1,0,1,0\n"
+    resp = client.post(
+        "/datasets",
+        files={"data": ("tanpa-judul.csv", payload, "text/csv")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert (
+        "Berkas tidak valid: Berkas tidak memuat baris judul kolom. "
+        "Baris pertama terbaca sebagai baris data, bukan nama kolom."
+    ) in resp.text
+    with SessionLocal() as db:
+        assert db.execute(select(func.count(Dataset.id))).scalar_one() == 0
+
+
+def test_valid_fixture_upload_is_unchanged_by_the_new_checks(client: TestClient):
+    _create_authenticated_user(client)
+    payload = (FIXTURES_DIR / "sample_300x40.csv").read_bytes()
+    resp = client.post(
+        "/datasets",
+        files={"data": ("sample_300x40.csv", payload, "text/csv")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    dataset_id = int(resp.headers["location"].split("/")[-1].split("?")[0])
+    with SessionLocal() as db:
+        row = db.execute(select(Dataset).where(Dataset.id == dataset_id)).scalar_one()
+        assert row.n_persons == 300
+        assert row.n_items == 40
+        labels = json.loads(row.item_labels_json)
+        assert labels == [f"I{c + 1:02d}" for c in range(40)]
