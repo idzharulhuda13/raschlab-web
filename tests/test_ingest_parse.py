@@ -387,3 +387,10 @@ def test_xlsx_headerless_first_row_is_refused():
     with pytest.raises(StorageError) as exc:
         parse_xlsx(raw)
     assert "Berkas tidak memuat baris judul kolom." in str(exc.value)
+
+
+def test_numeric_item_columns_with_an_identity_header_are_accepted():
+    """A recognised identity column plus numeric item names is a real header."""
+    parsed = parse_delimited(b"student_code,1,2,3\nS001,1,0,1\nS002,0,1,1\n")
+    assert parsed.item_labels == ["1", "2", "3"]
+    assert parsed.person_labels == ["S001", "S002"]

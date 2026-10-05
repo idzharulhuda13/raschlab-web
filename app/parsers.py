@@ -66,6 +66,16 @@ PERSON_LABEL_HEADERS: frozenset[str] = frozenset(
         "kode",
         "kode_responden",
         "no_responden",
+        "no_peserta",
+        "id_siswa",
+        "kode_siswa",
+        "nisn",
+        "nis",
+        "murid",
+        "student_code",
+        "participant",
+        "subject",
+        "case",
         # Identity columns as exported by the assessment platforms in use.
         # Without these, the identity column is read as an item column, which both
         # loses the real person identifiers and turns every identifier into a
