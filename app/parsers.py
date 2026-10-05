@@ -342,6 +342,8 @@ def parse_xlsx(raw: bytes) -> ParsedDataset:
                     continue
                 has_person_col = _normalize_header(header[0]) in PERSON_LABEL_HEADERS
                 item_labels = header[1:] if has_person_col else header
+                _reject_unrecognised_header(header, has_person_col)
+                _reject_duplicate_columns(item_labels)
                 continue
 
             row_idx += 1

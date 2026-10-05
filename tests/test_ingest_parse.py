@@ -20,6 +20,7 @@ from app.parsers import (
     parse_control,
     parse_delimited,
     parse_prn,
+    parse_xlsx,
     validate_mapping,
 )
 from app.storage import MAX_CELLS, MAX_UPLOAD_BYTES, StorageError
@@ -355,3 +356,34 @@ def test_spread_fixture_is_not_degenerate():
     hits = [sum(1 for row in parsed.rows if row[j] == "1") for j in range(20)]
     assert min(hits) == 20 and max(hits) == 40
     assert not any(h in (0, 60) for h in hits)
+
+
+def _xlsx_bytes(rows: list[list[str]]) -> bytes:
+    import io
+
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    for row in rows:
+        ws.append(row)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_xlsx_duplicate_column_headers_are_refused():
+    raw = _xlsx_bytes([["id", "I01", "I02", "I01", "I04"], ["P000", "0", "1", "0", "1"]])
+    with pytest.raises(StorageError) as exc:
+        parse_xlsx(raw)
+    assert str(exc.value) == (
+        "Nama kolom butir 'I01' muncul lebih dari satu kali. "
+        "Beri nama setiap kolom butir yang berbeda."
+    )
+
+
+def test_xlsx_headerless_first_row_is_refused():
+    raw = _xlsx_bytes([["P000", "0", "1", "0"], ["P001", "1", "0", "1"]])
+    with pytest.raises(StorageError) as exc:
+        parse_xlsx(raw)
+    assert "Berkas tidak memuat baris judul kolom." in str(exc.value)
