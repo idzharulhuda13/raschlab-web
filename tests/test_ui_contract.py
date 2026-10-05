@@ -331,8 +331,34 @@ def test_all_template_classes_defined_in_app_css():
     # table rows and therefore carry the 44px minimum on desktop too.
     # 148 / 161 (B4 and B3 contract additions): .alert--info for honoured control directives notice,
     # .chip-row for threshold preset buttons, and .chip interactive styling.
-    assert len(used_classes) == 148, f"Used template class count changed to {len(used_classes)}"
-    assert len(defined_classes) == 161, f"Defined app.css class count changed to {len(defined_classes)}"
+    # 158 / 172 (dashboard redesign run 1, 5 Oct 2026, DESIGN.md "The dashboard"): the header band
+    # (.dash-head, .dash-title-row, .dash-title, .dash-eyebrow, .dash-chips), its two inline disclosures
+    # (.dash-more for provenance, .dash-note for the anchor explanation), the share popover (.share-menu,
+    # .share-panel), and .appnav-long, the nav word that leaves the bar at <=480px. Defined only: the
+    # JS state class .is-scrollable on the tab strip.
+    # 172 / 186 (same run, landing view): breadcrumb and disclosure rows (.dash-crumbs, .dash-disclosures),
+    # the figure row (.figure-row, .figure, .figure-label, .figure-note, .figure-value), the chart frame
+    # (.wright-body, .chart-frame, .chart-toolbar), the readout rail (.readout-rail, .readout-title),
+    # .action-bar--wrap for the export group, and .table-hint, already defined and now used for the map's
+    # scroll hint. Defined only: .figure--warn, which the client adds to the misfit figure when it is > 0.
+    # 173 / 187 (same run, render states): .empty--loading, the quiet loading block the seven fragment panels
+    # carry until their fragment lands (the client writes the same markup).
+    # 179 / 192 (run 2, shared fragment parts + Butir + Partisipan): .view-head, .view-lede, .view-tools,
+    # .table-scroll--pin, .table-foot, .row-flag (the misfit row mark in Butir). Defined count also drops
+    # .is-scrollable: the tab strip's mask fade became CSS scroll shadows, so no JS state class is needed.
+    # 192 / 205 (run 2, Ringkasan): the verdict band (.verdict, .verdict-cell, .verdict-band, .verdict-text),
+    # the view's one hero figure (.hero, .hero--warn, .hero-value, .hero-unit), and the cleanliness band's HTML
+    # legend (.band-legend, .band-swatch, .band-swatch--accent, --misfit, --warn), which replaced SVG labels
+    # that collided on small segments.
+    # 196 / 209 (Bandingkan): .cmp-statement, .cmp-means, .cmp-frame (the delta chart's 70vh frame) and
+    # .figure-row-note (the pairing-key sentence under the match-count figures).
+    # 216 / 229 (Opsi, Sub-Subtes, Tabulasi): .opt-group and .opt-key (options grouped per item, key option
+    # marked), the Sub-Subtes range strips (.range-list, .range-rows, .range-row, .range-name, .range-meta,
+    # .range-strip, .range-axis-line, .range-zero, .range-whisker, .range-mean, .range-value, .range-scale,
+    # .range-scale-note), Tabulasi's .tab-group and share bar (.share-bar, .share-bar-track, .share-bar-fill),
+    # and .view-head--sub for a second view head inside one view.
+    assert len(used_classes) == 216, f"Used template class count changed to {len(used_classes)}"
+    assert len(defined_classes) == 229, f"Defined app.css class count changed to {len(defined_classes)}"
 
 
 def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_ujian.csv") -> tuple[int, int]:

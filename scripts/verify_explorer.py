@@ -422,7 +422,7 @@ def goto(page: Any, url: str) -> None:
 
 
 def group_a_responsive(page: Any, base_url: str, analysis1_id: int,
-                        res: Results) -> None:
+                        res: Results, analysis2_id: int) -> None:
     """51 checks: 50 responsive matrix + 1 mobile touch target check."""
     print("\n[A] Responsive")
     views = ["wright", "butir", "partisipan", "ringkasan", "opsi", "subsubtes", "tabulasi", "bandingkan"]
@@ -449,9 +449,12 @@ def group_a_responsive(page: Any, base_url: str, analysis1_id: int,
                 res.record(f"responsive {view} {w}w {theme}",
                            f"scrollWidth={scroll_w} clientWidth={client_w}", ok)
 
-    # Mobile touch targets at 390px (back-link and comparison checkbox row >= 44px)
+    # Mobile touch targets at 390px (back-link and comparison checkbox row >= 44px). The delta filter renders
+    # only once two analyses are chosen (dashboard redesign, 5 Oct 2026: without a pair it had nothing to
+    # filter, a dead control), so the row is measured on a real comparison.
     page.set_viewport_size({"width": 390, "height": 900})
-    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=bandingkan")
+    goto(page, f"{base_url}/analyses/{analysis1_id}/explore?view=bandingkan"
+               f"&from={analysis1_id}&to={analysis2_id}")
     targets = page.evaluate("""() => {
         const backLink = document.querySelector('.back-link');
         const cmpRow = document.querySelector('.cmp-filter');
@@ -2409,7 +2412,7 @@ def main() -> int:
                 group_data.append((letter, name, all_results._checks[start:end]))
 
             capture("A", "Responsive",
-                    group_a_responsive, page, base_url, analysis1_id, all_results)
+                    group_a_responsive, page, base_url, analysis1_id, all_results, analysis2_id)
 
             capture("B", "Shell and panel structure",
                     group_b_shell, page, base_url, analysis1_id, analysis2_id, dataset1_id, all_results)

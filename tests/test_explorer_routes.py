@@ -33,6 +33,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import re
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
@@ -53,6 +54,17 @@ from app.security import hash_password, hash_token, new_token, now_epoch
 def _csv(rows: list[list[str]]) -> str:
     """Produce CSV text exactly as the engine writes it: commas, CRLF, trailing CRLF."""
     return "\r\n".join(",".join(cell for cell in row) for row in rows) + "\r\n"
+
+
+def _paragraph_text(html: str, element_id: str) -> str:
+    """The rendered text of the <p id=element_id>, tags stripped and whitespace collapsed.
+
+    Lines rendered as figure rows (dashboard redesign, 5 Oct 2026) carry their frozen sentence as text, with
+    labels and values in separate spans and the punctuation .sr-only, so the sentence is asserted on the text.
+    """
+    start = html.index(f'id="{element_id}"')
+    body = html[start:html.index("</p>", start)].split(">", 1)[1]
+    return " ".join(re.sub(r"<[^>]+>", "", body).split())
 
 
 def _seed_done(
@@ -542,12 +554,12 @@ def test_explore_meta_line_counts_equal_summary_strings(client: TestClient):
     meta_end = html.index("</p>", meta_idx)
     meta_text = html[meta_idx: meta_end]
 
-    assert "Partisipan:" in meta_text
-    assert "28" in meta_text   # PERSON COUNT
-    assert "Butir:" in meta_text
-    assert "12" in meta_text   # ITEM COUNT
-    assert "Dikecualikan" in meta_text
-    assert "2" in meta_text    # excluded = 30 - 28
+    # The line renders as a figure row (dashboard redesign, 5 Oct 2026): label and value sit in separate
+    # spans and the colons / middle dots are .sr-only, so the frozen sentence is the element's TEXT, not a
+    # literal run of markup. Assert the whole sentence on the tag-stripped text, which also pins each count
+    # to its own label (the old checks only found "28", "12" and "2" somewhere in the line).
+    meta_sentence = " ".join(re.sub(r"<[^>]+>", "", meta_text.split(">", 1)[1]).split())
+    assert "Partisipan: 28 · Butir: 12 · Dikecualikan (skor sempurna/nol): 2" in meta_sentence
 
 
 # ---------------------------------------------------------------------------
@@ -767,7 +779,7 @@ def test_explore_compare_renders_statement_table_delta_and_means(client: TestCli
     assert 'id="cmp-caveat"' in html
     assert "Selisih lintas berkas hanya bermakna bila kedua analisis memakai butir penghubung" in html
     assert 'id="cmp-counts"' in html
-    assert "Cocok:" in html
+    assert _paragraph_text(html, "cmp-counts").startswith("Cocok:")
 
 
 # ---------------------------------------------------------------------------
@@ -959,7 +971,7 @@ def test_explore_compare_cross_dataset_pairing_keys(client: TestClient):
     html_a = resp_a.text
 
     # 2 shared labels → matched = 2.
-    assert "Cocok: 2 butir." in html_a
+    assert _paragraph_text(html_a, "cmp-counts").startswith("Cocok: 2 butir.")
     # Paired by label.
     assert "Dipasangkan berdasarkan label butir." in html_a
 
@@ -1054,7 +1066,7 @@ def test_explore_compare_cross_dataset_pairing_keys(client: TestClient):
     html_b = resp_b.text
 
     # 3 items, same count, no labels → entry-based, 3 matched.
-    assert "Cocok: 3 butir." in html_b
+    assert _paragraph_text(html_b, "cmp-counts").startswith("Cocok: 3 butir.")
     assert "Dipasangkan berdasarkan nomor butir (kedua berkas tidak memuat label butir)." in html_b
 
     # Entry 1: delta = 1.50 - 1.00 = +0.50.
@@ -1145,7 +1157,7 @@ def test_explore_compare_cross_dataset_pairing_keys(client: TestClient):
     # Unpairable case: no labels on either side, different item counts → pairs=[].
     # #cmp-counts shows "Cocok: 0 butir." and neither pairing-key sentence appears.
     assert 'id="cmp-counts"' in html_c
-    assert "Cocok: 0 butir." in html_c
+    assert _paragraph_text(html_c, "cmp-counts").startswith("Cocok: 0 butir.")
     assert "Dipasangkan berdasarkan label butir." not in html_c
     assert "Dipasangkan berdasarkan nomor butir" not in html_c
     # No pair rows in the comparison table body means no delta cells from a mismatch.
