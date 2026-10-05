@@ -11,6 +11,8 @@ class Settings:
     app_version: str
     resend_api_key: str | None
     resend_from: str
+    edge_token: str | None
+    edge_enforce: bool
     app_base_url: str
 
     @classmethod
@@ -27,6 +29,8 @@ class Settings:
         app_version = os.getenv("APP_VERSION", "0.1.0")
         resend_api_key = os.getenv("RESEND_API_KEY") or None
         resend_from = os.getenv("RESEND_FROM", "RaschLab <onboarding@resend.dev>")
+        edge_token = os.getenv("EDGE_TOKEN") or None
+        edge_enforce = (os.getenv("EDGE_ENFORCE", "") or "").strip().lower() in ("1", "true", "yes", "on")
         app_base_url = os.getenv("APP_BASE_URL", "http://127.0.0.1:7860").rstrip("/")
         return cls(
             database_url=database_url,
@@ -36,6 +40,8 @@ class Settings:
             app_version=app_version,
             resend_api_key=resend_api_key,
             resend_from=resend_from,
+            edge_token=edge_token,
+            edge_enforce=edge_enforce,
             app_base_url=app_base_url,
         )
 

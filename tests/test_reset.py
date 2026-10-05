@@ -282,7 +282,9 @@ def test_gate_closed_redirects_register_and_login(client, monkeypatch):
 def test_f0_health_contract_intact_under_f1(client, monkeypatch):
     r_health = client.get("/health")
     assert r_health.status_code == 200
-    assert set(r_health.json().keys()) == {"status", "version", "commit"}
+    # `edge` reports whether this request carried the edge proxy header; the other three
+    # keys are the original contract and must stay.
+    assert set(r_health.json().keys()) == {"status", "version", "commit", "edge"}
 
     monkeypatch.setattr(app.db.settings, "database_url", None)
     app.db._engine = None
