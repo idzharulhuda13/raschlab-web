@@ -27,6 +27,7 @@ from app.analysis import (
     STALE_RUN_S,
     AnalysisError,
     effective_item_labels,
+    effective_person_labels,
     format_threshold,
     id_num,
     latest_done_analysis,
@@ -268,6 +269,13 @@ def _mark_state(marks: dict[int, int], dataset_id: int, analysis_id: int) -> str
     return "belum"
 
 
+def _picker_context(dataset: Dataset) -> dict[str, Any]:
+    return {
+        "person_labels": effective_person_labels(dataset),
+        "picker_item_labels": effective_item_labels(dataset),
+    }
+
+
 def _do_retention_sweep() -> None:
     with SessionLocal() as db:
         retention_sweep(db)
@@ -337,6 +345,7 @@ def get_analysis_settings(
         inherit_anchors_id = newest.id
 
     context = _build_dataset_context(request, user, dataset)
+    context.update(_picker_context(dataset))
     context.update(
         {
             "params": params,
@@ -367,6 +376,10 @@ def post_dataset_analyze(
     idfile: UploadFile | None = File(None),
     anchors: UploadFile | None = File(None),
     inherit_anchors: str | None = Form(None),
+    pd_pick: list[str] | None = Form(None),
+    id_pick: list[str] | None = Form(None),
+    anchor_pos: list[str] | None = Form(None),
+    anchor_value: list[str] | None = Form(None),
 ):
     if _gate_closed():
         return RedirectResponse("/", status_code=303)
@@ -383,6 +396,7 @@ def post_dataset_analyze(
 
     def settings_error(message: str) -> HTMLResponse:
         context = _build_dataset_context(request, user, dataset)
+        context.update(_picker_context(dataset))
         context.update(
             {
                 "params": dict(PARAMS_DEFAULT),
