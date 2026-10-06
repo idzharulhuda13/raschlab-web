@@ -26,6 +26,9 @@ from app.analysis import (
     RETENTION_DAYS,
     STALE_RUN_S,
     AnalysisError,
+    PICK_DELETE_LIST_NAMES,
+    anchors_from_positions,
+    delete_list_from_positions,
     effective_item_labels,
     effective_person_labels,
     format_threshold,
@@ -431,6 +434,19 @@ def post_dataset_analyze(
         except AnalysisError as exc:
             return settings_error(str(exc))
 
+    for key, picks, max_rows in (
+        ("pdfile", pd_pick, dataset.n_persons),
+        ("idfile", id_pick, dataset.n_items),
+    ):
+        if key in delete_lists or not picks:
+            continue
+        try:
+            entry = delete_list_from_positions(picks, max_rows, PICK_DELETE_LIST_NAMES[key])
+        except AnalysisError as exc:
+            return settings_error(str(exc))
+        if entry is not None:
+            delete_lists[key] = entry
+
     anchors_entry = None
     if anchors is not None:
         anchor_name = (anchors.filename or "").strip()
@@ -441,6 +457,13 @@ def post_dataset_analyze(
                 )
             except AnalysisError as exc:
                 return settings_error(str(exc))
+    if anchors_entry is None and anchor_pos and anchor_value:
+        try:
+            anchors_entry = anchors_from_positions(
+                anchor_pos, anchor_value, effective_item_labels(dataset)
+            )
+        except AnalysisError as exc:
+            return settings_error(str(exc))
     if anchors_entry is None and inherit_anchors:
         anchors_entry = _inherited_anchors(db, dataset, inherit_anchors)
     if anchors_entry is not None:
