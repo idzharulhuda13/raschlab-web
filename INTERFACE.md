@@ -265,6 +265,8 @@ for every real analysis.
 
 
 
+- Addendum (6 Oct 2026): the three optional settings inputs gained an in-page picker; the frozen rows above are unchanged. See the F21 section at the end of this file.
+
 ### F13 — control files, keyed numeric data, and one-file export (27 Sep 2026, FROZEN)
 
 **Control-file directives keep the engine's types.** `app/parsers.py::parse_control` coerces to a number ONLY
@@ -782,4 +784,15 @@ Consolidation of analysis results into a single reading surface (`/analyses/{id}
 
 ### Dashboard header
 - Header now carries mark controls, anchor blocks, Urutan Responden, and delete-list rows.
+
+## F21: analysis-settings optional-input picker (6 Oct 2026)
+
+- GET `/datasets/{id}/analysis-settings`: new template context keys `person_labels` (list[str], read from the stored matrix, `[]` when absent) and `picker_item_labels` (equals `effective_item_labels`).
+- POST `/datasets/{id}/analyze`: new optional form fields `pd_pick` (1..n_persons, checkbox value), `id_pick` (1..n_items), `anchor_pos` + `anchor_value` (parallel lists, blank value = no anchor for that row), all validated with Indonesian copy by `delete_list_from_positions` / `anchors_from_positions` in `app/analysis.py` BEFORE the rate limit; invalid input re-renders `analysis_settings.html` (422).
+- Precedence: per delete-list key upload > picker; anchors upload > picker > `inherit_anchors`.
+- Synthetic record names: `peserta-dipilih.txt`, `butir-dipilih.txt`, `jangkar-dipilih.txt`.
+- Record shapes and `params_json` keys: identical to the upload path (frozen `params_json` row therefore unchanged).
+- Static assets and DOM: static file `/static/settings-picker.js`, element ids `#pd-picker`, `#pd-picker-data`, `#pd-filter` (created by JS).
+- Schema & engine: no schema, no migration, no engine change, anchor `used`/warning path unchanged.
+- Verification commands: the full suite plus `tests/test_settings_picker.py`.
 
