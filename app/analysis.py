@@ -67,9 +67,11 @@ MODE_CHOICES = ("compat", "exact")
 DELETE_LIST_MAX_BYTES = 2 * 1024 * 1024
 DELETE_LIST_EXTENSIONS = (".txt", ".csv", ".dat")
 DELETE_LIST_NAME_MAX = 120
+PICK_DELETE_LIST_NAMES = {"pdfile": "peserta-dipilih.txt", "idfile": "butir-dipilih.txt"}
 
 ANCHOR_MAX_BYTES = 64 * 1024
 ANCHOR_MAX_LINES = 5000
+PICK_ANCHOR_NAME = "jangkar-dipilih.txt"
 
 PARAMS_DEFAULT = {
     "misfit": MISFIT_THRESHOLD_DEFAULT,
@@ -572,6 +574,66 @@ def effective_item_labels(dataset: Dataset) -> list[str]:
             lbl = f"I{i+1:02d}"
         lbl_lines.append(lbl)
     return lbl_lines
+
+
+def effective_person_labels(dataset: Dataset) -> list[str]:
+    """Return person labels the engine sees, extracted from the stored matrix container."""
+    if not dataset.matrix_gzip:
+        return []
+    try:
+        container = json.loads(gzip.decompress(dataset.matrix_gzip).decode("utf-8"))
+        namlen = int(container.get("namlen", 0))
+        prn = str(container.get("prn", ""))
+        if namlen <= 0 or not prn:
+            return []
+        labels = []
+        for line in prn.splitlines():
+            labels.append(line[:namlen].strip())
+        return labels
+    except Exception:
+        return []
+
+
+def delete_list_from_positions(values: list[str], max_rows: int, name: str) -> dict | None:
+    """Build and parse a delete list from submitted position numbers."""
+    cleaned = []
+    seen = set()
+    for v in values:
+        t = str(v).strip()
+        if not t:
+            continue
+        if re.fullmatch(r"[+-]?\d+", t) is None:
+            raise AnalysisError(f"Nomor baris '{v}' bukan bilangan bulat.")
+        n = int(t)
+        if n < 1 or n > max_rows:
+            raise AnalysisError(f"Nomor baris {n} di luar rentang 1 sampai {max_rows}.")
+        if n not in seen:
+            seen.add(n)
+            cleaned.append(n)
+    if not cleaned:
+        return None
+    cleaned.sort()
+    content = "".join(f"{n}\n" for n in cleaned).encode("utf-8")
+    return parse_delete_list(name, content)
+
+
+def anchors_from_positions(
+    pos_values: list[str], value_values: list[str], item_labels: list[str]
+) -> dict | None:
+    """Build and parse anchor values from submitted position numbers and logit values."""
+    lines = []
+    for p_raw, v_raw in zip(pos_values, value_values):
+        v = str(v_raw).strip()
+        if not v:
+            continue
+        p = str(p_raw).strip()
+        if re.fullmatch(r"[+-]?\d+", p) is None:
+            raise AnalysisError(f"Nomor butir '{p}' pada pilihan jangkar bukan bilangan bulat.")
+        lines.append(f"{p} {v}\n")
+    if not lines:
+        return None
+    content = "".join(lines).encode("utf-8")
+    return parse_anchors(PICK_ANCHOR_NAME, content, item_labels)
 
 
 def write_inputs(
