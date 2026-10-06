@@ -2953,7 +2953,7 @@ label[for="wright-misfit-toggle"] {
 }
 
 .pick-row--anchor {
-  grid-template-columns: 44px 4.5ch minmax(0, 1fr) minmax(96px, 130px);
+  grid-template-columns: 44px 4.5ch minmax(0, 1fr) minmax(var(--space-24), 130px);
 }
 
 .pick-row--head {
