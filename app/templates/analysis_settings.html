@@ -5,6 +5,7 @@
 
 {% block head %}
 <script src="/static/settings-presets.js" defer></script>
+<script src="/static/settings-picker.js" defer></script>
 {% endblock %}
 
 {% block content %}
@@ -70,11 +71,43 @@
       <p class="field-hint">Satu baris per butir: nomor butir (1 sampai jumlah butir) atau nama kolom butir, lalu nilai jangkarnya berupa angka. Boleh dicampur dalam satu berkas. Maksimal 64 KB dan 5000 baris. Berbeda dengan daftar hapus, nilai jangkarnya disimpan bersama analisis ini supaya bisa dipakai ulang tanpa mengunggah ulang.</p>
     </div>
 
+    <div class="field">
+      <span class="field-label" id="pd-picker-label">Daftar hapus peserta dari data terparsing</span>
+      <p class="field-hint">Centang peserta yang mau dikeluarkan sebelum penilaian. Nomor baris mengikuti urutan data yang sudah dibaca. Pilihan ini dipakai bila berkas daftar hapus peserta di atas tidak diunggah.</p>
+      <div class="pick-list" id="pd-picker" role="group" aria-labelledby="pd-picker-label" data-n-persons="{{ dataset.n_persons }}">
+        <noscript><p class="field-hint">Pemilih daftar memerlukan JavaScript. Sebagai alternatif, unggah berkas daftar hapus seperti di atas.</p></noscript>
+        <script type="application/json" id="pd-picker-data">{{ person_labels | tojson }}</script>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Daftar hapus butir dan jangkar butir dari data terparsing</span>
+      <p class="field-hint">Centang butir yang mau dikeluarkan, lalu isi kolom Nilai jangkar dengan angka bila butir perlu dikunci. Kosongkan kolom bila tidak ada jangkar. Berkas jangkar yang diunggah di atas menimpa pilihan ini, dan pilihan ini menimpa kotak bawa jangkar di bawah.</p>
+      <div class="pick-list">
+        <div class="pick-row pick-row--anchor pick-row--head" aria-hidden="true">
+          <span class="field-label"></span>
+          <span class="field-label">No.</span>
+          <span class="field-label">Nama butir</span>
+          <span class="field-label">Nilai jangkar</span>
+        </div>
+        {% for lbl in picker_item_labels %}
+        <label class="field-label pick-row pick-row--anchor">
+          <input type="checkbox" name="id_pick" value="{{ loop.index }}">
+          <span class="sr-only">Hapus butir </span>
+          <span class="pick-pos">{{ loop.index }}</span>
+          <span class="mono">{{ lbl }}</span>
+          <input type="hidden" name="anchor_pos" value="{{ loop.index }}">
+          <input type="number" step="any" class="field-input" name="anchor_value" aria-label="Nilai jangkar {{ lbl }}">
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
     {% if inherit_anchors_id %}
     <div class="field field--toggle">
       <input type="checkbox" id="inherit_anchors" name="inherit_anchors" value="{{ inherit_anchors_id }}" checked>
       <label class="field-label" for="inherit_anchors">Bawa jangkar dari analisis sebelumnya</label>
-      <p class="field-hint">Berkas jangkar: <span class="mono">{{ params.anchors.name }}</span> ({{ params.anchors.requested | id_num }} butir). Hilangkan centang untuk analisis tanpa jangkar; mengunggah berkas baru menimpa pilihan ini.</p>
+      <p class="field-hint">Berkas jangkar: <span class="mono">{{ params.anchors.name }}</span> ({{ params.anchors.requested | id_num }} butir). Hilangkan centang untuk analisis tanpa jangkar; mengunggah berkas baru menimpa pilihan ini. Mengisi kolom nilai jangkar pada daftar butir juga menimpa pilihan ini.</p>
     </div>
     {% endif %}
 
