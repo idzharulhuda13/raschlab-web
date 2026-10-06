@@ -2929,3 +2929,45 @@ label[for="wright-misfit-toggle"] {
     font-size: var(--step-40);
   }
 }
+
+.pick-list {
+  max-height: 70vh;
+  overflow-y: auto;
+  border: 1px solid var(--control);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.pick-row {
+  display: grid;
+  grid-template-columns: 44px 4.5ch minmax(0, 1fr);
+  column-gap: var(--space-2);
+  align-items: center;
+  min-height: 44px;
+  border-block-end: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.pick-row:hover {
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+
+.pick-row--anchor {
+  grid-template-columns: 44px 4.5ch minmax(0, 1fr) minmax(96px, 130px);
+}
+
+.pick-row--head {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+}
+
+.pick-row--head .field-label {
+  margin-bottom: 0;
+}
+
+.pick-pos {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
