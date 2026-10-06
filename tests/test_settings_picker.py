@@ -175,6 +175,7 @@ def test_picker_run_reaches_the_engine_and_records_metadata(client: TestClient, 
     with SessionLocal() as db:
         analysis = db.get(Analysis, analysis_id)
         assert analysis is not None
+        assert analysis.status == "done"
         params = json.loads(analysis.params_json)
         assert params["pdfile"] == {
             "name": "peserta-dipilih.txt",
@@ -311,6 +312,71 @@ def test_picker_rejects_a_non_numeric_anchor_value(client: TestClient, recorder)
     assert len(recorder) == 0
 
 
+def test_picker_rejects_mismatched_anchor_lists(client: TestClient, recorder):
+    _create_authenticated_user(client)
+    dataset_id = _upload_and_commit_sample(client)
+
+    resp = client.post(
+        f"/datasets/{dataset_id}/analyze",
+        data={
+            "anchor_pos": ["1", "2"],
+            "anchor_value": ["0.5"],
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 422
+    assert "Jumlah posisi butir dan nilai jangkar tidak cocok" in resp.text
+
+    with SessionLocal() as db:
+        count = db.scalar(select(func.count(Analysis.id)).where(Analysis.dataset_id == dataset_id))
+        assert count == 0
+
+    assert len(recorder) == 0
+
+
+def test_rejected_settings_post_preserves_picker_selections_and_anchor_values(client: TestClient):
+    _create_authenticated_user(client)
+    dataset_id = _upload_and_commit_sample(client)
+
+    resp = client.post(
+        f"/datasets/{dataset_id}/analyze",
+        data={
+            "misfit": "-1",
+            "pd_pick": ["3", "7"],
+            "id_pick": ["2", "5"],
+            "anchor_pos": ["1", "2"],
+            "anchor_value": ["0.5", "-1.25"],
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 422
+    html = resp.text
+
+    match = re.search(r"data-picks='([^']*)'", html)
+    assert match is not None
+    assert json.loads(match.group(1)) == ["3", "7"]
+    assert 'name="id_pick" value="2" checked' in html
+    assert 'name="id_pick" value="5" checked' in html
+    assert 'name="anchor_value" aria-label="Nilai jangkar I01" value="0.5"' in html
+    assert 'name="anchor_value" aria-label="Nilai jangkar I02" value="-1.25"' in html
+
+
+def test_rejected_bad_anchor_value_survives_in_input(client: TestClient):
+    _create_authenticated_user(client)
+    dataset_id = _upload_and_commit_sample(client)
+
+    resp = client.post(
+        f"/datasets/{dataset_id}/analyze",
+        data={
+            "anchor_pos": ["1"],
+            "anchor_value": ["abc"],
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 422
+    assert 'name="anchor_value" aria-label="Nilai jangkar I01" value="abc"' in resp.text
+
+
 def test_picker_and_upload_produce_identical_engine_input(client: TestClient, recorder):
     _create_authenticated_user(client)
     dataset_id = _upload_and_commit_sample(client)
@@ -349,6 +415,8 @@ def test_picker_and_upload_produce_identical_engine_input(client: TestClient, re
         analysis_a = db.get(Analysis, aid_a)
         analysis_b = db.get(Analysis, aid_b)
         assert analysis_a is not None and analysis_b is not None
+        assert analysis_a.status == "done"
+        assert analysis_b.status == "done"
         params_a = json.loads(analysis_a.params_json)
         params_b = json.loads(analysis_b.params_json)
         assert params_a["pdfile"] == params_b["pdfile"]

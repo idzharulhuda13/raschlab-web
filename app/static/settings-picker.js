@@ -12,6 +12,22 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  var picksAttr = picker.getAttribute('data-picks');
+  var picks = [];
+  if (picksAttr) {
+    try {
+      picks = JSON.parse(picksAttr);
+    } catch (e) {
+      picks = [];
+    }
+  }
+  var pickSet = {};
+  if (Array.isArray(picks)) {
+    for (var p = 0; p < picks.length; p++) {
+      pickSet[String(picks[p])] = true;
+    }
+  }
+
   var nAttr = picker.getAttribute('data-n-persons');
   var n = nAttr ? parseInt(nAttr, 10) : labels.length;
 
@@ -40,6 +56,9 @@ document.addEventListener('DOMContentLoaded', function () {
     checkbox.type = 'checkbox';
     checkbox.name = 'pd_pick';
     checkbox.value = String(i);
+    if (pickSet[String(i)]) {
+      checkbox.checked = true;
+    }
     row.appendChild(checkbox);
 
     var srOnly = document.createElement('span');

@@ -621,6 +621,8 @@ def anchors_from_positions(
     pos_values: list[str], value_values: list[str], item_labels: list[str]
 ) -> dict | None:
     """Build and parse anchor values from submitted position numbers and logit values."""
+    if len(pos_values) != len(value_values):
+        raise AnalysisError("Jumlah posisi butir dan nilai jangkar tidak cocok.")
     lines = []
     for p_raw, v_raw in zip(pos_values, value_values):
         v = str(v_raw).strip()

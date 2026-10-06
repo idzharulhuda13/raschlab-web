@@ -400,11 +400,23 @@ def post_dataset_analyze(
     def settings_error(message: str) -> HTMLResponse:
         context = _build_dataset_context(request, user, dataset)
         context.update(_picker_context(dataset))
+        anchor_map = {
+            str(p).strip(): str(v).strip()
+            for p, v in zip(anchor_pos or [], anchor_value or [])
+            if str(v).strip()
+        }
         context.update(
             {
                 "params": dict(PARAMS_DEFAULT),
                 "misfit_input": f"{float(PARAMS_DEFAULT['misfit']):.2f}",
-                "submitted": {"misfit": misfit, "mode": mode, "digits": digits},
+                "submitted": {
+                    "misfit": misfit,
+                    "mode": mode,
+                    "digits": digits,
+                    "pd_pick": [str(x) for x in (pd_pick or [])],
+                    "id_pick": [str(x) for x in (id_pick or [])],
+                    "anchor_values": anchor_map,
+                },
                 "error": message,
                 "defaults": {
                     "misfit": format_threshold(MISFIT_THRESHOLD_DEFAULT),
