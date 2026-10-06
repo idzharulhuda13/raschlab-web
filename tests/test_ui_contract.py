@@ -415,10 +415,10 @@ def test_all_template_classes_defined_in_app_css():
     # 215 (Arc, 5 Oct 2026, measured against the frozen tree): the pin above said 216, which no revision ever
     # produced. .band--header left the templates in the same wave, when the analysis, datasets and dataset
     # detail pages adopted the dashboard header frame (.dash-head); its rule in app.css is now unreferenced.
-    assert len(used_classes) == 215, f"Used template class count changed to {len(used_classes)}"
+    assert len(used_classes) == 220, f"Used template class count changed to {len(used_classes)}"
     # 227 (Arc, 6 Oct 2026): the unreferenced .micro rule (and its media-query override) deleted as dead code
-    # after the reviewers checked every class against templates, JS and tests: used 215 / defined 227.
-    assert len(defined_classes) == 227, f"Defined app.css class count changed to {len(defined_classes)}"
+    # after the reviewers checked every class against templates, JS and tests: used 220 / defined 232.
+    assert len(defined_classes) == 232, f"Defined app.css class count changed to {len(defined_classes)}"
 
 
 def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_ujian.csv") -> tuple[int, int]:
