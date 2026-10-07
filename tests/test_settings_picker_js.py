@@ -211,6 +211,92 @@ def test_escape_closes_dialog_and_returns_focus_to_open_button(client: TestClien
         browser.close()
 
 
+def test_escape_with_search_text_closes_dialog_and_preserves_query(client: TestClient, tmp_path: pathlib.Path):
+    T._create_authenticated_user(client)
+    dataset_id = T._upload_and_commit_sample(client)
+
+    resp = client.get(f"/datasets/{dataset_id}/analysis-settings")
+    assert resp.status_code == 200
+    html = _inline_assets(resp.text)
+
+    html_file = tmp_path / "settings_escape_text.html"
+    html_file.write_text(html, encoding="utf-8")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        _load_settings_page(page, html_file, client)
+
+        open_btn = page.locator('.pick-open[data-kind="persons"]')
+        open_btn.click()
+
+        dialog = page.locator('#picker-dialog')
+        assert dialog.is_visible()
+
+        search_input = page.locator('#picker-search')
+        search_input.fill("P000")
+        assert search_input.input_value() == "P000"
+
+        # Press Escape once
+        page.keyboard.press("Escape")
+
+        # Dialog must close despite non-empty search input
+        assert not dialog.is_visible()
+
+        # Focus returns to the .pick-open button that opened it
+        focused_el = page.evaluate("() => document.activeElement.getAttribute('data-kind')")
+        assert focused_el == "persons"
+
+        # Typed text is still in input, not cleared by default escape action
+        assert search_input.input_value() == "P000"
+
+        browser.close()
+
+
+def test_escape_after_pagination_with_search_text_closes_dialog(client: TestClient, tmp_path: pathlib.Path):
+    T._create_authenticated_user(client)
+    dataset_id = T._upload_and_commit_sample(client)
+
+    resp = client.get(f"/datasets/{dataset_id}/analysis-settings")
+    assert resp.status_code == 200
+    html = _inline_assets(resp.text)
+
+    html_file = tmp_path / "settings_escape_paginated.html"
+    html_file.write_text(html, encoding="utf-8")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        _load_settings_page(page, html_file, client)
+
+        open_btn = page.locator('.pick-open[data-kind="persons"]')
+        open_btn.click()
+
+        dialog = page.locator('#picker-dialog')
+        assert dialog.is_visible()
+        page.wait_for_selector('#picker-results .pick-row')
+
+        # Click "Muat 5 lagi" once so list has more than one page
+        page.locator('#picker-more').click()
+        page.wait_for_timeout(300)
+        assert page.locator('#picker-results .pick-row').count() > 5
+
+        # Type text in search box and ensure focus is in search box
+        search_input = page.locator('#picker-search')
+        search_input.fill("P000")
+        search_input.focus()
+
+        # Press Escape with focus in search box holding text
+        page.keyboard.press("Escape")
+
+        # Dialog must be closed
+        assert not dialog.is_visible()
+
+        browser.close()
+
+
 def test_rejected_settings_restore_participants_and_items_in_browser(client: TestClient, tmp_path: pathlib.Path):
     T._create_authenticated_user(client)
     dataset_id = T._upload_and_commit_sample(client)

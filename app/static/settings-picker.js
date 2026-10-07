@@ -755,6 +755,13 @@
       closeDialog();
     });
 
+    dialog.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        e.preventDefault();
+        closeDialog();
+      }
+    });
+
     // Search input with 150ms debounce
     if (searchInput) {
       searchInput.addEventListener('input', function () {
