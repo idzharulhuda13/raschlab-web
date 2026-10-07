@@ -476,6 +476,14 @@ Blue was the previous e-mail link colour (`#0B6C8F`); it exists in no token bloc
   one closing line saying every analysis keeps its own settings. Existing form classes only, so the class pins stay
   put. The threshold is a number the user typed, never a badge, and it renders with a comma decimal separator
   (`1,50`). Defaults are visible, not implied: the form opens filled with `1,50` / `compat` / `2`.
+- **Picker dialog (F22, 7 Oct 2026)**: a single work-surface modal dialog (`#picker-dialog`) that serves the three
+  optional inputs (persons delete-list, items delete-list, and anchors). Opens via `showModal()` when clicking a row's
+  "Pilih..." button; closes on Escape (native `cancel`), the `[data-close]` button ("Tutup"), or a click on the
+  backdrop (`::backdrop` tinted with `--paper` at 75%, reading as a dimmed page, not a second colour). Work surface
+  with `--surface` fill, `--control` border, `--radius-lg`, no shadow stack, no glass, no transition or animation
+  (appears instantly). Search input receives initial focus on open; result rows hold at most 5 items in DOM with a
+  "Muat 5 lagi" pagination button and polite status live region. Selection chips in `#picker-chosen` provide 44px
+  removal buttons (`.chip-remove`) and number inputs for anchor values; carriers synchronize invisibly inside the form.
 
 ## States (required, not bonus)
 
@@ -542,6 +550,9 @@ headers; `aria-live="polite"` on upload and commit status; contrast per the meas
 themes; tap targets ≥44px on mobile; **no horizontal overflow at 390px and none at desktop**; reduced
 motion honoured; no information carried by colour alone; framework debug routes (`/docs`, `/redoc`,
 `/openapi.json`) off outside dev.
+In `#picker-dialog`: Escape closes the dialog, focus returns to the button that opened it, all controls
+and result rows are reachable by Tab, focus-visible ring is never removed, and selected rows are distinguished
+by both `--accent-soft` fill and a 3px `--accent` left indicator border rather than colour alone.
 
 ## Swap test
 

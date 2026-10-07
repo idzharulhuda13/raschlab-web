@@ -787,12 +787,41 @@ Consolidation of analysis results into a single reading surface (`/analyses/{id}
 
 ## F21: analysis-settings optional-input picker (6 Oct 2026)
 
-- GET `/datasets/{id}/analysis-settings`: new template context keys `person_labels` (list[str], read from the stored matrix, `[]` when absent) and `picker_item_labels` (equals `effective_item_labels`).
-- POST `/datasets/{id}/analyze`: new optional form fields `pd_pick` (1..n_persons, checkbox value), `id_pick` (1..n_items), `anchor_pos` + `anchor_value` (parallel lists, blank value = no anchor for that row), all validated with Indonesian copy by `delete_list_from_positions` / `anchors_from_positions` in `app/analysis.py` BEFORE the rate limit; invalid input re-renders `analysis_settings.html` (422).
-- Precedence: per delete-list key upload > picker; anchors upload > picker > `inherit_anchors`.
-- Synthetic record names: `peserta-dipilih.txt`, `butir-dipilih.txt`, `jangkar-dipilih.txt`.
-- Record shapes and `params_json` keys: identical to the upload path (frozen `params_json` row therefore unchanged).
-- Static assets and DOM: static file `/static/settings-picker.js`, element ids `#pd-picker`, `#pd-picker-data`, `#pd-filter` (created by JS).
-- Schema & engine: no schema, no migration, no engine change, anchor `used`/warning path unchanged.
+- GET `/datasets/{id}/analysis-settings`: new template context keys `person_labels` (list[str], read from the stored matrix, `[]` when absent) and `picker_item_labels` (equals `effective_item_labels`). [Superseded in F22: person_labels and picker_item_labels are no longer dumped into the template; lookups query the new route GET /datasets/{id}/picker on demand].
+- POST `/datasets/{id}/analyze`: new optional form fields `pd_pick` (1..n_persons, checkbox value), `id_pick` (1..n_items), `anchor_pos` + `anchor_value` (parallel lists, blank value = no anchor for that row), all validated with Indonesian copy by `delete_list_from_positions` / `anchors_from_positions` in `app/analysis.py` BEFORE the rate limit; invalid input re-renders `analysis_settings.html` (422). [Preserved byte for byte in F22].
+- Precedence: per delete-list key upload > picker; anchors upload > picker > `inherit_anchors`. [Preserved in F22].
+- Synthetic record names: `peserta-dipilih.txt`, `butir-dipilih.txt`, `jangkar-dipilih.txt`. [Preserved in F22].
+- Record shapes and `params_json` keys: identical to the upload path (frozen `params_json` row therefore unchanged). [Preserved in F22].
+- Static assets and DOM: static file `/static/settings-picker.js`, element ids `#pd-picker`, `#pd-picker-data`, `#pd-filter` (created by JS). [Superseded in F22: #pd-picker, #pd-picker-data, #pd-filter are removed; replaced by three .pick-field rows and one reusable #picker-dialog].
+- Schema & engine: no schema, no migration, no engine change, anchor `used`/warning path unchanged. [Preserved in F22].
 - Verification commands: the full suite plus `tests/test_settings_picker.py`.
+
+## F22: Unified search popup picker and bounded DOM (7 Oct 2026)
+
+Replaces the F21 DOM description while preserving the POST contract byte for byte.
+
+### 1. New route: `GET /datasets/{id}/picker`
+- Parameters: `kind=persons|items`, `q=<search string>`, `offset=<integer>`.
+- Response (200 JSON):
+  `{"kind":"persons|items","total":<int>,"offset":<int>,"limit":5,"has_more":<bool>,"items":[{"pos":<int>,"label":<str>}]}`
+- `limit`: server-side fixed at 5.
+- Guards: same authentication and ownership checks as `/datasets/{id}/analysis-settings` (gate closed, anonymous, or non-owner produces 303/404); rate-limited using standard IP helper; invalid `kind` returns 400.
+- Source of truth: `effective_person_labels` / `effective_item_labels` from stored matrix.
+
+### 2. DOM structure
+- Three compact one-line rows on `analysis_settings.html`:
+  `.pick-field[data-kind="persons"]`, `.pick-field[data-kind="items"]`, `.pick-field[data-kind="anchors"]`.
+  Each row contains `.field-label`, `.pick-summary[data-summary="..."]`, and `.btn.btn--quiet.pick-open[data-kind="..."]`.
+- Single reusable dialog `#picker-dialog`:
+  Contains `#picker-title`, close button `[data-close]`, search input `#picker-search`, live status `#picker-status`,
+  results container `#picker-results` (holds at most 5 `.pick-row` items), load-more button `#picker-more`, chosen
+  chips container `#picker-chosen`, file upload section `#picker-file` (`#pdfile`, `#idfile`, `#anchors`), and hidden
+  form carriers `#picker-carriers` (`pd_pick`, `id_pick`, `anchor_pos`, `anchor_value`).
+- Retired IDs: `#pd-picker`, `#pd-picker-data`, `#pd-filter` are gone.
+
+### 3. Interaction and accessibility contract
+- Trigger: clicking `.pick-open` opens `#picker-dialog` via `showModal()`, focuses `#picker-search`, and loads first 5 items.
+- Dismiss: Escape, `[data-close]` button, or backdrop click closes dialog without submitting; focus returns to the opening trigger button.
+- Result rows: 44px minimum touch target, keyboard reachable by Tab, focus-visible outline retained, selected rows visually distinguishable by both `--accent-soft` background and a 3px `--accent` left boundary.
+- Chosen chips: chips in `#picker-chosen` contain 44px removal buttons (`.chip-remove`); anchors chip row carries number inputs for anchor values with direct synchronization to `anchor_value` hidden carriers.
 
