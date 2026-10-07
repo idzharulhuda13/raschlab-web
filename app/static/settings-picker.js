@@ -52,6 +52,34 @@
     }
 
     function syncCarriers(kind) {
+      if (kind === 'anchors') {
+        var existingPos = carriersContainer.querySelectorAll('input[name="anchor_pos"]');
+        existingPos.forEach(function (el) { el.remove(); });
+        var existingVal = carriersContainer.querySelectorAll('input[name="anchor_value"]');
+        existingVal.forEach(function (el) { el.remove(); });
+
+        var kindSel = selections.anchors;
+        var positions = Object.keys(kindSel).sort(function (a, b) {
+          return parseInt(a, 10) - parseInt(b, 10);
+        });
+
+        positions.forEach(function (pos) {
+          var item = kindSel[pos];
+          var posInput = document.createElement('input');
+          posInput.type = 'hidden';
+          posInput.name = 'anchor_pos';
+          posInput.value = pos;
+          carriersContainer.appendChild(posInput);
+
+          var valInput = document.createElement('input');
+          valInput.type = 'hidden';
+          valInput.name = 'anchor_value';
+          valInput.value = item.value != null ? item.value : '';
+          carriersContainer.appendChild(valInput);
+        });
+        return;
+      }
+
       var carrierName = carrierNameForKind(kind);
       if (!carrierName) return;
 
@@ -76,7 +104,11 @@
       var summaryEl = document.querySelector('.pick-summary[data-summary="' + kind + '"]');
       if (!summaryEl) return;
       var count = Object.keys(selections[kind]).length;
-      summaryEl.textContent = count > 0 ? (count + ' dipilih') : 'Belum ada';
+      if (kind === 'anchors') {
+        summaryEl.textContent = count > 0 ? (count + ' jangkar') : 'Belum ada';
+      } else {
+        summaryEl.textContent = count > 0 ? (count + ' dipilih') : 'Belum ada';
+      }
     }
 
     function renderChips() {
@@ -84,52 +116,194 @@
       chosenEl.innerHTML = '';
       if (!currentKind) return;
 
-      var kindSel = selections[currentKind];
-      var positions = Object.keys(kindSel).sort(function (a, b) {
-        return parseInt(a, 10) - parseInt(b, 10);
-      });
-
       var chipRow = document.createElement('div');
       chipRow.className = 'chip-row';
 
-      positions.forEach(function (pos) {
-        var item = kindSel[pos];
-        var chip = document.createElement('span');
-        chip.className = 'chip';
-        chip.setAttribute('data-pos', pos);
-
-        var labelSpan = document.createElement('span');
-        labelSpan.textContent = item.label || pos;
-        chip.appendChild(labelSpan);
-
-        var removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'chip-remove';
-        removeBtn.setAttribute('aria-label', 'Hapus ' + (item.label || pos));
-        removeBtn.textContent = '×';
-        removeBtn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          delete kindSel[pos];
-          syncCarriers(currentKind);
-          updateRowSummary(currentKind);
-          renderChips();
-          syncCheckboxesInResults();
+      if (currentKind === 'anchors') {
+        var kindSel = selections.anchors;
+        var positions = Object.keys(kindSel).sort(function (a, b) {
+          return parseInt(a, 10) - parseInt(b, 10);
         });
 
-        chip.appendChild(removeBtn);
-        chipRow.appendChild(chip);
-      });
+        positions.forEach(function (pos) {
+          var item = kindSel[pos];
+          var chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.setAttribute('data-pos', pos);
+
+          var labelSpan = document.createElement('span');
+          labelSpan.textContent = item.label || pos;
+          chip.appendChild(labelSpan);
+
+          var numInput = document.createElement('input');
+          numInput.type = 'number';
+          numInput.step = 'any';
+          numInput.className = 'field-input';
+          numInput.setAttribute('data-pos', pos);
+          numInput.setAttribute('aria-label', 'Nilai jangkar ' + (item.label || pos));
+          numInput.setAttribute('value', item.value != null ? item.value : '');
+          numInput.value = item.value != null ? item.value : '';
+
+          function handleValueChange() {
+            item.value = numInput.value;
+            numInput.setAttribute('value', numInput.value);
+            syncCarriers('anchors');
+          }
+          numInput.addEventListener('input', handleValueChange);
+          numInput.addEventListener('change', handleValueChange);
+          chip.appendChild(numInput);
+
+          var removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'chip-remove';
+          removeBtn.setAttribute('aria-label', 'Hapus jangkar ' + (item.label || pos));
+          removeBtn.textContent = '×';
+          removeBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            delete kindSel[pos];
+            syncCarriers('anchors');
+            updateRowSummary('anchors');
+            renderChips();
+            syncCheckboxesInResults();
+          });
+
+          chip.appendChild(removeBtn);
+          chipRow.appendChild(chip);
+        });
+      } else if (currentKind === 'items') {
+        var itemPositions = Object.keys(selections.items).sort(function (a, b) {
+          return parseInt(a, 10) - parseInt(b, 10);
+        });
+
+        itemPositions.forEach(function (pos) {
+          var item = selections.items[pos];
+          var chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.setAttribute('data-pos', pos);
+
+          var labelSpan = document.createElement('span');
+          labelSpan.textContent = item.label || pos;
+          chip.appendChild(labelSpan);
+
+          var removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'chip-remove';
+          removeBtn.setAttribute('aria-label', 'Hapus ' + (item.label || pos));
+          removeBtn.textContent = '×';
+          removeBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            delete selections.items[pos];
+            syncCarriers('items');
+            updateRowSummary('items');
+            renderChips();
+            syncCheckboxesInResults();
+          });
+
+          chip.appendChild(removeBtn);
+          chipRow.appendChild(chip);
+        });
+
+        var anchorPositions = Object.keys(selections.anchors).sort(function (a, b) {
+          return parseInt(a, 10) - parseInt(b, 10);
+        });
+
+        anchorPositions.forEach(function (pos) {
+          var item = selections.anchors[pos];
+          var chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.setAttribute('data-pos', pos);
+          chip.setAttribute('data-kind', 'anchor');
+
+          var labelSpan = document.createElement('span');
+          labelSpan.textContent = item.label || pos;
+          chip.appendChild(labelSpan);
+
+          var numInput = document.createElement('input');
+          numInput.type = 'number';
+          numInput.step = 'any';
+          numInput.className = 'field-input';
+          numInput.setAttribute('data-pos', pos);
+          numInput.setAttribute('aria-label', 'Nilai jangkar ' + (item.label || pos));
+          numInput.setAttribute('value', item.value != null ? item.value : '');
+          numInput.value = item.value != null ? item.value : '';
+
+          function handleValueChange() {
+            item.value = numInput.value;
+            numInput.setAttribute('value', numInput.value);
+            syncCarriers('anchors');
+          }
+          numInput.addEventListener('input', handleValueChange);
+          numInput.addEventListener('change', handleValueChange);
+          chip.appendChild(numInput);
+
+          var removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'chip-remove';
+          removeBtn.setAttribute('aria-label', 'Hapus jangkar ' + (item.label || pos));
+          removeBtn.textContent = '×';
+          removeBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            delete selections.anchors[pos];
+            syncCarriers('anchors');
+            updateRowSummary('anchors');
+            renderChips();
+            syncCheckboxesInResults();
+          });
+
+          chip.appendChild(removeBtn);
+          chipRow.appendChild(chip);
+        });
+      } else {
+        var kindSel = selections[currentKind];
+        var positions = Object.keys(kindSel).sort(function (a, b) {
+          return parseInt(a, 10) - parseInt(b, 10);
+        });
+
+        positions.forEach(function (pos) {
+          var item = kindSel[pos];
+          var chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.setAttribute('data-pos', pos);
+
+          var labelSpan = document.createElement('span');
+          labelSpan.textContent = item.label || pos;
+          chip.appendChild(labelSpan);
+
+          var removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'chip-remove';
+          removeBtn.setAttribute('aria-label', 'Hapus ' + (item.label || pos));
+          removeBtn.textContent = '×';
+          removeBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            delete kindSel[pos];
+            syncCarriers(currentKind);
+            updateRowSummary(currentKind);
+            renderChips();
+            syncCheckboxesInResults();
+          });
+
+          chip.appendChild(removeBtn);
+          chipRow.appendChild(chip);
+        });
+      }
 
       chosenEl.appendChild(chipRow);
     }
 
     function syncCheckboxesInResults() {
       if (!resultsEl || !currentKind) return;
-      var kindSel = selections[currentKind];
       var checkboxes = resultsEl.querySelectorAll('input[type="checkbox"][data-pos]');
       checkboxes.forEach(function (cb) {
         var pos = cb.getAttribute('data-pos');
-        cb.checked = !!kindSel[pos];
+        var action = cb.getAttribute('data-action');
+        if (action === 'anchor') {
+          cb.checked = !!(selections.anchors && selections.anchors[pos]);
+        } else if (action === 'delete') {
+          cb.checked = !!(selections.items && selections.items[pos]);
+        } else {
+          cb.checked = !!(selections[currentKind] && selections[currentKind][pos]);
+        }
       });
     }
 
@@ -146,6 +320,21 @@
         });
         updateRowSummary(kind);
       });
+
+      var anchorPosInputs = carriersContainer.querySelectorAll('input[name="anchor_pos"]');
+      var anchorValInputs = carriersContainer.querySelectorAll('input[name="anchor_value"]');
+      for (var i = 0; i < anchorPosInputs.length; i++) {
+        var aPos = anchorPosInputs[i].value;
+        var aVal = anchorValInputs[i] ? anchorValInputs[i].value : '';
+        if (aPos) {
+          selections.anchors[aPos] = {
+            pos: aPos,
+            label: aPos,
+            value: aVal
+          };
+        }
+      }
+      updateRowSummary('anchors');
     }
 
     function updateFileSectionVisibility() {
@@ -170,44 +359,164 @@
         var posStr = String(item.pos);
         var labelStr = String(item.label || item.pos);
 
-        var row = document.createElement('label');
-        row.className = 'field--toggle pick-row';
-        row.setAttribute('data-pos', posStr);
-
-        var checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.setAttribute('data-pos', posStr);
-        checkbox.setAttribute('aria-label', (currentKind === 'persons' ? 'Hapus peserta ' : 'Hapus butir ') + labelStr);
-        if (selections[currentKind] && selections[currentKind][posStr]) {
-          checkbox.checked = true;
+        if (selections.anchors[posStr] && item.label) {
+          selections.anchors[posStr].label = labelStr;
+        }
+        if (selections.items[posStr] && item.label) {
+          selections.items[posStr].label = labelStr;
         }
 
-        checkbox.addEventListener('change', function () {
-          if (checkbox.checked) {
-            selections[currentKind][posStr] = { pos: posStr, label: labelStr };
-          } else {
-            delete selections[currentKind][posStr];
+        if (currentKind === 'anchors') {
+          var row = document.createElement('label');
+          row.className = 'field--toggle pick-row pick-row--anchor';
+          row.setAttribute('data-pos', posStr);
+
+          var checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.setAttribute('data-pos', posStr);
+          checkbox.setAttribute('data-action', 'anchor');
+          checkbox.setAttribute('aria-label', 'Jadikan jangkar ' + labelStr);
+          if (selections.anchors && selections.anchors[posStr]) {
+            checkbox.checked = true;
           }
-          syncCarriers(currentKind);
-          updateRowSummary(currentKind);
-          renderChips();
-        });
 
-        row.appendChild(checkbox);
+          checkbox.addEventListener('change', function () {
+            if (checkbox.checked) {
+              var prevVal = selections.anchors[posStr] ? selections.anchors[posStr].value : '';
+              selections.anchors[posStr] = { pos: posStr, label: labelStr, value: prevVal || '' };
+            } else {
+              delete selections.anchors[posStr];
+            }
+            syncCarriers('anchors');
+            updateRowSummary('anchors');
+            renderChips();
+          });
 
-        var posSpan = document.createElement('span');
-        posSpan.className = 'pick-pos';
-        posSpan.textContent = posStr;
-        row.appendChild(posSpan);
+          row.appendChild(checkbox);
 
-        if (labelStr && labelStr !== posStr) {
+          var posSpan = document.createElement('span');
+          posSpan.className = 'pick-pos';
+          posSpan.textContent = posStr;
+          row.appendChild(posSpan);
+
           var monoSpan = document.createElement('span');
           monoSpan.className = 'mono';
-          monoSpan.textContent = labelStr;
+          monoSpan.textContent = (labelStr && labelStr !== posStr) ? labelStr : '';
           row.appendChild(monoSpan);
-        }
 
-        resultsEl.appendChild(row);
+          var textSpan = document.createElement('span');
+          textSpan.className = 'sec';
+          textSpan.textContent = 'Jadikan jangkar';
+          row.appendChild(textSpan);
+
+          resultsEl.appendChild(row);
+        } else if (currentKind === 'items') {
+          var row = document.createElement('div');
+          row.className = 'field--toggle pick-row pick-row--anchor';
+          row.setAttribute('data-pos', posStr);
+
+          var delLabel = document.createElement('label');
+          delLabel.className = 'field--toggle';
+          var delCheckbox = document.createElement('input');
+          delCheckbox.type = 'checkbox';
+          delCheckbox.setAttribute('data-pos', posStr);
+          delCheckbox.setAttribute('data-action', 'delete');
+          delCheckbox.setAttribute('aria-label', 'Hapus butir ' + labelStr);
+          if (selections.items && selections.items[posStr]) {
+            delCheckbox.checked = true;
+          }
+          delCheckbox.addEventListener('change', function () {
+            if (delCheckbox.checked) {
+              selections.items[posStr] = { pos: posStr, label: labelStr };
+            } else {
+              delete selections.items[posStr];
+            }
+            syncCarriers('items');
+            updateRowSummary('items');
+            renderChips();
+          });
+          delLabel.appendChild(delCheckbox);
+          row.appendChild(delLabel);
+
+          var posSpan = document.createElement('span');
+          posSpan.className = 'pick-pos';
+          posSpan.textContent = posStr;
+          row.appendChild(posSpan);
+
+          var monoSpan = document.createElement('span');
+          monoSpan.className = 'mono';
+          monoSpan.textContent = (labelStr && labelStr !== posStr) ? labelStr : '';
+          row.appendChild(monoSpan);
+
+          var anchorLabel = document.createElement('label');
+          anchorLabel.className = 'field--toggle';
+          var anchorCheckbox = document.createElement('input');
+          anchorCheckbox.type = 'checkbox';
+          anchorCheckbox.setAttribute('data-pos', posStr);
+          anchorCheckbox.setAttribute('data-action', 'anchor');
+          anchorCheckbox.setAttribute('aria-label', 'Jadikan jangkar ' + labelStr);
+          if (selections.anchors && selections.anchors[posStr]) {
+            anchorCheckbox.checked = true;
+          }
+          anchorCheckbox.addEventListener('change', function () {
+            if (anchorCheckbox.checked) {
+              var prevVal = selections.anchors[posStr] ? selections.anchors[posStr].value : '';
+              selections.anchors[posStr] = { pos: posStr, label: labelStr, value: prevVal || '' };
+            } else {
+              delete selections.anchors[posStr];
+            }
+            syncCarriers('anchors');
+            updateRowSummary('anchors');
+            renderChips();
+          });
+          anchorLabel.appendChild(anchorCheckbox);
+          var anchorText = document.createElement('span');
+          anchorText.className = 'sec';
+          anchorText.textContent = 'Jadikan jangkar';
+          anchorLabel.appendChild(anchorText);
+          row.appendChild(anchorLabel);
+
+          resultsEl.appendChild(row);
+        } else {
+          var row = document.createElement('label');
+          row.className = 'field--toggle pick-row';
+          row.setAttribute('data-pos', posStr);
+
+          var checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.setAttribute('data-pos', posStr);
+          checkbox.setAttribute('aria-label', 'Hapus peserta ' + labelStr);
+          if (selections[currentKind] && selections[currentKind][posStr]) {
+            checkbox.checked = true;
+          }
+
+          checkbox.addEventListener('change', function () {
+            if (checkbox.checked) {
+              selections[currentKind][posStr] = { pos: posStr, label: labelStr };
+            } else {
+              delete selections[currentKind][posStr];
+            }
+            syncCarriers(currentKind);
+            updateRowSummary(currentKind);
+            renderChips();
+          });
+
+          row.appendChild(checkbox);
+
+          var posSpan = document.createElement('span');
+          posSpan.className = 'pick-pos';
+          posSpan.textContent = posStr;
+          row.appendChild(posSpan);
+
+          if (labelStr && labelStr !== posStr) {
+            var monoSpan = document.createElement('span');
+            monoSpan.className = 'mono';
+            monoSpan.textContent = labelStr;
+            row.appendChild(monoSpan);
+          }
+
+          resultsEl.appendChild(row);
+        }
       });
 
       // Update picker status text
@@ -229,8 +538,9 @@
       }
       abortCtrl = new AbortController();
 
+      var queryKind = (currentKind === 'anchors') ? 'items' : currentKind;
       var url = '/datasets/' + encodeURIComponent(datasetId) +
-                '/picker?kind=' + encodeURIComponent(currentKind) +
+                '/picker?kind=' + encodeURIComponent(queryKind) +
                 '&q=' + encodeURIComponent(currentQuery) +
                 '&offset=' + encodeURIComponent(offset);
 
