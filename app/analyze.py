@@ -367,6 +367,82 @@ def get_analysis_settings(
     )
 
 
+PICKER_PAGE_LIMIT = 5
+
+
+@router.get("/datasets/{id}/picker")
+def get_dataset_picker(
+    request: Request,
+    id: int,
+    kind: str = "",
+    q: str = "",
+    offset: int = 0,
+    db: Session = Depends(get_session),
+):
+    if _gate_closed():
+        raise HTTPException(status_code=404, detail="Halaman tidak ditemukan.")
+    user = _current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+
+    dataset = db.execute(select(Dataset).where(Dataset.id == id)).scalar_one_or_none()
+    if dataset is None or dataset.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Dataset tidak ditemukan.")
+
+    allowed, retry_after = check_limit(
+        f"analyze:{client_ip(request)}:{user.id}", 12, 3600
+    )
+    if not allowed:
+        return Response(
+            content="Batas analisis tercapai (maksimal 12 per jam). Silakan coba lagi nanti.",
+            status_code=429,
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    if kind not in ("persons", "items"):
+        raise HTTPException(
+            status_code=400,
+            detail="Jenis pilihan harus persons atau items.",
+        )
+
+    if kind == "persons":
+        labels = effective_person_labels(dataset)
+    else:
+        labels = effective_item_labels(dataset)
+
+    query = q.strip() if q else ""
+    if query:
+        q_lower = query.lower()
+        exact_pos = []
+        other_matches = []
+        for pos, label in enumerate(labels, start=1):
+            pos_str = str(pos)
+            is_exact = (pos_str == query)
+            match = is_exact or (query in pos_str) or (q_lower in label.lower())
+            if is_exact:
+                exact_pos.append({"pos": pos, "label": label})
+            elif match:
+                other_matches.append({"pos": pos, "label": label})
+        filtered = exact_pos + other_matches
+    else:
+        filtered = [{"pos": pos, "label": label} for pos, label in enumerate(labels, start=1)]
+
+    total = len(filtered)
+    start_offset = max(0, offset)
+    limit = PICKER_PAGE_LIMIT
+    items = filtered[start_offset : start_offset + limit]
+    has_more = (start_offset + len(items)) < total
+
+    return {
+        "kind": kind,
+        "total": total,
+        "offset": start_offset,
+        "limit": limit,
+        "has_more": has_more,
+        "items": items,
+    }
+
+
 @router.post("/datasets/{id}/analyze")
 def post_dataset_analyze(
     id: int,
