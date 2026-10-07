@@ -23,6 +23,8 @@
     var currentOffset = 0;
     var currentTotal = 0;
     var currentQuery = '';
+    var fetchGeneration = 0;
+    var MAX_RESULTS_CAP = 25;
 
     // Dataset ID extracted from form action (/datasets/{id}/analyze)
     var datasetId = '';
@@ -103,10 +105,17 @@
     function updateRowSummary(kind) {
       var summaryEl = document.querySelector('.pick-summary[data-summary="' + kind + '"]');
       if (!summaryEl) return;
-      var count = Object.keys(selections[kind]).length;
       if (kind === 'anchors') {
-        summaryEl.textContent = count > 0 ? (count + ' jangkar') : 'Belum ada';
+        var validCount = 0;
+        var kindSel = selections.anchors;
+        for (var pos in kindSel) {
+          if (kindSel[pos].value != null && String(kindSel[pos].value).trim() !== '') {
+            validCount++;
+          }
+        }
+        summaryEl.textContent = validCount > 0 ? (validCount + ' jangkar') : 'Belum ada';
       } else {
+        var count = Object.keys(selections[kind]).length;
         summaryEl.textContent = count > 0 ? (count + ' dipilih') : 'Belum ada';
       }
     }
@@ -135,23 +144,41 @@
           labelSpan.textContent = item.label || pos;
           chip.appendChild(labelSpan);
 
+          var hasValue = item.value != null && String(item.value).trim() !== '';
+
+          var emptySpan = document.createElement('span');
+          emptySpan.className = 'sec';
+          emptySpan.textContent = 'belum ada nilai';
+          if (hasValue) {
+            emptySpan.hidden = true;
+          }
+
           var numInput = document.createElement('input');
           numInput.type = 'number';
           numInput.step = 'any';
           numInput.className = 'field-input';
           numInput.setAttribute('data-pos', pos);
           numInput.setAttribute('aria-label', 'Nilai jangkar ' + (item.label || pos));
+          numInput.placeholder = 'belum ada nilai';
           numInput.setAttribute('value', item.value != null ? item.value : '');
           numInput.value = item.value != null ? item.value : '';
 
           function handleValueChange() {
             item.value = numInput.value;
             numInput.setAttribute('value', numInput.value);
+            var isValEmpty = !numInput.value || numInput.value.trim() === '';
+            if (isValEmpty) {
+              emptySpan.hidden = false;
+            } else {
+              emptySpan.hidden = true;
+            }
             syncCarriers('anchors');
+            updateRowSummary('anchors');
           }
           numInput.addEventListener('input', handleValueChange);
           numInput.addEventListener('change', handleValueChange);
           chip.appendChild(numInput);
+          chip.appendChild(emptySpan);
 
           var removeBtn = document.createElement('button');
           removeBtn.type = 'button';
@@ -218,23 +245,41 @@
           labelSpan.textContent = item.label || pos;
           chip.appendChild(labelSpan);
 
+          var hasValue = item.value != null && String(item.value).trim() !== '';
+
+          var emptySpan = document.createElement('span');
+          emptySpan.className = 'sec';
+          emptySpan.textContent = 'belum ada nilai';
+          if (hasValue) {
+            emptySpan.hidden = true;
+          }
+
           var numInput = document.createElement('input');
           numInput.type = 'number';
           numInput.step = 'any';
           numInput.className = 'field-input';
           numInput.setAttribute('data-pos', pos);
           numInput.setAttribute('aria-label', 'Nilai jangkar ' + (item.label || pos));
+          numInput.placeholder = 'belum ada nilai';
           numInput.setAttribute('value', item.value != null ? item.value : '');
           numInput.value = item.value != null ? item.value : '';
 
           function handleValueChange() {
             item.value = numInput.value;
             numInput.setAttribute('value', numInput.value);
+            var isValEmpty = !numInput.value || numInput.value.trim() === '';
+            if (isValEmpty) {
+              emptySpan.hidden = false;
+            } else {
+              emptySpan.hidden = true;
+            }
             syncCarriers('anchors');
+            updateRowSummary('anchors');
           }
           numInput.addEventListener('input', handleValueChange);
           numInput.addEventListener('change', handleValueChange);
           chip.appendChild(numInput);
+          chip.appendChild(emptySpan);
 
           var removeBtn = document.createElement('button');
           removeBtn.type = 'button';
@@ -519,24 +564,24 @@
         }
       });
 
-      // Update picker status text
-      if (statusEl) {
-        if (currentTotal === 0 && items.length === 0) {
-          statusEl.textContent = '';
-        } else {
-          var visibleCount = resultsEl.children.length;
-          statusEl.textContent = visibleCount + ' dari ' + currentTotal;
-        }
-      }
     }
 
     function fetchResults(offset, append) {
       if (!currentKind || !datasetId) return;
+      if (append && resultsEl.children.length >= MAX_RESULTS_CAP) {
+        if (moreBtn) moreBtn.hidden = true;
+        return;
+      }
 
       if (abortCtrl) {
         abortCtrl.abort();
       }
       abortCtrl = new AbortController();
+
+      fetchGeneration++;
+      var thisGen = fetchGeneration;
+      var thisKind = currentKind;
+      var thisQuery = currentQuery;
 
       var queryKind = (currentKind === 'anchors') ? 'items' : currentKind;
       var url = '/datasets/' + encodeURIComponent(datasetId) +
@@ -552,6 +597,9 @@
           return res.json();
         })
         .then(function (data) {
+          if (thisGen !== fetchGeneration || thisKind !== currentKind || thisQuery !== currentQuery || !dialog.open) {
+            return;
+          }
           currentOffset = data.offset;
           currentTotal = data.total;
 
@@ -559,7 +607,7 @@
             resultsEl.innerHTML = '';
           }
 
-          if (data.total === 0 || data.items.length === 0 && !append) {
+          if (data.total === 0 || (data.items.length === 0 && !append)) {
             if (moreBtn) moreBtn.hidden = true;
             if (statusEl) statusEl.textContent = '';
             var emptyP = document.createElement('p');
@@ -573,14 +621,34 @@
             return;
           }
 
-          renderResults(data.items, append);
+          var slotsLeft = MAX_RESULTS_CAP - (append ? resultsEl.children.length : 0);
+          var itemsToRender = data.items.slice(0, slotsLeft);
+          renderResults(itemsToRender, append);
 
-          if (moreBtn) {
-            moreBtn.hidden = !data.has_more;
+          var visibleCount = resultsEl.children.length;
+          if (visibleCount >= MAX_RESULTS_CAP) {
+            if (moreBtn) moreBtn.hidden = true;
+            if (statusEl) {
+              if (visibleCount < currentTotal || data.has_more) {
+                statusEl.textContent = visibleCount + ' dari ' + currentTotal + '. Persempit pencarian untuk melihat yang lain.';
+              } else {
+                statusEl.textContent = visibleCount + ' dari ' + currentTotal;
+              }
+            }
+          } else {
+            if (moreBtn) {
+              moreBtn.hidden = !data.has_more;
+            }
+            if (statusEl) {
+              statusEl.textContent = visibleCount + ' dari ' + currentTotal;
+            }
           }
         })
         .catch(function (err) {
           if (err.name === 'AbortError') return;
+          if (thisGen !== fetchGeneration || thisKind !== currentKind || thisQuery !== currentQuery || !dialog.open) {
+            return;
+          }
           if (!append) {
             resultsEl.innerHTML = '';
           }
@@ -601,11 +669,16 @@
       if (titleEl) {
         titleEl.textContent = titleForKind(kind);
       }
+      if (searchInput) {
+        searchInput.setAttribute('aria-label', titleForKind(kind));
+      }
 
       updateFileSectionVisibility();
       renderChips();
 
       currentQuery = '';
+      currentOffset = 0;
+      currentTotal = 0;
       if (searchInput) {
         searchInput.value = '';
       }
@@ -633,9 +706,11 @@
     }
 
     function closeDialog() {
+      fetchGeneration++;
       if (abortCtrl) {
         abortCtrl.abort();
       }
+      currentKind = null;
       if (dialog.open) {
         if (typeof dialog.close === 'function') {
           dialog.close();
@@ -695,6 +770,10 @@
     if (moreBtn) {
       moreBtn.addEventListener('click', function (e) {
         e.preventDefault();
+        if (resultsEl.children.length >= MAX_RESULTS_CAP) {
+          moreBtn.hidden = true;
+          return;
+        }
         fetchResults(currentOffset + 5, true);
       });
     }

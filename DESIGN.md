@@ -481,9 +481,11 @@ Blue was the previous e-mail link colour (`#0B6C8F`); it exists in no token bloc
   "Pilih..." button; closes on Escape (native `cancel`), the `[data-close]` button ("Tutup"), or a click on the
   backdrop (`::backdrop` tinted with `--paper` at 75%, reading as a dimmed page, not a second colour). Work surface
   with `--surface` fill, `--control` border, `--radius-lg`, no shadow stack, no glass, no transition or animation
-  (appears instantly). Search input receives initial focus on open; result rows hold at most 5 items in DOM with a
-  "Muat 5 lagi" pagination button and polite status live region. Selection chips in `#picker-chosen` provide 44px
-  removal buttons (`.chip-remove`) and number inputs for anchor values; carriers synchronize invisibly inside the form.
+  (appears instantly). Search input receives initial focus on open; result rows hold at most 25 items in DOM across five
+  pages (the cap exists to prevent unbounded DOM growth while allowing progressive exploration; once reached, the button
+  hides and the status region instructs the user to narrow the query) with a "Muat 5 lagi" pagination button and polite
+  status live region. Selection chips in `#picker-chosen` provide 44px removal buttons (`.chip-remove`) and number inputs
+  for anchor values; carriers synchronize invisibly inside the form.
 
 ## States (required, not bonus)
 

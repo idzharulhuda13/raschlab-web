@@ -814,14 +814,15 @@ Replaces the F21 DOM description while preserving the POST contract byte for byt
   Each row contains `.field-label`, `.pick-summary[data-summary="..."]`, and `.btn.btn--quiet.pick-open[data-kind="..."]`.
 - Single reusable dialog `#picker-dialog`:
   Contains `#picker-title`, close button `[data-close]`, search input `#picker-search`, live status `#picker-status`,
-  results container `#picker-results` (holds at most 5 `.pick-row` items), load-more button `#picker-more`, chosen
+  results container `#picker-results` (holds at most 25 `.pick-row` items across five pages; "Muat 5 lagi" appends 5 per click up to the cap, then hides and displays the hint "Persempit pencarian untuk melihat yang lain." in `#picker-status`; a new search resets to an empty list and 5 rows again), load-more button `#picker-more`, chosen
   chips container `#picker-chosen`, file upload section `#picker-file` (`#pdfile`, `#idfile`, `#anchors`), and hidden
   form carriers `#picker-carriers` (`pd_pick`, `id_pick`, `anchor_pos`, `anchor_value`).
 - Retired IDs: `#pd-picker`, `#pd-picker-data`, `#pd-filter` are gone.
 
 ### 3. Interaction and accessibility contract
-- Trigger: clicking `.pick-open` opens `#picker-dialog` via `showModal()`, focuses `#picker-search`, and loads first 5 items.
+- Trigger: clicking `.pick-open` opens `#picker-dialog` via `showModal()`, focuses `#picker-search` (carrying an `aria-label` following the active kind: `Pilih Peserta`, `Pilih Butir`, `Pilih Jangkar Butir`), and loads first 5 items.
 - Dismiss: Escape, `[data-close]` button, or backdrop click closes dialog without submitting; focus returns to the opening trigger button.
 - Result rows: 44px minimum touch target, keyboard reachable by Tab, focus-visible outline retained, selected rows visually distinguishable by both `--accent-soft` background and a 3px `--accent` left boundary.
 - Chosen chips: chips in `#picker-chosen` contain 44px removal buttons (`.chip-remove`); anchors chip row carries number inputs for anchor values with direct synchronization to `anchor_value` hidden carriers.
+- Anchor marked without value: an anchor chip whose value is empty displays "belum ada nilai" and is not counted in `.pick-summary` (the summary counts anchors with values only), but retains the item in the list so the user can enter a value.
 

@@ -353,9 +353,9 @@ def test_anchors_marking_chips_typing_values_and_submitting(client: TestClient, 
         checkboxes.nth(0).check()
         checkboxes.nth(1).check()
 
-        # Summary reads 2 jangkar
+        # Summary reads Belum ada until anchor values are entered
         summary = page.locator('.pick-summary[data-summary="anchors"]')
-        assert summary.inner_text() == "2 jangkar"
+        assert summary.inner_text() == "Belum ada"
 
         # Chosen list contains two chips with number inputs
         chips = page.locator('#picker-chosen .chip')
@@ -366,6 +366,9 @@ def test_anchors_marking_chips_typing_values_and_submitting(client: TestClient, 
         # Type anchor values into chips
         inputs.nth(0).fill("0.5")
         inputs.nth(1).fill("-1.25")
+
+        # Summary now counts them
+        assert summary.inner_text() == "2 jangkar"
 
         # Hidden carriers in form
         pos_carriers = page.locator('#picker-carriers input[name="anchor_pos"]')
@@ -603,8 +606,8 @@ def test_items_dialog_anchor_toggle_marks_anchor_and_syncs_carriers(client: Test
         anchor_cb = page.locator('#picker-results .pick-row[data-pos="1"] input[data-action="anchor"]')
         anchor_cb.check()
 
-        # Summary for anchors updates
-        assert page.locator('.pick-summary[data-summary="anchors"]').inner_text() == "1 jangkar"
+        # Summary for anchors is uncounted until value is typed
+        assert page.locator('.pick-summary[data-summary="anchors"]').inner_text() == "Belum ada"
 
         # Chip appears in chosen list with number input
         chip = page.locator('#picker-chosen .chip[data-pos="1"]')
@@ -613,8 +616,254 @@ def test_items_dialog_anchor_toggle_marks_anchor_and_syncs_carriers(client: Test
         assert num_input.count() == 1
         num_input.fill("0.5")
 
+        # Summary for anchors updates to 1 jangkar after typing value
+        assert page.locator('.pick-summary[data-summary="anchors"]').inner_text() == "1 jangkar"
+
         # Hidden carriers reflect anchor
         assert page.locator('#picker-carriers input[name="anchor_pos"][value="1"]').count() == 1
         assert page.locator('#picker-carriers input[name="anchor_value"][value="0.5"]').count() == 1
+
+        browser.close()
+
+
+def test_picker_results_bounded_at_25_and_more_button_hidden_with_hint(client: TestClient, tmp_path: pathlib.Path):
+    T._create_authenticated_user(client)
+    dataset_id = T._upload_and_commit_sample(client)
+
+    resp = client.get(f"/datasets/{dataset_id}/analysis-settings")
+    assert resp.status_code == 200
+    html = _inline_assets(resp.text)
+
+    html_file = tmp_path / "settings_bound_25.html"
+    html_file.write_text(html, encoding="utf-8")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        _load_settings_page(page, html_file, client)
+
+        # Open persons picker (300 persons fixture)
+        page.locator('.pick-open[data-kind="persons"]').click()
+        page.wait_for_selector('#picker-results .pick-row')
+        assert page.locator('#picker-results .pick-row').count() == 5
+
+        # Click "Muat 5 lagi" up to 5 times (reaching the 25-row cap)
+        for _ in range(5):
+            btn = page.locator('#picker-more')
+            if btn.is_visible():
+                btn.click()
+                page.wait_for_timeout(150)
+
+        # 1. Exactly 25 rows, button is gone, hint is visible
+        assert page.locator('#picker-results .pick-row').count() == 25
+        assert not page.locator('#picker-more').is_visible()
+        status_text = page.locator('#picker-status').inner_text()
+        assert "Persempit pencarian untuk melihat yang lain." in status_text
+
+        # A new search drops back to 5
+        page.locator('#picker-search').fill("001")
+        page.wait_for_timeout(300)
+        page.wait_for_selector('#picker-results .pick-row')
+        assert page.locator('#picker-results .pick-row').count() == 5
+
+        browser.close()
+
+
+def test_picker_search_debounce_and_staleness(client: TestClient, tmp_path: pathlib.Path):
+    T._create_authenticated_user(client)
+    dataset_id = T._upload_and_commit_sample(client)
+
+    resp = client.get(f"/datasets/{dataset_id}/analysis-settings")
+    assert resp.status_code == 200
+    html = _inline_assets(resp.text)
+
+    html_file = tmp_path / "settings_staleness.html"
+    html_file.write_text(html, encoding="utf-8")
+
+    import time
+
+    def handle_route(route, request):
+        url = request.url
+        if url.endswith("/settings.html") or url.endswith("/page"):
+            route.fulfill(
+                status=200,
+                headers={"Content-Type": "text/html; charset=utf-8"},
+                body=html_file.read_text(encoding="utf-8"),
+            )
+        elif "/picker" in url:
+            # If query is "slow", delay response so a subsequent faster query arrives first
+            if "q=slow" in url:
+                time.sleep(0.6)
+                route.fulfill(
+                    status=200,
+                    headers={"Content-Type": "application/json"},
+                    body='{"kind":"persons","total":1,"offset":0,"limit":5,"has_more":false,"items":[{"pos":999,"label":"SLOW_STALE_ITEM"}]}',
+                )
+            elif "q=fast" in url:
+                route.fulfill(
+                    status=200,
+                    headers={"Content-Type": "application/json"},
+                    body='{"kind":"persons","total":1,"offset":0,"limit":5,"has_more":false,"items":[{"pos":100,"label":"FAST_FRESH_ITEM"}]}',
+                )
+            else:
+                m = re.search(r"(/datasets/\d+/picker\??.*)", url)
+                path_and_query = m.group(1) if m else url
+                r = client.get(path_and_query)
+                route.fulfill(
+                    status=r.status_code,
+                    headers={"Content-Type": "application/json"},
+                    body=r.content,
+                )
+        else:
+            route.continue_()
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.route("http://app.test/**", handle_route)
+        page.goto("http://app.test/settings.html")
+
+        # Open persons dialog
+        page.locator('.pick-open[data-kind="persons"]').click()
+        page.wait_for_selector('#picker-results .pick-row')
+
+        # Type first query "slow", wait for debounce so request is in-flight, then quickly type "fast"
+        page.evaluate("() => { document.getElementById('picker-search').value = 'slow'; document.getElementById('picker-search').dispatchEvent(new Event('input')); }")
+        page.wait_for_timeout(200)
+        page.evaluate("() => { document.getElementById('picker-search').value = 'fast'; document.getElementById('picker-search').dispatchEvent(new Event('input')); }")
+        page.wait_for_timeout(800)
+
+        # Assert rows match the LAST query ("fast"), not the slow stale one
+        rows = page.locator('#picker-results .pick-row')
+        assert rows.count() == 1
+        assert "FAST_FRESH_ITEM" in rows.first.inner_text()
+        assert "SLOW_STALE_ITEM" not in page.locator('#picker-results').inner_text()
+
+        browser.close()
+
+
+def test_picker_search_results_carry_current_query_labels(client: TestClient, tmp_path: pathlib.Path):
+    T._create_authenticated_user(client)
+    dataset_id = T._upload_and_commit_sample(client)
+
+    resp = client.get(f"/datasets/{dataset_id}/analysis-settings")
+    assert resp.status_code == 200
+    html = _inline_assets(resp.text)
+
+    html_file = tmp_path / "settings_query_labels.html"
+    html_file.write_text(html, encoding="utf-8")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        _load_settings_page(page, html_file, client)
+
+        # Open items dialog (sample fixture has items I01..I10)
+        page.locator('.pick-open[data-kind="items"]').click()
+        page.wait_for_selector('#picker-results .pick-row')
+
+        # Initial view has I01..I05
+        assert "I01" in page.locator('#picker-results').inner_text()
+
+        # Search for I08
+        page.locator('#picker-search').fill("I08")
+        page.wait_for_timeout(300)
+        page.wait_for_selector('#picker-results .pick-row')
+
+        # Results carry only label I08, not leftover I01
+        assert "I08" in page.locator('#picker-results').inner_text()
+        assert "I01" not in page.locator('#picker-results').inner_text()
+
+        browser.close()
+
+
+def test_anchor_empty_value_shows_belum_ada_nilai_and_uncounted_until_filled(client: TestClient, tmp_path: pathlib.Path):
+    T._create_authenticated_user(client)
+    dataset_id = T._upload_and_commit_sample(client)
+
+    resp = client.get(f"/datasets/{dataset_id}/analysis-settings")
+    assert resp.status_code == 200
+    html = _inline_assets(resp.text)
+
+    html_file = tmp_path / "settings_anchor_empty_val.html"
+    html_file.write_text(html, encoding="utf-8")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        _load_settings_page(page, html_file, client)
+
+        # Open anchors picker
+        page.locator('.pick-open[data-kind="anchors"]').click()
+        page.wait_for_selector('#picker-results .pick-row')
+
+        # Check first item as anchor
+        checkbox = page.locator('#picker-results .pick-row input[type="checkbox"]').first
+        checkbox.check()
+
+        # Summary does not count it (still "Belum ada")
+        summary = page.locator('.pick-summary[data-summary="anchors"]')
+        assert summary.inner_text() == "Belum ada"
+
+        # Chip shows "belum ada nilai"
+        chip = page.locator('#picker-chosen .chip').first
+        assert "belum ada nilai" in chip.inner_text()
+
+        # Type a value into the number input
+        num_input = chip.locator('input[type="number"]')
+        num_input.fill("2.5")
+
+        # Now it is counted: summary reads "1 jangkar"
+        assert summary.inner_text() == "1 jangkar"
+        # "belum ada nilai" text is hidden
+        assert not chip.locator('span.sec').is_visible()
+
+        # Clear value again
+        num_input.fill("")
+        assert summary.inner_text() == "Belum ada"
+        assert "belum ada nilai" in chip.inner_text()
+
+        browser.close()
+
+
+def test_picker_search_has_non_empty_accessible_name(client: TestClient, tmp_path: pathlib.Path):
+    T._create_authenticated_user(client)
+    dataset_id = T._upload_and_commit_sample(client)
+
+    resp = client.get(f"/datasets/{dataset_id}/analysis-settings")
+    assert resp.status_code == 200
+    html = _inline_assets(resp.text)
+
+    html_file = tmp_path / "settings_search_a11y.html"
+    html_file.write_text(html, encoding="utf-8")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        _load_settings_page(page, html_file, client)
+
+        search_input = page.locator('#picker-search')
+        # Initially in template, aria-label is non-empty
+        initial_label = search_input.get_attribute("aria-label")
+        assert initial_label is not None and len(initial_label.strip()) > 0
+
+        # Open persons dialog
+        page.locator('.pick-open[data-kind="persons"]').click()
+        page.wait_for_selector('#picker-dialog[open]')
+        assert search_input.get_attribute("aria-label") == "Pilih Peserta"
+
+        # Close and open items dialog
+        page.locator('#picker-dialog [data-close]').click()
+        page.locator('.pick-open[data-kind="items"]').click()
+        assert search_input.get_attribute("aria-label") == "Pilih Butir"
+
+        # Close and open anchors dialog
+        page.locator('#picker-dialog [data-close]').click()
+        page.locator('.pick-open[data-kind="anchors"]').click()
+        assert search_input.get_attribute("aria-label") == "Pilih Jangkar Butir"
 
         browser.close()

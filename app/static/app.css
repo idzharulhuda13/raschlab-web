@@ -3058,6 +3058,10 @@ label[for="wright-misfit-toggle"] {
   margin-block-end: var(--space-4);
 }
 
+#picker-dialog #picker-more[hidden] {
+  display: none;
+}
+
 #picker-dialog #picker-chosen {
   margin-block: var(--space-4);
 }
@@ -3070,7 +3074,7 @@ label[for="wright-misfit-toggle"] {
 
 #picker-dialog #picker-chosen .chip input[type="number"] {
   width: 7ch;
-  min-height: 32px;
+  min-height: 44px;
   padding-inline: var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--step-14);
