@@ -390,11 +390,11 @@ def get_dataset_picker(
         raise HTTPException(status_code=404, detail="Dataset tidak ditemukan.")
 
     allowed, retry_after = check_limit(
-        f"analyze:{client_ip(request)}:{user.id}", 12, 3600
+        f"picker:{client_ip(request)}:{user.id}", 120, 60
     )
     if not allowed:
         return Response(
-            content="Batas analisis tercapai (maksimal 12 per jam). Silakan coba lagi nanti.",
+            content="Batas pencarian tercapai (maksimal 120 per menit). Silakan coba lagi nanti.",
             status_code=429,
             headers={"Retry-After": str(retry_after)},
         )
@@ -403,6 +403,12 @@ def get_dataset_picker(
         raise HTTPException(
             status_code=400,
             detail="Jenis pilihan harus persons atau items.",
+        )
+
+    if len(q) > 100:
+        raise HTTPException(
+            status_code=400,
+            detail="Kata kunci pencarian maksimal 100 karakter.",
         )
 
     if kind == "persons":

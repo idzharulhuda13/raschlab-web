@@ -226,3 +226,29 @@ def test_limit_is_fixed_server_side_never_exceeds_5(client: TestClient):
     data = resp.json()
     assert data["limit"] == 5
     assert len(data["items"]) == 5
+
+
+def test_picker_search_does_not_spend_analysis_quota(client: TestClient):
+    _create_authenticated_user(client)
+    dataset_id = _upload_and_commit_sample(client, fixture_name="sample_spread_60x20.csv")
+
+    for _ in range(13):
+        resp = client.get(f"/datasets/{dataset_id}/picker?kind=persons")
+        assert resp.status_code == 200
+
+    analyze_resp = client.post(f"/datasets/{dataset_id}/analyze", follow_redirects=False)
+    assert analyze_resp.status_code == 303
+
+
+def test_query_longer_than_100_chars_returns_400(client: TestClient):
+    _create_authenticated_user(client)
+    dataset_id = _upload_and_commit_sample(client)
+
+    resp_100 = client.get(f"/datasets/{dataset_id}/picker?kind=persons&q={'a' * 100}")
+    assert resp_100.status_code == 200
+
+    resp_101 = client.get(f"/datasets/{dataset_id}/picker?kind=persons&q={'a' * 101}")
+    assert resp_101.status_code == 400
+    assert "detail" in resp_101.json()
+    assert "100" in resp_101.json()["detail"]
+
