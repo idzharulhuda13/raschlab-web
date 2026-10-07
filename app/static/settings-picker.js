@@ -1,103 +1,395 @@
-document.addEventListener('DOMContentLoaded', function () {
-  var picker = document.getElementById('pd-picker');
-  if (!picker) return;
+(function () {
+  'use strict';
 
-  var dataEl = document.getElementById('pd-picker-data');
-  var labels = [];
-  if (dataEl && dataEl.textContent) {
-    try {
-      labels = JSON.parse(dataEl.textContent);
-    } catch (e) {
-      labels = [];
-    }
-  }
+  document.addEventListener('DOMContentLoaded', function () {
+    var dialog = document.getElementById('picker-dialog');
+    var form = document.querySelector('form.upload-form');
+    var carriersContainer = document.getElementById('picker-carriers');
+    if (!dialog || !form || !carriersContainer) return;
 
-  var picksAttr = picker.getAttribute('data-picks');
-  var picks = [];
-  if (picksAttr) {
-    try {
-      picks = JSON.parse(picksAttr);
-    } catch (e) {
-      picks = [];
-    }
-  }
-  var pickSet = {};
-  if (Array.isArray(picks)) {
-    for (var p = 0; p < picks.length; p++) {
-      pickSet[String(picks[p])] = true;
-    }
-  }
+    var titleEl = document.getElementById('picker-title');
+    var searchInput = document.getElementById('picker-search');
+    var statusEl = document.getElementById('picker-status');
+    var resultsEl = document.getElementById('picker-results');
+    var moreBtn = document.getElementById('picker-more');
+    var chosenEl = document.getElementById('picker-chosen');
+    var fileSection = document.getElementById('picker-file');
+    var closeBtn = dialog.querySelector('[data-close]');
 
-  var nAttr = picker.getAttribute('data-n-persons');
-  var n = nAttr ? parseInt(nAttr, 10) : labels.length;
+    var currentKind = null;
+    var lastActiveButton = null;
+    var abortCtrl = null;
+    var searchTimeout = null;
+    var currentOffset = 0;
+    var currentTotal = 0;
+    var currentQuery = '';
 
-  var filterLabel = document.createElement('label');
-  filterLabel.className = 'field-label';
-  filterLabel.htmlFor = 'pd-filter';
-  filterLabel.textContent = 'Cari peserta';
-
-  var filterInput = document.createElement('input');
-  filterInput.type = 'search';
-  filterInput.id = 'pd-filter';
-  filterInput.className = 'field-input';
-  filterInput.autocomplete = 'off';
-
-  picker.parentNode.insertBefore(filterLabel, picker);
-  picker.parentNode.insertBefore(filterInput, picker);
-
-  var fragment = document.createDocumentFragment();
-  var rows = [];
-
-  for (var i = 1; i <= n; i++) {
-    var row = document.createElement('label');
-    row.className = 'field--toggle pick-row';
-
-    var checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.name = 'pd_pick';
-    checkbox.value = String(i);
-    if (pickSet[String(i)]) {
-      checkbox.checked = true;
-    }
-    row.appendChild(checkbox);
-
-    var srOnly = document.createElement('span');
-    srOnly.className = 'sr-only';
-    srOnly.textContent = 'Hapus peserta ';
-    row.appendChild(srOnly);
-
-    var posSpan = document.createElement('span');
-    posSpan.className = 'pick-pos';
-    posSpan.textContent = String(i);
-    row.appendChild(posSpan);
-
-    var labelText = labels[i - 1] ? String(labels[i - 1]) : '';
-    if (labelText && labelText !== String(i)) {
-      var monoSpan = document.createElement('span');
-      monoSpan.className = 'mono';
-      monoSpan.textContent = labelText;
-      row.appendChild(monoSpan);
+    // Dataset ID extracted from form action (/datasets/{id}/analyze)
+    var datasetId = '';
+    var match = form.action.match(/\/datasets\/(\d+)\//);
+    if (match) {
+      datasetId = match[1];
     }
 
-    fragment.appendChild(row);
-    rows.push({
-      el: row,
-      pos: String(i),
-      label: labelText.toLowerCase()
-    });
-  }
+    // State per kind: map of position string -> { pos: string, label: string }
+    var selections = {
+      persons: {},
+      items: {},
+      anchors: {}
+    };
 
-  picker.appendChild(fragment);
+    function carrierNameForKind(kind) {
+      if (kind === 'persons') return 'pd_pick';
+      if (kind === 'items') return 'id_pick';
+      return null;
+    }
 
-  filterInput.addEventListener('input', function () {
-    var query = filterInput.value.trim().toLowerCase();
-    for (var j = 0; j < rows.length; j++) {
-      var r = rows[j];
-      if (!query || r.pos.indexOf(query) !== -1 || (r.label && r.label.indexOf(query) !== -1)) {
-        r.el.removeAttribute('hidden');
-      } else {
-        r.el.setAttribute('hidden', '');
+    function titleForKind(kind) {
+      if (kind === 'persons') return 'Pilih Peserta';
+      if (kind === 'items') return 'Pilih Butir';
+      if (kind === 'anchors') return 'Pilih Jangkar Butir';
+      return 'Pilih';
+    }
+
+    function syncCarriers(kind) {
+      var carrierName = carrierNameForKind(kind);
+      if (!carrierName) return;
+
+      var existing = carriersContainer.querySelectorAll('input[name="' + carrierName + '"]');
+      existing.forEach(function (el) { el.remove(); });
+
+      var kindSel = selections[kind];
+      var positions = Object.keys(kindSel).sort(function (a, b) {
+        return parseInt(a, 10) - parseInt(b, 10);
+      });
+
+      positions.forEach(function (pos) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = carrierName;
+        input.value = pos;
+        carriersContainer.appendChild(input);
+      });
+    }
+
+    function updateRowSummary(kind) {
+      var summaryEl = document.querySelector('.pick-summary[data-summary="' + kind + '"]');
+      if (!summaryEl) return;
+      var count = Object.keys(selections[kind]).length;
+      summaryEl.textContent = count > 0 ? (count + ' dipilih') : 'Belum ada';
+    }
+
+    function renderChips() {
+      if (!chosenEl) return;
+      chosenEl.innerHTML = '';
+      if (!currentKind) return;
+
+      var kindSel = selections[currentKind];
+      var positions = Object.keys(kindSel).sort(function (a, b) {
+        return parseInt(a, 10) - parseInt(b, 10);
+      });
+
+      var chipRow = document.createElement('div');
+      chipRow.className = 'chip-row';
+
+      positions.forEach(function (pos) {
+        var item = kindSel[pos];
+        var chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.setAttribute('data-pos', pos);
+
+        var labelSpan = document.createElement('span');
+        labelSpan.textContent = item.label || pos;
+        chip.appendChild(labelSpan);
+
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'chip-remove';
+        removeBtn.setAttribute('aria-label', 'Hapus ' + (item.label || pos));
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          delete kindSel[pos];
+          syncCarriers(currentKind);
+          updateRowSummary(currentKind);
+          renderChips();
+          syncCheckboxesInResults();
+        });
+
+        chip.appendChild(removeBtn);
+        chipRow.appendChild(chip);
+      });
+
+      chosenEl.appendChild(chipRow);
+    }
+
+    function syncCheckboxesInResults() {
+      if (!resultsEl || !currentKind) return;
+      var kindSel = selections[currentKind];
+      var checkboxes = resultsEl.querySelectorAll('input[type="checkbox"][data-pos]');
+      checkboxes.forEach(function (cb) {
+        var pos = cb.getAttribute('data-pos');
+        cb.checked = !!kindSel[pos];
+      });
+    }
+
+    function initFromCarriers() {
+      ['persons', 'items'].forEach(function (kind) {
+        var carrierName = carrierNameForKind(kind);
+        if (!carrierName) return;
+        var inputs = carriersContainer.querySelectorAll('input[name="' + carrierName + '"]');
+        inputs.forEach(function (inp) {
+          var pos = inp.value;
+          if (pos) {
+            selections[kind][pos] = { pos: pos, label: pos };
+          }
+        });
+        updateRowSummary(kind);
+      });
+    }
+
+    function updateFileSectionVisibility() {
+      if (!fileSection) return;
+      var fields = fileSection.querySelectorAll('.field[data-kind]');
+      fields.forEach(function (f) {
+        if (f.getAttribute('data-kind') === currentKind) {
+          f.removeAttribute('hidden');
+        } else {
+          f.setAttribute('hidden', '');
+        }
+      });
+    }
+
+    function renderResults(items, append) {
+      if (!resultsEl) return;
+      if (!append) {
+        resultsEl.innerHTML = '';
+      }
+
+      items.forEach(function (item) {
+        var posStr = String(item.pos);
+        var labelStr = String(item.label || item.pos);
+
+        var row = document.createElement('label');
+        row.className = 'field--toggle pick-row';
+        row.setAttribute('data-pos', posStr);
+
+        var checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.setAttribute('data-pos', posStr);
+        checkbox.setAttribute('aria-label', (currentKind === 'persons' ? 'Hapus peserta ' : 'Hapus butir ') + labelStr);
+        if (selections[currentKind] && selections[currentKind][posStr]) {
+          checkbox.checked = true;
+        }
+
+        checkbox.addEventListener('change', function () {
+          if (checkbox.checked) {
+            selections[currentKind][posStr] = { pos: posStr, label: labelStr };
+          } else {
+            delete selections[currentKind][posStr];
+          }
+          syncCarriers(currentKind);
+          updateRowSummary(currentKind);
+          renderChips();
+        });
+
+        row.appendChild(checkbox);
+
+        var posSpan = document.createElement('span');
+        posSpan.className = 'pick-pos';
+        posSpan.textContent = posStr;
+        row.appendChild(posSpan);
+
+        if (labelStr && labelStr !== posStr) {
+          var monoSpan = document.createElement('span');
+          monoSpan.className = 'mono';
+          monoSpan.textContent = labelStr;
+          row.appendChild(monoSpan);
+        }
+
+        resultsEl.appendChild(row);
+      });
+
+      // Update picker status text
+      if (statusEl) {
+        if (currentTotal === 0 && items.length === 0) {
+          statusEl.textContent = '';
+        } else {
+          var visibleCount = resultsEl.children.length;
+          statusEl.textContent = visibleCount + ' dari ' + currentTotal;
+        }
       }
     }
+
+    function fetchResults(offset, append) {
+      if (!currentKind || !datasetId) return;
+
+      if (abortCtrl) {
+        abortCtrl.abort();
+      }
+      abortCtrl = new AbortController();
+
+      var url = '/datasets/' + encodeURIComponent(datasetId) +
+                '/picker?kind=' + encodeURIComponent(currentKind) +
+                '&q=' + encodeURIComponent(currentQuery) +
+                '&offset=' + encodeURIComponent(offset);
+
+      fetch(url, { signal: abortCtrl.signal })
+        .then(function (res) {
+          if (!res.ok) {
+            throw new Error('HTTP ' + res.status);
+          }
+          return res.json();
+        })
+        .then(function (data) {
+          currentOffset = data.offset;
+          currentTotal = data.total;
+
+          if (!append) {
+            resultsEl.innerHTML = '';
+          }
+
+          if (data.total === 0 || data.items.length === 0 && !append) {
+            if (moreBtn) moreBtn.hidden = true;
+            if (statusEl) statusEl.textContent = '';
+            var emptyP = document.createElement('p');
+            emptyP.className = 'field-hint';
+            if (currentQuery) {
+              emptyP.textContent = "Tidak ada yang cocok dengan '" + currentQuery + "'. Coba kata lain atau kosongkan kotak cari.";
+            } else {
+              emptyP.textContent = 'Belum ada data untuk daftar ini.';
+            }
+            resultsEl.appendChild(emptyP);
+            return;
+          }
+
+          renderResults(data.items, append);
+
+          if (moreBtn) {
+            moreBtn.hidden = !data.has_more;
+          }
+        })
+        .catch(function (err) {
+          if (err.name === 'AbortError') return;
+          if (!append) {
+            resultsEl.innerHTML = '';
+          }
+          if (moreBtn) moreBtn.hidden = true;
+          if (statusEl) statusEl.textContent = '';
+
+          var errP = document.createElement('p');
+          errP.className = 'field-hint';
+          errP.textContent = 'Gagal memuat data dari server. Periksa koneksi internet atau muat ulang halaman.';
+          resultsEl.appendChild(errP);
+        });
+    }
+
+    function openDialog(kind, triggerBtn) {
+      currentKind = kind;
+      lastActiveButton = triggerBtn;
+
+      if (titleEl) {
+        titleEl.textContent = titleForKind(kind);
+      }
+
+      updateFileSectionVisibility();
+      renderChips();
+
+      currentQuery = '';
+      if (searchInput) {
+        searchInput.value = '';
+      }
+      if (statusEl) {
+        statusEl.textContent = '';
+      }
+      if (resultsEl) {
+        resultsEl.innerHTML = '';
+      }
+      if (moreBtn) {
+        moreBtn.hidden = true;
+      }
+
+      if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+      } else {
+        dialog.setAttribute('open', '');
+      }
+
+      if (searchInput) {
+        searchInput.focus();
+      }
+
+      fetchResults(0, false);
+    }
+
+    function closeDialog() {
+      if (abortCtrl) {
+        abortCtrl.abort();
+      }
+      if (dialog.open) {
+        if (typeof dialog.close === 'function') {
+          dialog.close();
+        } else {
+          dialog.removeAttribute('open');
+        }
+      }
+      if (lastActiveButton) {
+        lastActiveButton.focus();
+        lastActiveButton = null;
+      }
+    }
+
+    // Attach open triggers
+    document.querySelectorAll('.pick-open').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var kind = btn.getAttribute('data-kind');
+        if (kind) {
+          openDialog(kind, btn);
+        }
+      });
+    });
+
+    // Close button
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        closeDialog();
+      });
+    }
+
+    // Close on backdrop click
+    dialog.addEventListener('click', function (e) {
+      if (e.target === dialog) {
+        closeDialog();
+      }
+    });
+
+    // Escape listener: close event or keydown
+    dialog.addEventListener('cancel', function (e) {
+      e.preventDefault();
+      closeDialog();
+    });
+
+    // Search input with 150ms debounce
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(function () {
+          currentQuery = searchInput.value.trim();
+          fetchResults(0, false);
+        }, 150);
+      });
+    }
+
+    // More button
+    if (moreBtn) {
+      moreBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        fetchResults(currentOffset + 5, true);
+      });
+    }
+
+    // Initialize from pre-rendered carriers on DOM ready
+    initFromCarriers();
   });
-});
+})();
