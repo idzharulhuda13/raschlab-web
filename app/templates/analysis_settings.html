@@ -53,53 +53,72 @@
       <p class="field-hint">Bawaan {{ defaults.digits }}. Jumlah angka di belakang koma untuk measure dan S.E.</p>
     </div>
 
-    <div class="field">
-      <label for="pdfile" class="field-label">Daftar hapus peserta (opsional)</label>
-      <input type="file" id="pdfile" name="pdfile" accept=".txt,.csv,.dat" class="field-input">
-      <p class="field-hint">Nomor baris peserta yang dikeluarkan sebelum penilaian, dalam format daftar hapus mesin. Maksimal 2 MB. Isi berkasnya tidak disimpan di pengaturan; yang dicatat hanya nama, jumlah baris, dan sidik jarinya.</p>
+    <div class="pick-field" data-kind="persons">
+      <span class="field-label" id="pick-persons-label">Daftar hapus peserta</span>
+      <span class="pick-summary" data-summary="persons">{% if submitted and submitted.pd_pick and submitted.pd_pick|length > 0 %}{{ submitted.pd_pick|length }} dipilih{% else %}Belum ada{% endif %}</span>
+      <button type="button" class="btn btn--quiet pick-open" data-kind="persons" aria-haspopup="dialog" aria-labelledby="pick-persons-label">Pilih peserta</button>
     </div>
 
-    <div class="field">
-      <label for="idfile" class="field-label">Daftar hapus butir (opsional)</label>
-      <input type="file" id="idfile" name="idfile" accept=".txt,.csv,.dat" class="field-input">
-      <p class="field-hint">Nomor baris butir yang dikeluarkan sebelum penilaian, dalam format daftar hapus mesin. Maksimal 2 MB. Isi berkasnya tidak disimpan di pengaturan; yang dicatat hanya nama, jumlah baris, dan sidik jarinya.</p>
+    <div class="pick-field" data-kind="items">
+      <span class="field-label" id="pick-items-label">Daftar hapus butir</span>
+      <span class="pick-summary" data-summary="items">{% if submitted and submitted.id_pick and submitted.id_pick|length > 0 %}{{ submitted.id_pick|length }} dipilih{% else %}Belum ada{% endif %}</span>
+      <button type="button" class="btn btn--quiet pick-open" data-kind="items" aria-haspopup="dialog" aria-labelledby="pick-items-label">Pilih butir</button>
     </div>
 
-    <div class="field">
-      <label for="anchors" class="field-label">Jangkar butir (opsional)</label>
-      <input type="file" id="anchors" name="anchors" accept=".txt,.csv,.dat" class="field-input">
-      <p class="field-hint">Satu baris per butir: nomor butir (1 sampai jumlah butir) atau nama kolom butir, lalu nilai jangkarnya berupa angka. Boleh dicampur dalam satu berkas. Maksimal 64 KB dan 5000 baris. Berbeda dengan daftar hapus, nilai jangkarnya disimpan bersama analisis ini supaya bisa dipakai ulang tanpa mengunggah ulang.</p>
+    <div class="pick-field" data-kind="anchors">
+      <span class="field-label" id="pick-anchors-label">Jangkar butir</span>
+      <span class="pick-summary" data-summary="anchors">{% if submitted and submitted.anchor_values and submitted.anchor_values|length > 0 %}{{ submitted.anchor_values|length }} dipilih{% else %}Belum ada{% endif %}</span>
+      <button type="button" class="btn btn--quiet pick-open" data-kind="anchors" aria-haspopup="dialog" aria-labelledby="pick-anchors-label">Pilih jangkar</button>
     </div>
 
-    <div class="field">
-      <span class="field-label" id="pd-picker-label">Daftar hapus peserta dari data terparsing</span>
-      <p class="field-hint">Centang peserta yang mau dikeluarkan sebelum penilaian. Nomor baris mengikuti urutan data yang sudah dibaca. Pilihan ini dipakai bila berkas daftar hapus peserta di atas tidak diunggah.</p>
-      <div class="pick-list" id="pd-picker" role="group" aria-labelledby="pd-picker-label" data-n-persons="{{ dataset.n_persons }}" data-picks='{{ (submitted.pd_pick if (submitted and submitted.pd_pick) else []) | tojson }}'>
-        <noscript><p class="field-hint">Pemilih daftar memerlukan JavaScript. Sebagai alternatif, unggah berkas daftar hapus seperti di atas.</p></noscript>
-        <script type="application/json" id="pd-picker-data">{{ person_labels | tojson }}</script>
+    <dialog id="picker-dialog" aria-labelledby="picker-title">
+      <div class="field">
+        <h2 id="picker-title" class="field-label">Pilih</h2>
+        <button type="button" class="btn btn--quiet" data-close aria-label="Tutup">Tutup</button>
       </div>
-    </div>
-
-    <div class="field">
-      <span class="field-label">Daftar hapus butir dan jangkar butir dari data terparsing</span>
-      <p class="field-hint">Centang butir yang mau dikeluarkan, lalu isi kolom Nilai jangkar dengan angka bila butir perlu dikunci. Kosongkan kolom bila tidak ada jangkar. Berkas jangkar yang diunggah di atas menimpa pilihan ini, dan pilihan ini menimpa kotak bawa jangkar di bawah.</p>
-      <div class="pick-list">
-        <div class="pick-row pick-row--anchor pick-row--head" aria-hidden="true">
-          <span class="field-label"></span>
-          <span class="field-label">No.</span>
-          <span class="field-label">Nama butir</span>
-          <span class="field-label">Nilai jangkar</span>
-        </div>
-        {% for lbl in picker_item_labels %}
-        <div class="field--toggle pick-row pick-row--anchor">
-          <input type="checkbox" name="id_pick" value="{{ loop.index }}"{% if submitted and submitted.id_pick and (loop.index|string in submitted.id_pick) %} checked{% endif %} aria-label="Hapus butir {{ loop.index }}">
-          <span class="pick-pos">{{ loop.index }}</span>
-          <span class="mono">{{ lbl }}</span>
-          <input type="hidden" name="anchor_pos" value="{{ loop.index }}">
-          <input type="number" step="any" class="field-input" name="anchor_value" aria-label="Nilai jangkar {{ lbl }}"{% if submitted and submitted.anchor_values and (loop.index|string in submitted.anchor_values) %} value="{{ submitted.anchor_values[loop.index|string] }}"{% endif %}>
-        </div>
-        {% endfor %}
+      <div class="field">
+        <input type="search" id="picker-search" class="field-input" placeholder="Cari..." autocomplete="off">
+        <p id="picker-status" class="field-hint" aria-live="polite"></p>
       </div>
+      <div id="picker-results"></div>
+      <button type="button" id="picker-more" class="btn btn--quiet" hidden>Muat 5 lagi</button>
+      <div id="picker-chosen"></div>
+      <div id="picker-file">
+        <div class="field" data-kind="persons">
+          <label for="pdfile" class="field-label">Daftar hapus peserta (opsional)</label>
+          <input type="file" id="pdfile" name="pdfile" accept=".txt,.csv,.dat" class="field-input">
+          <p class="field-hint">Nomor baris peserta yang dikeluarkan sebelum penilaian, dalam format daftar hapus mesin. Maksimal 2 MB. Isi berkasnya tidak disimpan di pengaturan; yang dicatat hanya nama, jumlah baris, dan sidik jarinya.</p>
+        </div>
+        <div class="field" data-kind="items">
+          <label for="idfile" class="field-label">Daftar hapus butir (opsional)</label>
+          <input type="file" id="idfile" name="idfile" accept=".txt,.csv,.dat" class="field-input">
+          <p class="field-hint">Nomor baris butir yang dikeluarkan sebelum penilaian, dalam format daftar hapus mesin. Maksimal 2 MB. Isi berkasnya tidak disimpan di pengaturan; yang dicatat hanya nama, jumlah baris, dan sidik jarinya.</p>
+        </div>
+        <div class="field" data-kind="anchors">
+          <label for="anchors" class="field-label">Jangkar butir (opsional)</label>
+          <input type="file" id="anchors" name="anchors" accept=".txt,.csv,.dat" class="field-input">
+          <p class="field-hint">Satu baris per butir: nomor butir (1 sampai jumlah butir) atau nama kolom butir, lalu nilai jangkarnya berupa angka. Boleh dicampur dalam satu berkas. Maksimal 64 KB dan 5000 baris. Berbeda dengan daftar hapus, nilai jangkarnya disimpan bersama analisis ini supaya bisa dipakai ulang tanpa mengunggah ulang.</p>
+        </div>
+      </div>
+    </dialog>
+
+    <div id="picker-carriers">
+      {% if submitted and submitted.pd_pick %}
+      {% for pos in submitted.pd_pick %}
+      <input type="hidden" name="pd_pick" value="{{ pos }}">
+      {% endfor %}
+      {% endif %}
+      {% if submitted and submitted.id_pick %}
+      {% for pos in submitted.id_pick %}
+      <input type="hidden" name="id_pick" value="{{ pos }}">
+      {% endfor %}
+      {% endif %}
+      {% if submitted and submitted.anchor_values %}
+      {% for pos, val in submitted.anchor_values.items() %}
+      <input type="hidden" name="anchor_pos" value="{{ pos }}">
+      <input type="hidden" name="anchor_value" value="{{ val }}">
+      {% endfor %}
+      {% endif %}
     </div>
 
     {% if inherit_anchors_id %}

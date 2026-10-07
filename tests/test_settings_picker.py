@@ -136,23 +136,45 @@ def test_settings_page_renders_the_picker(client: TestClient):
     assert resp.status_code == 200
     html = resp.text
 
-    assert 'id="pd-picker"' in html
-    assert 'data-n-persons="300"' in html
-    assert re.search(r'id="pd-picker"[^>]*data-n-persons="300"', html)
-    assert 'id="pd-picker-data"' in html
-    assert "P0001" in html
-    assert "P0300" in html
-    assert "/static/settings-picker.js" in html
+    # Three rows with summaries and open buttons
+    assert 'data-kind="persons"' in html
+    assert 'data-kind="items"' in html
+    assert 'data-kind="anchors"' in html
+    assert '<span class="pick-summary" data-summary="persons">Belum ada</span>' in html
+    assert '<span class="pick-summary" data-summary="items">Belum ada</span>' in html
+    assert '<span class="pick-summary" data-summary="anchors">Belum ada</span>' in html
+    assert re.search(r'class="btn btn--quiet pick-open"[^>]*data-kind="persons"[^>]*aria-haspopup="dialog"', html)
+    assert re.search(r'class="btn btn--quiet pick-open"[^>]*data-kind="items"[^>]*aria-haspopup="dialog"', html)
+    assert re.search(r'class="btn btn--quiet pick-open"[^>]*data-kind="anchors"[^>]*aria-haspopup="dialog"', html)
+
+    # Dialog shell with empty results
+    assert 'id="picker-dialog"' in html
+    assert 'id="picker-title"' in html
+    assert 'id="picker-search"' in html
+    assert 'id="picker-results"' in html
+    assert re.search(r'id="picker-results">\s*</div>', html)
+    assert 'id="picker-more"' in html
+    assert 'id="picker-status"' in html
+    assert 'id="picker-chosen"' in html
+    assert 'id="picker-file"' in html
+
+    # File inputs inside dialog
+    dialog_match = re.search(r'<dialog id="picker-dialog"[^>]*>(.*?)</dialog>', html, re.DOTALL)
+    assert dialog_match is not None
+    dialog_content = dialog_match.group(1)
+    assert 'name="pdfile"' in dialog_content
+    assert 'name="idfile"' in dialog_content
+    assert 'name="anchors"' in dialog_content
+
+    # Old markup removed and script tag kept
+    assert 'id="pd-picker"' not in html
+    assert 'id="pd-picker-data"' not in html
+    assert 'id="pd-filter"' not in html
     assert 'name="pd_pick"' not in html
-    assert html.count('name="id_pick"') == 40
-    assert html.count('name="anchor_pos"') == 40
-    assert html.count('name="anchor_value"') == 40
-    assert "Nilai jangkar" in html
-    assert "<noscript>" in html
-    assert "JavaScript" in html
-    assert 'name="pdfile"' in html
-    assert 'name="idfile"' in html
-    assert 'name="anchors"' in html
+    assert 'name="id_pick"' not in html
+    assert 'name="anchor_pos"' not in html
+    assert 'name="anchor_value"' not in html
+    assert "/static/settings-picker.js" in html
 
 
 def test_picker_run_reaches_the_engine_and_records_metadata(client: TestClient, recorder):
@@ -343,22 +365,28 @@ def test_rejected_settings_post_preserves_picker_selections_and_anchor_values(cl
         data={
             "misfit": "-1",
             "pd_pick": ["3", "7"],
-            "id_pick": ["2", "5"],
-            "anchor_pos": ["1", "2"],
-            "anchor_value": ["0.5", "-1.25"],
+            "id_pick": ["5"],
+            "anchor_pos": ["1"],
+            "anchor_value": ["0.5"],
         },
         follow_redirects=False,
     )
     assert resp.status_code == 422
     html = resp.text
 
-    match = re.search(r"data-picks='([^']*)'", html)
-    assert match is not None
-    assert json.loads(match.group(1)) == ["3", "7"]
-    assert 'name="id_pick" value="2" checked' in html
-    assert 'name="id_pick" value="5" checked' in html
-    assert 'name="anchor_value" aria-label="Nilai jangkar I01" value="0.5"' in html
-    assert 'name="anchor_value" aria-label="Nilai jangkar I02" value="-1.25"' in html
+    assert '<input type="hidden" name="pd_pick" value="3">' in html
+    assert '<input type="hidden" name="pd_pick" value="7">' in html
+    assert html.count('name="pd_pick"') == 2
+    assert '<input type="hidden" name="id_pick" value="5">' in html
+    assert html.count('name="id_pick"') == 1
+    assert '<input type="hidden" name="anchor_pos" value="1">' in html
+    assert '<input type="hidden" name="anchor_value" value="0.5">' in html
+    assert html.count('name="anchor_pos"') == 1
+    assert html.count('name="anchor_value"') == 1
+
+    assert '<span class="pick-summary" data-summary="persons">2 dipilih</span>' in html
+    assert '<span class="pick-summary" data-summary="items">1 dipilih</span>' in html
+    assert '<span class="pick-summary" data-summary="anchors">1 dipilih</span>' in html
 
 
 def test_rejected_bad_anchor_value_survives_in_input(client: TestClient):
@@ -374,7 +402,8 @@ def test_rejected_bad_anchor_value_survives_in_input(client: TestClient):
         follow_redirects=False,
     )
     assert resp.status_code == 422
-    assert 'name="anchor_value" aria-label="Nilai jangkar I01" value="abc"' in resp.text
+    assert '<input type="hidden" name="anchor_pos" value="1">' in resp.text
+    assert '<input type="hidden" name="anchor_value" value="abc">' in resp.text
 
 
 def test_picker_and_upload_produce_identical_engine_input(client: TestClient, recorder):
