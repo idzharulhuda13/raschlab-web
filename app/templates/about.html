@@ -1,0 +1,32 @@
+<!-- RaschLab F2.5 | design-system: DESIGN.md | macrostructure: about -->
+{% extends "base.html" %}
+
+{% block title %}Tentang - RaschLab{% endblock %}
+
+{% block content %}
+<section class="band band--narrow">
+  <div class="panel">
+    <h1 class="gate-title">RaschLab: kalibrasi dan analisis model Rasch</h1>
+    <p class="gate-lead">Memetakan tingkat kesulitan butir dan kemampuan peserta ke satu skala logit, lalu menyimpan hasilnya supaya bisa dibuka lagi kapan saja.</p>
+
+    <p class="field-hint">RaschLab dipakai untuk memeriksa kualitas butir soal: butir mana yang cocok dengan model, mana yang perlu ditinjau, dan bagaimana posisi setiap peserta pada skala yang sama.</p>
+    <p class="field-hint">Aplikasi ini dikembangkan sejak September 2026 oleh Idzharul Huda, data dan analytics engineer di Jakarta. Mesin analisisnya dibangun untuk menghasilkan angka yang identik dengan Winsteps pada masukan dan pengaturan yang sama.</p>
+    <p class="field-hint">Selama masa uji, akses dibuka melalui permintaan email. Data yang diunggah hanya bisa dilihat oleh pemilik akunnya.</p>
+
+    <dl class="about-facts">
+      <dt class="fact-label">Status</dt>
+      <dd class="fact-value">Masa uji terbatas</dd>
+      <dt class="fact-label">Mulai dikembangkan</dt>
+      <dd class="fact-value">September 2026</dd>
+      <dt class="fact-label">Pembuat</dt>
+      <dd class="fact-value">Idzharul Huda, Jakarta</dd>
+      <dt class="fact-label">Kontak</dt>
+      <dd class="fact-value">hello@idzharulhuda.com</dd>
+      <dt class="fact-label">Situs practice</dt>
+      <dd class="fact-value">https://idzharulhuda.com</dd>
+    </dl>
+
+    <p><a href="/pricing">Harga</a>, <a href="/changelog">Perubahan</a>, <a href="/register">Daftar akun</a></p>
+  </div>
+</section>
+{% endblock %}

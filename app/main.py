@@ -14,6 +14,7 @@ from app.analyze import router as analyze_router
 from app.explore import router as explore_router
 from app.export import router as export_router
 from app.share import router as share_router, share_guard
+from app.public import router as public_router
 from app.ui import initials_for
 
 APP_VERSION = "0.1.0"
@@ -54,6 +55,7 @@ app.include_router(analyze_router)
 app.include_router(explore_router)
 app.include_router(export_router)
 app.include_router(share_router)
+app.include_router(public_router)
 
 
 @app.get("/", response_class=HTMLResponse)
