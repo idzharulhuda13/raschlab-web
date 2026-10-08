@@ -3128,3 +3128,56 @@ label[for="wright-misfit-toggle"] {
   text-align: right;
   color: var(--muted);
 }
+
+.about-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin-block: var(--space-6);
+}
+
+.fact-label {
+  color: var(--muted);
+  font-size: var(--step-14);
+}
+
+.fact-value {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--step-14);
+  overflow-wrap: anywhere;
+}
+
+.changelog-list {
+  list-style: none;
+  padding: 0;
+  margin-block: var(--space-6);
+  display: grid;
+  gap: var(--space-6);
+}
+
+.changelog-entry {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.changelog-date {
+  font-size: var(--step-14);
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+.changelog-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--step-16);
+  line-height: 1.5;
+}
+
+.footer-nav {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  flex-wrap: wrap;
+}
+

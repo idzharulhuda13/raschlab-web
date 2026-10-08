@@ -1,0 +1,34 @@
+<!-- RaschLab F2.5 | design-system: DESIGN.md | macrostructure: changelog -->
+{% extends "base.html" %}
+
+{% block title %}Perubahan - RaschLab{% endblock %}
+
+{% block content %}
+<section class="band band--narrow">
+  <div class="panel">
+    <h1 class="gate-title">Perubahan</h1>
+    <p class="gate-lead">Catatan bertanggal untuk aplikasi ini. Terbaru di atas.</p>
+
+    <ol class="changelog-list">
+      <li class="changelog-entry">
+        <span class="changelog-date">8 Oktober 2026</span>
+        <p class="changelog-text">Halaman tentang, harga, dan perubahan dibuka untuk umum.</p>
+      </li>
+      <li class="changelog-entry">
+        <span class="changelog-date">3 Oktober 2026</span>
+        <p class="changelog-text">Aplikasi web RaschLab dibuka di raschlab.idzharulhuda.com.</p>
+      </li>
+      <li class="changelog-entry">
+        <span class="changelog-date">23 September 2026</span>
+        <p class="changelog-text">Kerangka aplikasi web: FastAPI, Postgres, dan berkas Docker.</p>
+      </li>
+      <li class="changelog-entry">
+        <span class="changelog-date">12 September 2026</span>
+        <p class="changelog-text">Mesin analisis Rasch mulai dikerjakan, dengan target paritas angka terhadap Winsteps.</p>
+      </li>
+    </ol>
+
+    <p><a href="/about">Tentang</a>, <a href="/pricing">Harga</a>, <a href="/register">Daftar akun</a></p>
+  </div>
+</section>
+{% endblock %}
