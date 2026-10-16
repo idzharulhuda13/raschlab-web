@@ -238,22 +238,39 @@ def post_register(
         return RedirectResponse("/register?msg=send_failed", 303)
 
 
-@router.get("/verify")
-def get_verify(token: str = "", db: Session = Depends(get_session)):
+def _pending_verify_token(token: str, db: Session) -> EmailToken | None:
+    """Resolve a verify token that could still be consumed, without consuming it."""
     if not token:
-        return RedirectResponse("/login?msg=verify_failed", 303)
-    token_h = hash_token(token)
+        return None
     token_row = db.execute(
-        select(EmailToken).where(EmailToken.token_hash == token_h)
+        select(EmailToken).where(EmailToken.token_hash == hash_token(token))
     ).scalar_one_or_none()
-    now = now_epoch()
     if (
         token_row is None
         or token_row.purpose != "verify"
         or token_row.used_at is not None
-        or token_row.expires_at <= now
+        or token_row.expires_at <= now_epoch()
     ):
+        return None
+    return token_row
+
+
+@router.get("/verify", response_class=HTMLResponse)
+def get_verify(request: Request, token: str = "", db: Session = Depends(get_session)):
+    """Confirm before consuming: a scanner that pre-fetches this URL must not burn the token."""
+    if _pending_verify_token(token, db) is None:
         return RedirectResponse("/login?msg=verify_failed", 303)
+    return templates.TemplateResponse(
+        request=request, name="verify.html", context={"token": token}
+    )
+
+
+@router.post("/verify")
+def post_verify(token: str = Form(""), db: Session = Depends(get_session)):
+    token_row = _pending_verify_token(token, db)
+    if token_row is None:
+        return RedirectResponse("/login?msg=verify_failed", 303)
+    now = now_epoch()
     res = db.execute(
         update(EmailToken)
         .where(EmailToken.id == token_row.id, EmailToken.used_at.is_(None))

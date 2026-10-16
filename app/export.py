@@ -84,6 +84,10 @@ def build_xlsx(sheet_title: str, rows: list[list[str]], header_rows: int, numeri
             if value == "":
                 value = None
             cell = WriteOnlyCell(ws, value=value)
+            if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+                # Labels that arrive from an uploaded file must stay text: openpyxl would
+                # otherwise store a leading "=" as a live formula in the downloaded sheet.
+                cell.data_type = "s"
             if fmt:
                 cell.number_format = fmt
             row_cells.append(cell)
