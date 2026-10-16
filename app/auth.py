@@ -260,8 +260,12 @@ def get_verify(request: Request, token: str = "", db: Session = Depends(get_sess
     """Confirm before consuming: a scanner that pre-fetches this URL must not burn the token."""
     if _pending_verify_token(token, db) is None:
         return RedirectResponse("/login?msg=verify_failed", 303)
+    # The token sits in this URL: keep it out of shared caches and out of third-party Referer values.
     return templates.TemplateResponse(
-        request=request, name="verify.html", context={"token": token}
+        request=request,
+        name="verify.html",
+        context={"token": token},
+        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
     )
 
 

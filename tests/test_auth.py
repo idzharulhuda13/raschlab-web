@@ -476,3 +476,17 @@ def test_verify_get_does_not_consume_token(client, sent_emails):
     with SessionLocal() as db:
         user = db.execute(select(User).where(User.email == "scanner@example.test")).scalar_one()
         assert user.verified_at is not None
+
+
+def test_verify_confirm_page_is_not_cacheable(client, sent_emails):
+    client.post(
+        "/register",
+        data={"email": "cache@example.test", "password": PASSWORD},
+        follow_redirects=False,
+    )
+    verify_path = _extract_verify_path(sent_emails[0][2])
+    resp = client.get(verify_path, follow_redirects=False)
+    assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "no-store"
+    assert resp.headers["referrer-policy"] == "no-referrer"
+
