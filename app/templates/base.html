@@ -18,6 +18,9 @@
       document.documentElement.dataset.theme = match[1];
     }
   </script>
+  {% block seo %}
+  <meta name="robots" content="noindex">
+  {% endblock %}
   {% block head %}{% endblock %}
   <script src="/static/app.js" defer></script>
 </head>

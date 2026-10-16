@@ -22,7 +22,33 @@ def test_public_pages_accessible_when_logged_out(client: TestClient):
 
     sitemap_res = client.get("/sitemap.xml")
     assert sitemap_res.headers.get("content-type", "").startswith("application/xml")
-    assert "https://raschlab.idzharulhuda.com/" in sitemap_res.text
+    assert "<loc>https://raschlab.idzharulhuda.com/</loc>" not in sitemap_res.text
     assert "https://raschlab.idzharulhuda.com/about" in sitemap_res.text
     assert "https://raschlab.idzharulhuda.com/pricing" in sitemap_res.text
     assert "https://raschlab.idzharulhuda.com/changelog" in sitemap_res.text
+
+
+def test_public_pages_carry_canonical_and_description(client: TestClient):
+    for path, canonical in [
+        ("/about", "https://raschlab.idzharulhuda.com/about"),
+        ("/pricing", "https://raschlab.idzharulhuda.com/pricing"),
+        ("/changelog", "https://raschlab.idzharulhuda.com/changelog"),
+    ]:
+        body = client.get(path).text
+        assert '<meta name="robots" content="index, follow">' in body, path
+        assert f'<link rel="canonical" href="{canonical}">' in body, path
+        assert '<meta name="description" content="' in body, path
+        assert 'property="og:url"' in body, path
+
+
+def test_app_pages_are_noindex(client: TestClient):
+    for path in ["/login", "/register"]:
+        body = client.get(path).text
+        assert '<meta name="robots" content="noindex">' in body, path
+
+
+def test_sitemap_lists_only_canonical_pages(client: TestClient):
+    body = client.get("/sitemap.xml").text
+    assert "<loc>https://raschlab.idzharulhuda.com/</loc>" not in body
+    for path in ["/about", "/pricing", "/changelog"]:
+        assert f"<loc>https://raschlab.idzharulhuda.com{path}</loc>" in body, path

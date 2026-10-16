@@ -1,0 +1,22 @@
+<!-- RaschLab F2.5 | design-system: DESIGN.md | macrostructure: form-narrow -->
+{% extends "base.html" %}
+
+{% block title %}Verifikasi Email - RaschLab{% endblock %}
+
+{% block seo %}
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+{% endblock %}
+
+{% block content %}
+<section class="band band--narrow">
+  <div class="panel">
+    <h1 class="auth-title">Verifikasi email</h1>
+    <p class="auth-lead">Klik tombol di bawah untuk mengaktifkan akunmu. Tautan ini hanya bisa dipakai sekali.</p>
+    <form action="/verify" method="post">
+      <input type="hidden" name="token" value="{{ token }}">
+      <button type="submit" class="btn btn--primary">Verifikasi email saya</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

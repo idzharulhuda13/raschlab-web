@@ -71,7 +71,9 @@ def test_no_style_blocks_in_any_template():
         assert "<style" not in content, f"<style tag found in {html_file}"
 
     page_templates = list(templates_dir.glob("*.html"))
-    assert len(page_templates) == 14, f"Expected 13 page templates directly under app/templates, found {len(page_templates)}"  # 13 pages since F12 added analysis_settings.html
+    # 18 (16 Oct 2026, measured on this tree): about.html, pricing.html and changelog.html arrived with the
+    # product-pages commit, and verify.html came with the scanner-proof verification change; the pin was still 14.
+    assert len(page_templates) == 18, f"Expected 18 page templates directly under app/templates, found {len(page_templates)}"
     for html_file in page_templates:
         content = html_file.read_text()
         assert 'style="' not in content, f'style=" attribute found in page template {html_file}'
@@ -417,10 +419,15 @@ def test_all_template_classes_defined_in_app_css():
     # detail pages adopted the dashboard header frame (.dash-head); its rule in app.css is now unreferenced.
     # 219 (F22 R2, 7 Oct 2026): .pick-list, .pick-pos, .pick-row, .pick-row--anchor, .pick-row--head removed (-5);
     # .pick-field, .pick-summary, .pick-open, .btn--quiet added (+4): used 219 / defined 232.
-    assert len(used_classes) == 219, f"Used template class count changed to {len(used_classes)}"
+    # 227 (16 Oct 2026, measured with this file's own regex): the product pages added 8 used classes:
+    # .about-facts, .fact-label, .fact-value, .changelog-list, .changelog-entry, .changelog-date,
+    # .changelog-text, .footer-nav. Previous pin 219 (F22 R2, 7 Oct 2026).
+    assert len(used_classes) == 227, f"Used template class count changed to {len(used_classes)}"
     # 237 (F22 R5, 7 Oct 2026): styles for the F22 picker surfaces land in app.css (+5 classes: .btn--quiet,
     # .chip-remove, .pick-field, .pick-open, .pick-summary): used 219 / defined 237.
-    assert len(defined_classes) == 237, f"Defined app.css class count changed to {len(defined_classes)}"
+    # 245 (16 Oct 2026, measured with this file's own regex): the same product-pages commit defined those
+    # 8 classes in app.css. Previous pin 237 (F22 R5, 7 Oct 2026).
+    assert len(defined_classes) == 245, f"Defined app.css class count changed to {len(defined_classes)}"
 
 
 def _create_dataset_with_done_analysis(user_id: int, filename: str = "matriks_ujian.csv") -> tuple[int, int]:

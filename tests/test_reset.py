@@ -76,7 +76,7 @@ def test_reset_happy_path_revokes_sessions(client, sent_emails):
         follow_redirects=False,
     )
     verify_token = _extract_token(sent_emails[0][2], "verify")
-    client.get(f"/verify?token={verify_token}", follow_redirects=False)
+    client.post("/verify", data={"token": verify_token}, follow_redirects=False)
 
     # login (session row exists)
     resp_login = client.post(

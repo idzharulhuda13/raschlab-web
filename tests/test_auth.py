@@ -36,6 +36,9 @@ def _extract_token(html: str) -> str:
     return match.group(1)
 
 
+_extract_verify_token = _extract_token
+
+
 def test_register_creates_user_with_argon2id_hash(client, sent_emails):
     response = client.post(
         "/register",
@@ -189,7 +192,11 @@ def test_register_duplicate_unverified_reissues_token(client, sent_emails):
     assert r_old.status_code == 303
     assert r_old.headers["location"] == "/login?msg=verify_failed"
 
-    r_new = client.get(f"/verify?token={token2}", follow_redirects=False)
+    prefetch = client.get(f"/verify?token={token2}", follow_redirects=False)
+    assert prefetch.status_code == 200
+    assert "location" not in prefetch.headers
+
+    r_new = client.post("/verify", data={"token": token2}, follow_redirects=False)
     assert r_new.status_code == 303
     assert r_new.headers["location"] == "/login?msg=verified"
 
@@ -222,16 +229,21 @@ def test_verify_valid(client, sent_emails):
     )
     assert len(sent_emails) == 1
     verify_path = _extract_verify_path(sent_emails[0][2])
+    token = _extract_token(sent_emails[0][2])
 
-    response = client.get(verify_path, follow_redirects=False)
+    prefetch = client.get(verify_path, follow_redirects=False)
+    assert prefetch.status_code == 200
+    assert "location" not in prefetch.headers
+
+    response = client.post("/verify", data={"token": token}, follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login?msg=verified"
 
     with SessionLocal() as db:
         user = db.execute(select(User).where(User.email == "a@example.test")).scalar_one()
         assert user.verified_at is not None
-        token = db.execute(select(EmailToken).where(EmailToken.user_id == user.id)).scalar_one()
-        assert token.used_at is not None
+        token_row = db.execute(select(EmailToken).where(EmailToken.user_id == user.id)).scalar_one()
+        assert token_row.used_at is not None
 
 
 def test_verify_single_use(client, sent_emails):
@@ -242,8 +254,13 @@ def test_verify_single_use(client, sent_emails):
     )
     assert len(sent_emails) == 1
     verify_path = _extract_verify_path(sent_emails[0][2])
+    token = _extract_token(sent_emails[0][2])
 
-    r1 = client.get(verify_path, follow_redirects=False)
+    prefetch = client.get(verify_path, follow_redirects=False)
+    assert prefetch.status_code == 200
+    assert "location" not in prefetch.headers
+
+    r1 = client.post("/verify", data={"token": token}, follow_redirects=False)
     assert r1.status_code == 303
     assert r1.headers["location"] == "/login?msg=verified"
 
@@ -278,7 +295,13 @@ def test_login_success_and_cookie_flags(client, sent_emails):
         follow_redirects=False,
     )
     verify_path = _extract_verify_path(sent_emails[0][2])
-    client.get(verify_path, follow_redirects=False)
+    token = _extract_token(sent_emails[0][2])
+    prefetch = client.get(verify_path, follow_redirects=False)
+    assert prefetch.status_code == 200
+    assert "location" not in prefetch.headers
+    verify_resp = client.post("/verify", data={"token": token}, follow_redirects=False)
+    assert verify_resp.status_code == 303
+    assert verify_resp.headers["location"] == "/login?msg=verified"
 
     response = client.post(
         "/login",
@@ -353,7 +376,11 @@ def test_logout_revokes(client, sent_emails):
         follow_redirects=False,
     )
     verify_path = _extract_verify_path(sent_emails[0][2])
-    client.get(verify_path, follow_redirects=False)
+    token = _extract_token(sent_emails[0][2])
+    prefetch = client.get(verify_path, follow_redirects=False)
+    assert prefetch.status_code == 200
+    assert "location" not in prefetch.headers
+    client.post("/verify", data={"token": token}, follow_redirects=False)
 
     client.post(
         "/login",
@@ -389,6 +416,7 @@ def test_isolation_two_accounts(sent_emails):
     )
     token_a = _extract_token(sent_emails[0][2])
     client_a.get(f"/verify?token={token_a}", follow_redirects=False)
+    client_a.post("/verify", data={"token": token_a}, follow_redirects=False)
     client_a.post(
         "/login",
         data={"email": "a@example.test", "password": PASSWORD},
@@ -402,6 +430,7 @@ def test_isolation_two_accounts(sent_emails):
     )
     token_b = _extract_token(sent_emails[1][2])
     client_b.get(f"/verify?token={token_b}", follow_redirects=False)
+    client_b.post("/verify", data={"token": token_b}, follow_redirects=False)
     client_b.post(
         "/login",
         data={"email": "b@example.test", "password": PASSWORD},
@@ -423,3 +452,41 @@ def test_account_requires_login(client):
     response = client.get("/account", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
+
+
+def test_verify_get_does_not_consume_token(client, sent_emails):
+    client.post(
+        "/register",
+        data={"email": "scanner@example.test", "password": PASSWORD},
+        follow_redirects=False,
+    )
+    assert len(sent_emails) == 1
+    verify_path = _extract_verify_path(sent_emails[0][2])
+    token = _extract_verify_token(sent_emails[0][2])
+
+    prefetch = client.get(verify_path, follow_redirects=False)
+    assert prefetch.status_code == 200
+    assert "location" not in prefetch.headers
+
+    fresh_client = TestClient(fastapi_app, base_url="https://testserver")
+    response = fresh_client.post("/verify", data={"token": token}, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login?msg=verified"
+
+    with SessionLocal() as db:
+        user = db.execute(select(User).where(User.email == "scanner@example.test")).scalar_one()
+        assert user.verified_at is not None
+
+
+def test_verify_confirm_page_is_not_cacheable(client, sent_emails):
+    client.post(
+        "/register",
+        data={"email": "cache@example.test", "password": PASSWORD},
+        follow_redirects=False,
+    )
+    verify_path = _extract_verify_path(sent_emails[0][2])
+    resp = client.get(verify_path, follow_redirects=False)
+    assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "no-store"
+    assert resp.headers["referrer-policy"] == "no-referrer"
+

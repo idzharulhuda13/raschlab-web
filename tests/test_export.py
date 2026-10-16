@@ -774,3 +774,15 @@ def test_combined_workbook_omits_subsubtes_sheet_without_the_file(client: TestCl
         "wright_frequency",
     ]
 
+
+def test_export_keeps_formula_like_labels_as_text():
+    from app.export import build_xlsx
+    import io, zipfile
+
+    rows = [["Butir", "Measure"], ["=1+1", "0.53"]]
+    payload = build_xlsx("butir", rows, header_rows=1)
+    sheet = zipfile.ZipFile(io.BytesIO(payload)).read("xl/worksheets/sheet1.xml").decode()
+    assert "<f>" not in sheet
+    assert "=1+1" in sheet
+
+
