@@ -3,7 +3,7 @@
 
 Boots the real app on a temporary SQLite database, seeds crafted data,
 drives a real Chromium via Playwright, and prints a per-group PASS/FAIL
-table. Exactly 207 checks in 12 groups. Exit 0 only when all 207 pass.
+table. Exactly 240 checks in 12 groups. Exit 0 only when all 240 pass.
 """
 
 from __future__ import annotations
@@ -2470,7 +2470,7 @@ def main() -> int:
         print(f"TOTAL: {total} checks  |  {passed} PASS  |  {failed} FAIL")
         print(f"{'=' * 72}")
 
-        EXPECTED_TOTAL = 207
+        EXPECTED_TOTAL = 240  # stamped 2026-10-31 from a full harness run: 240 checks, 12 groups
         if total != EXPECTED_TOTAL:
             print(
                 f"\nERROR: Expected {EXPECTED_TOTAL} checks, got {total}. "
