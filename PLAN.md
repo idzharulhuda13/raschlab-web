@@ -530,6 +530,17 @@ clarify plus a frozen contract before a writer touches it.
 - **B4.** Show which `.CON` directives were honoured, on the dataset page. The app already stores them
   (`summary["control"]`, verified live: `{"KEY1": ..., "CODES": "10", "MISSCORE": "-1"}`) and no page
   renders them, so a user cannot see whether a decoy like `NAMELEN` was ignored.
+- **B5. `DISPLACE` per item (engine + `15.1` sheet).** Recorded 12 Nov 2026. Anchored runs need the
+  drift of each anchor: the TBS2026 review sheets now carry a hand-filled `DISPLACE` column copied from
+  Winsteps, because raschlab does not compute it (engine and web grep: 0 hits; `docs/parity.md:155`
+  deferred it until "a concrete requirement ... with the sheet that would consume it" -- that sheet now
+  exists). Method (Winsteps manual, displacement.htm): with every parameter held at its final value,
+  fit the item's observed score on the logistic ogive through (D0,E0) and (D0+1,E1); DISPLACE = DS - D0.
+  Anchored items: drift vs anchor value; free items: ~0, only non-zero when convergence is loose.
+  Parity data already on the box: Winsteps 5.2.1 TBS2026 aggregate runs
+  (`/root/pusmendik-tbs26/agregat/*/hasil_*.txt`, 535 items: 15 anchors |d| max 0,37, free items <= 0,01)
+  plus `tests/regression/golden_anchor_displace.json` (2025, 15 anchors). Gate suggestion: <= 0,02 logit
+  on anchors. Touches the engine repo, so it lifts this plan's "no engine change" line for this item only.
 
 ## OUT OF SCOPE (explicit)
 
